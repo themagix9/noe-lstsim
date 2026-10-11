@@ -43,12 +43,12 @@ Jeder Build besitzt zusätzlich einen unveränderlichen Tag `sha-<vollständige 
 
 ## Erste Übung
 
-1. In der Lobby Spielernamen eingeben und eine Sitzung erstellen oder mit dem achtstelligen Code beitreten. Die Simulation beginnt pausiert um 08:00. Starte sie oben rechts; zum Testen eignet sich 15×.
+1. Spielmodus, Standort, Dispozone, Spielernamen und Startstunde wählen. Für den vorhandenen Bestand Dispo 05 verwenden. Multiplayer kann alternativ per Code beitreten. Die Simulation beginnt pausiert; zum Testen eignet sich 15×.
 2. Über **+ Ereignis** kannst du sofort einen Notruf oder Transportauftrag erzeugen. Während der Übung treffen auch automatisch neue Ereignisse ein.
 3. Notruf auswählen, annehmen und die zusätzliche Abfrage öffnen.
-4. Transportziel auswählen, passende Ressourcen markieren und alarmieren. Bei Szenarien mit RTW + NEF beide auswählen; ein NEF kann später ergänzt werden.
+4. Im Einsatzmodal Abfrage abschließen, Stichwort prüfen, AAO-Vorschlag übernehmen oder passende Ressourcen manuell markieren und alarmieren. Transportziel wird bei RD-Einsätzen später von der Mannschaft gemeldet.
 5. Krankentransporte erscheinen direkt als elektronische Aufträge mit Abholzeit. Sie lösen keinen 144-Telefonanruf aus.
-6. Fahrzeugstatus und Funkmeldungen folgen dem Simulationsablauf. Ein Fahrzeug bleibt bis zum Ende der Aufbereitung gebunden.
+6. Fahrzeugstatus und Funkmeldungen folgen dem Simulationsablauf. Nach Patientenübergabe wird die Ressource frei über Funk; bei Status 5 lassen sich bereits Folge-Transportaufträge senden.
 
 Die zusätzlichen Abfragen sind eine vereinfachte Spielmechanik und kein reales standardisiertes Abfragesystem oder medizinisches Schulungsprotokoll.
 
@@ -58,7 +58,7 @@ Unter **Ressourcen** können Fahrzeuge und Dienststellen erstellt und bearbeitet
 
 Die 14 Kennungen und Fahrzeugtypen stammen aus den Nutzerfotos vom 11.10.2026: 53/002, 53/022, 53/601, 53/602, 53/699, 77/001, 77/002, 77/004, 77/006, 77/015, 77/030, 77/060, 77/099, 77/900. Die Fotos zeigen angemeldete Ressourcen zu einem Zeitpunkt, keine vollständige Flottenliste. **Stammdienststellen, Koordinaten und ganztägige Dienstzeiten sind ungeprüfte Startwerte**, abgeleitet aus den sichtbaren Ortsangaben und Kennungsgruppen. Kein aktueller vollständiger NÖ-Bestand wird behauptet. Die Live-Statuswerte, Einsatzcodes und etwaigen Patientendaten aus den Fotos werden nicht übernommen.
 
-Stammdienststelle und aktueller Standort werden getrennt gespeichert. Die Zonenwahl filtert die Ressourcenübersicht; freie Fahrzeuge anderer Zonen bleiben in der Dispositionsauswahl verfügbar. Weitere Zonen und Dienststellen lassen sich anlegen, automatische Einsätze entstehen in v0.1 weiterhin im Raum Bruck/Leitha.
+Stammdienststelle und aktueller Standort werden getrennt gespeichert. Die Zonenwahl filtert die Ressourcenübersicht; freie Fahrzeuge anderer Zonen bleiben in der Dispositionsauswahl verfügbar. Weitere Zonen und Dienststellen lassen sich anlegen, automatische Einsätze entstehen derzeit nur bei Auswahl von Dispo 05 im Raum Bruck/Leitha.
 
 ## Speicherung und Konfigurationsimport
 

@@ -59,6 +59,11 @@ class OperationsTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.dispatch(b)
         with self.assertRaises(ValueError):self.e.command('reserve',{'job':b['id'],'vehicle':self.v['id']})
         self.dispatch(a);self.assertIsNone(self.v['reservation']);self.assertIsNone(a['reserved'])
+    def test_reassignment_clears_previous_reservation(self):
+        j=self.job();self.e.command('reserve',{'job':j['id'],'vehicle':self.v['id']})
+        other=next(v for v in self.e.state['vehicles'] if v['type']=='RTW')
+        self.dispatch(j,other);self.assertIsNone(self.v['reservation']);self.assertIsNone(j['reserved'])
+
     def test_busy_reservation_waits_for_status5_then_sends(self):
         a=self.job();self.dispatch(a);self.e.command('vehicle_status',{'vehicle':self.v['id'],'status':'2'})
         b=self.job();self.e.command('reserve',{'job':b['id'],'vehicle':self.v['id']})

@@ -69,6 +69,8 @@ class Operations:
         for v in selected:
             if not self.sendable(v,j):raise ValueError(f'{v["callsign"]} kann den Auftrag noch nicht erhalten (Status 1, 5 oder 6 erforderlich).')
             if v['status']=='hospital' and j['kind']!='transport':raise ValueError('Während der Übergabe nur Transportaufträge senden.')
+        if j['kind']=='transport' and j.get('reserved'):
+            self.unreserve({'job':j['id']})
         for v in selected:
             previous=v['status'];handover=v.get('phase_due') if previous=='hospital' else None
             self.detach(v)
