@@ -37,7 +37,8 @@ class EngineTests(unittest.TestCase):
         self.e.command('generate',{'kind':'transport'});j=self.e.state['jobs'][-1];v=next(v for v in self.e.state['vehicles'] if v['type']=='KTW')
         self.e.command('dispatch',{'job':j['id'],'vehicles':[v['id']]})
         self.e.command('control',{'paused':False})
-        for expected in ['enroute','scene','transport','hospital','return','clean','ready']:
+        self.e.command('vehicle_status',{'vehicle':v['id'],'status':'9'})
+        for expected in ['enroute','scene','transport','hospital','radio','ready']:
             duration=v['phase_due']-self.e.state['clock']+.1;self.e.tick(duration);self.assertEqual(v['status'],expected)
         self.assertEqual(j['status'],'done');self.assertIsNone(v['job'])
     def test_invalid_import_preserves_data(self):

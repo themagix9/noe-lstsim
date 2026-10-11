@@ -8,6 +8,7 @@ import re
 import sqlite3
 import threading
 import uuid
+from operations import Operations, STATUS_LABELS, JOB_ACTIONS
 
 GRAPHICS = [
     {'id':'van','name':'Rettungswagen · Kastenwagen','url':'/graphics/van.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
@@ -18,7 +19,7 @@ GRAPHICS = [
 DEFAULT_GRAPHIC = {'KTW':'van','KTW-B':'van','RTW':'van','RTW-C':'box','NEF':'car','BEL':'command'}
 
 TYPES = ['KTW', 'KTW-B', 'RTW', 'RTW-C', 'NEF', 'BEL']
-STATUSES = {'ready': 'Frei auf Wache', 'radio': 'Frei über Funk', 'out': 'Außer Dienst', 'assigned': 'Alarmiert', 'enroute': 'Zum Berufungsort', 'scene': 'Am Berufungsort', 'transport': 'Zum Zielort', 'hospital': 'Am Zielort', 'return': 'Rückfahrt', 'clean': 'Desinfektion'}
+STATUSES = STATUS_LABELS
 SCENARIOS = [
     {'title': 'Atemnot', 'caller': 'Mein Vater bekommt schlecht Luft. Er sitzt am Sofa und kann kaum einen ganzen Satz sagen.', 'detail': 'Männlich, 68 Jahre, wach, Atmung vorhanden, zunehmende Atemnot seit etwa 20 Minuten.', 'priority': 'hoch', 'needs': ['RTW', 'NEF'], 'scene': 'Patient wach, ausgeprägte Atemnot. Notarzt erforderlich; Transport nach Versorgung.'},
     {'title': 'Sturz in Wohnung', 'caller': 'Meine Mutter ist im Badezimmer gestürzt. Sie liegt noch am Boden und kommt nicht alleine hoch.', 'detail': 'Weiblich, 79 Jahre, ansprechbar, normale Atmung. Schmerzen im Hüftbereich, keine sichtbare Blutung.', 'priority': 'mittel', 'needs': ['RTW'], 'scene': 'Patientin ansprechbar, Schmerzen im Hüftbereich. Liegendtransport zur Abklärung.'},
@@ -44,7 +45,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':HOSPITALS,'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine:
+class Engine(Operations):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -62,6 +63,7 @@ class Engine:
         self.state.setdefault('chat',[])
         for v in self.state['vehicles']: v.setdefault('graphic',DEFAULT_GRAPHIC[v['type']])
         for j in self.state['jobs']: j.setdefault('owner',None)
+        self.migrate_operations()
         self.save()
 
     def save(self):
@@ -70,7 +72,10 @@ class Engine:
 
     def snapshot(self):
         with self.lock:
-            return copy.deepcopy(self.state)
+            result=copy.deepcopy(self.state)
+            for j in result['jobs']:
+                if j['accepted']:j['aao']=self.recommendation(j)
+            return result
 
     def log(self, text, channel='Funk'):
         self.state['logs'].insert(0, {'time':self.state['clock'],'text':text,'channel':channel})
@@ -90,19 +95,23 @@ class Engine:
         a,b=[int(x[:2])*60+int(x[3:]) for x in (v['start'],v['end'])]
         return v['staffed'] and (a==b or (a<=minute<b if a<b else minute>=a or minute<b))
 
-    def new_job(self, kind):
+    def new_job(self, kind, manual=False):
         place, lat, lon=random.choice(PLACES)
         clock=self.state['clock']
-        job={'id':uid(),'kind':kind,'place':place,'lat':lat+random.uniform(-.008,.008),'lon':lon+random.uniform(-.008,.008),'address':f'{place}, Beispieladresse {random.randint(1,40)}','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice(self.state['hospitals'])['id']}
+        job={'id':uid(),'kind':kind,'place':place,'lat':lat+random.uniform(-.008,.008),'lon':lon+random.uniform(-.008,.008),'address':f'{place}, Beispieladresse {random.randint(1,40)}','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ'])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
         if kind=='emergency':
             scenario=copy.deepcopy(random.choice(SCENARIOS)); job.update(scenario)
             job['due']=clock
-            self.log('Neuer 144-Anruf wartet auf Annahme.','Telefon')
+            if not manual:self.log('Neuer 144-Anruf wartet auf Annahme.','Telefon')
         elif kind=='transport':
             job.update({'title':random.choice(['Entlassung','Ambulanztermin','Dialysefahrt']), 'caller':'Elektronischer Transportauftrag', 'detail':random.choice(['Liegend, zwei Sanitäter erforderlich; keine akute Verschlechterung gemeldet.','Sitzend, Unterstützung beim Umsetzen erforderlich; keine akute Verschlechterung gemeldet.']), 'priority':'geplant','needs':['KTW'],'scene':'Patient übernommen; Transport gemäß Auftrag.','due':clock+random.choice([900,1800,2700]),'accepted':True,'asked':True})
             self.log(f'Neuer Transportauftrag: {job["title"]}, {place}.','Aufträge')
         else:
             raise ValueError('Unbekannte Auftragsart.')
+        code={'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1'}.get(job['title'],'SIM-KT')
+        rule=self.rule(code)
+        job.update(code=code,category=rule.get('category') if rule else None,signal=rule['signal'] if rule else False,additional='',fire=False,police=False,organization='RK')
+        if rule:job.update(needs=rule['needs'][:],priority=rule['priority'])
         self.state['jobs'].append(job)
         return job
 
@@ -111,84 +120,35 @@ class Engine:
             if self.state['paused']: return
             self.state['clock']+=real_seconds*self.state['speed']
             now=self.state['clock']
+            self.update_operations(now)
             for v in self.state['vehicles']:
-                if v['job']:
-                    if v['phase_due'] is not None and now>=v['phase_due']: self.advance(v)
-                elif self.in_shift(v) and v['status']=='out': v['status']='ready'
-                elif not self.in_shift(v) and v['status'] in ('ready','radio'): v['status']='out'
-            if now>=self.state['next_transport']:
+                if v['phase_due'] is not None and now>=v['phase_due']: self.advance(v)
+                elif v['job']: pass
+                elif self.in_shift(v) and v['status']=='out' and not v.get('manual_out'): v['status']='ready'
+                elif not self.in_shift(v) and not v.get('leg') and v['status'] in ('ready','radio'): v['status']='out'
+            auto_enabled=any(s.get('dispo')==self.state['setup']['dispo'] for s in self.state['stations']) and self.state['setup']['dispo']=='05'
+            if auto_enabled and now>=self.state['next_transport']:
                 self.new_job('transport'); self.state['next_transport']=now+random.randint(600,1500)
-            if now>=self.state['next_emergency']:
+            if auto_enabled and now>=self.state['next_emergency']:
                 self.new_job('emergency'); self.state['next_emergency']=now+random.randint(900,1800)
             if len(self.state['jobs'])>150:
                 completed=[j for j in self.state['jobs'] if j['status']=='done']
                 for j in completed[:len(self.state['jobs'])-150]: self.state['jobs'].remove(j)
             self.save()
 
-    def advance(self,v):
-        j=self.get('jobs',v['job']); now=self.state['clock']; home=self.station(v['station'])
-        hospital=self.get('hospitals',j['destination'])
-        if v['status']=='assigned':
-            status='enroute'; seconds=max(120,distance(v,j)*1.25/45*3600)
-            text=f'{v["callsign"]} verstanden, wir übernehmen und fahren nach {j["place"]}.'
-        elif v['status']=='enroute':
-            status='scene'; seconds=600 if j['kind']=='transport' else 900
-            v['lat'],v['lon']=j['lat'],j['lon']; j['status']='scene'
-            text=f'Hier {v["callsign"]}, am Berufungsort.'
-            if v['type']!='NEF': text+=' '+j['scene']
-        elif v['status']=='scene':
-            if v['type']=='NEF':
-                status='return'; seconds=max(120,distance(v,home)*1.25/45*3600)
-                text=f'{v["callsign"]}, Versorgung beendet, ohne Begleitung wieder frei über Funk, Rückfahrt.'
-            else:
-                status='transport'; seconds=max(180,distance(v,hospital)*1.25/45*3600)
-                text=f'{v["callsign"]}, Patient übernommen. Transport zum {hospital["name"]}.'
-        elif v['status']=='transport':
-            status='hospital'; seconds=600; v['lat'],v['lon']=hospital['lat'],hospital['lon']
-            text=f'{v["callsign"]}, am Zielort, Patientenübergabe.'
-        elif v['status']=='hospital':
-            status='return'; seconds=max(120,distance(v,home)*1.25/45*3600)
-            text=f'{v["callsign"]}, Übergabe abgeschlossen, Rückfahrt zur Dienststelle.'
-        elif v['status']=='return':
-            status='clean'; seconds=300; v['lat'],v['lon']=home['lat'],home['lon']
-            text=f'{v["callsign"]}, auf Wache, Fahrzeug wird aufbereitet.'
-        else:
-            status='ready' if self.in_shift(v) else 'out'; seconds=None
-            text=f'{v["callsign"]}, wieder einsatzbereit.' if status=='ready' else f'{v["callsign"]}, Dienstende.'
-            v['job']=None
-        v['status']=status; v['phase_due']=now+seconds if seconds is not None else None
-        self.log(text)
-        if all(self.get('vehicles',id)['job']!=j['id'] for id in j['vehicles']): j['status']='done'
-
-    def dispatch(self,data):
-        j=self.get('jobs',data['job']); ids=data.get('vehicles',[])
-        if not j['accepted']: raise ValueError('Zuerst den Notruf annehmen.')
-        if j['status']=='done' or not ids: raise ValueError('Offenen Auftrag und Fahrzeuge auswählen.')
-        if len(ids)!=len(set(ids)): raise ValueError('Fahrzeug mehrfach ausgewählt.')
-        selected=[self.get('vehicles',id) for id in ids]
-        for v in selected:
-            if v['job'] or v['status'] not in ('ready','radio') or not self.in_shift(v): raise ValueError(f'{v["callsign"]} ist nicht verfügbar.')
-            if v['type']=='BEL': raise ValueError('BEL wird in dieser Version nicht für Patienteneinsätze disponiert.')
-            if j['kind']=='emergency' and v['type'] not in ('RTW','RTW-C','NEF'): raise ValueError('Für diesen Notfall RTW/RTW-C bzw. NEF wählen.')
-            if j['kind']=='transport' and v['type'] not in ('KTW','KTW-B','RTW','RTW-C'): raise ValueError('Für den Transport ein transportierendes Fahrzeug wählen.')
-        destination=data.get('destination',j['destination']); self.get('hospitals',destination)
-        if j['vehicles'] and destination!=j['destination']: raise ValueError('Transportziel nach Alarmierung in dieser Version nicht veränderbar.')
-        j['destination']=destination
-        for v in selected:
-            v.update(status='assigned',job=j['id'],phase_due=self.state['clock']+30)
-            j['vehicles'].append(v['id'])
-            self.log(f'Leitstelle an {v["callsign"]}: {j["title"]}, {j["address"]}. '+('Mit Sondersignal.' if j['priority']=='hoch' else 'Ohne Sondersignal.'))
-        j['status']='assigned'
-        return j
-
     def command(self, action, data):
         with self.lock:
             actor=data.get('_actor')
-            if actor and action in ('accept','ask','dispatch'):
-                j=self.get('jobs',data.get('job') if action=='dispatch' else data.get('id'))
+            if actor and action in JOB_ACTIONS:
+                j=self.get('jobs',data.get('job') if action not in ('accept','ask') else data.get('id'))
                 if j.get('owner') and j['owner']!=actor['id']:
                     raise ValueError('Dieser Einsatz wird bereits von einem anderen Disponenten betreut.')
                 # Claim only after a successful operation below.
+            if actor and action=='vehicle_status':
+                vehicle=self.get('vehicles',data.get('vehicle'))
+                if vehicle['job']:
+                    job=self.get('jobs',vehicle['job'])
+                    if job.get('owner') and job['owner']!=actor['id']:raise ValueError('Einsatz wird von einem anderen Disponenten betreut.')
             if action=='claim':
                 j=self.get('jobs',data['id'])
                 if not actor: raise ValueError('Spieler benötigt.')
@@ -208,7 +168,13 @@ class Engine:
                 speed=data.get('speed',self.state['speed'])
                 if speed not in (1,5,15,60): raise ValueError('Ungültige Geschwindigkeit.')
                 self.state['speed']=speed; self.state['paused']=bool(data.get('paused',self.state['paused']))
-            elif action=='generate': self.new_job(data.get('kind','emergency'))
+            elif action=='generate':
+                target=data.get('crew_target')
+                if target:
+                    if data.get('kind','emergency')!='emergency':raise ValueError('Übungsziel nur für Notruf-Szenarien.')
+                    self.get('hospitals',target)
+                generated=self.new_job(data.get('kind','emergency'))
+                if target:generated['crew_target']=target
             elif action=='accept':
                 j=self.get('jobs',data['id'])
                 if j['accepted']: raise ValueError('Anruf bereits angenommen.')
@@ -219,14 +185,24 @@ class Engine:
                 if not j['asked']: self.log('Abfrage: Bewusstsein, Atmung und nähere Umstände. '+j['detail'],'Telefon')
                 j['asked']=True
             elif action=='dispatch': self.dispatch(data)
+            elif action=='reserve': self.reserve(data)
+            elif action=='unreserve': self.unreserve(data)
+            elif action=='bed_request': self.request_bed(data)
+            elif action=='send_case': self.send_case(data)
+            elif action=='vehicle_status': self.vehicle_status(data)
+            elif action=='edit_job': self.edit_job(data)
+            elif action=='create_job':
+                created=self.create_job(data)
+                if actor:created['owner']=actor['id']
+            elif action=='rules': self.edit_rules(data)
             elif action=='vehicle': self.edit_vehicle(data)
             elif action=='station': self.edit_station(data)
             elif action=='delete_vehicle':
                 v=self.get('vehicles',data['id'])
-                if v['job']: raise ValueError('Fahrzeug ist im Einsatz.')
+                if v['job'] or v.get('reservation'): raise ValueError('Fahrzeug ist im Einsatz oder vordisponiert.')
                 self.state['vehicles'].remove(v)
             elif action=='import':
-                if any(v['job'] for v in self.state['vehicles']): raise ValueError('Import erst nach Abschluss aller Einsätze möglich.')
+                if any(v['job'] or v.get('reservation') for v in self.state['vehicles']): raise ValueError('Import erst nach Abschluss aller Einsätze möglich.')
                 config=data.get('config',{})
                 if not isinstance(config.get('stations'),list) or not isinstance(config.get('vehicles'),list): raise ValueError('Import benötigt stations und vehicles.')
                 for collection in ('stations','vehicles'):
@@ -242,12 +218,13 @@ class Engine:
                     self.state=old; raise ValueError('Ungültiger Import; bisherige Konfiguration bleibt erhalten.')
                 self.log('Dienststellen- und Fahrzeugkonfiguration importiert.','System')
             elif action=='reset':
-                vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; graphics=self.state['graphics']
-                self.state=seed(); self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations; self.state['vehicles']=vehicles
+                vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; graphics=self.state['graphics']; rules=self.state['rules']; setup=self.state['setup']
+                self.state=seed(); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations; self.state['vehicles']=vehicles
                 for v in vehicles:
-                    s=self.station(v['station']); v.update(job=None,phase_due=None,status='ready' if self.in_shift(v) else 'out',lat=s['lat'],lon=s['lon'])
+                    s=self.station(v['station']); v.update(job=None,phase_due=None,status='ready' if self.in_shift(v) else 'out',lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
+                self.migrate_operations()
             else: raise ValueError('Unbekannte Aktion.')
-            if actor and action in ('accept','ask','dispatch'): j['owner']=actor['id']
+            if actor and action in JOB_ACTIONS: j['owner']=actor['id']
             self.save()
             return self.snapshot()
 
@@ -258,7 +235,9 @@ class Engine:
         existing=next((s for s in self.state['stations'] if s['id']==d.get('id')),None)
         record_id=existing['id'] if existing else str(d.get('id') or uid())
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',record_id): raise ValueError('Ungültige Dienststellen-ID.')
-        s={'id':record_id,'name':name,'zone':zone,'lat':lat,'lon':lon}
+        dispo=str(d.get('dispo',existing.get('dispo','05') if existing else '05'))
+        if dispo not in ('01','02','03','04','05','06'):raise ValueError('Dispozone 01–06 wählen.')
+        s={'id':record_id,'name':name,'zone':zone,'dispo':dispo,'lat':lat,'lon':lon}
         if existing: existing.update(s)
         else: self.state['stations'].append(s)
         for v in self.state['vehicles']:
@@ -269,7 +248,7 @@ class Engine:
         if not call or len(call)>40 or typ not in TYPES: raise ValueError('Kennung und Fahrzeugtyp prüfen.')
         home=self.station(station)
         existing=next((v for v in self.state['vehicles'] if v['id']==d.get('id')),None)
-        if existing and existing['job']: raise ValueError('Fahrzeug im Einsatz kann nicht bearbeitet werden.')
+        if existing and (existing['job'] or existing.get('reservation')): raise ValueError('Fahrzeug im Einsatz kann nicht bearbeitet werden.')
         if any(v['callsign']==call and v is not existing for v in self.state['vehicles']): raise ValueError('Kennung bereits vorhanden.')
         start=d.get('start','00:00'); end=d.get('end','00:00')
         for time in (start,end):
@@ -279,7 +258,10 @@ class Engine:
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',record_id): raise ValueError('Ungültige Fahrzeug-ID.')
         graphic=d.get('graphic',existing.get('graphic') if existing else DEFAULT_GRAPHIC[typ])
         if graphic not in {g['id'] for g in self.state['graphics']}: raise ValueError('Unbekannte Fahrzeuggrafik.')
-        v={'graphic':graphic,'id':record_id,'callsign':call,'type':typ,'station':station,'start':start,'end':end,'staffed':bool(d.get('staffed',True)),'status':'ready','lat':home['lat'],'lon':home['lon'],'job':None,'phase_due':None,'source':str(d.get('source','Manuell gepflegt'))[:300]}
+        turnout=float(d.get('turnout',existing.get('turnout',60) if existing else 60))
+        organization=str(d.get('organization',existing.get('organization','RK') if existing else 'RK'))
+        if not 0<=turnout<=1800 or organization not in ('RK','ASB','JUH','Sonstige'):raise ValueError('Ausrückzeit 0–1800 Sekunden und Organisation prüfen.')
+        v={'nfs':bool(d.get('nfs',existing.get('nfs',False) if existing else False)),'turnout':turnout,'organization':organization,'graphic':graphic,'id':record_id,'callsign':call,'type':typ,'station':station,'start':start,'end':end,'staffed':bool(d.get('staffed',True)),'status':'ready','lat':home['lat'],'lon':home['lon'],'job':None,'phase_due':None,'source':str(d.get('source','Manuell gepflegt'))[:300],'reservation':None,'alarm_from':'ready','ack_deadline':None,'manual_out':False,'leg':None}
         v['status']='ready' if self.in_shift(v) else 'out'
         if existing: existing.update(v)
         else: self.state['vehicles'].append(v)

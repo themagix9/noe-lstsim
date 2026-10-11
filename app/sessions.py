@@ -8,6 +8,7 @@ import struct
 import threading
 import time
 from engine import Engine, GRAPHICS
+from catalog import CENTRES, ZONES
 
 class Sessions:
     def __init__(self,path):
@@ -17,6 +18,8 @@ class Sessions:
         self.db.execute('CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, code TEXT UNIQUE, title TEXT, created REAL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS members (id TEXT PRIMARY KEY, room_id TEXT, name TEXT, token_hash TEXT UNIQUE, host INTEGER, last_seen REAL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS graphics_files (id TEXT PRIMARY KEY, room_id TEXT, content BLOB)')
+        if 'mode' not in {r[1] for r in self.db.execute('PRAGMA table_info(rooms)')}:
+            self.db.execute("ALTER TABLE rooms ADD COLUMN mode TEXT NOT NULL DEFAULT 'multi'")
         self.db.commit()
         # Run the legacy migration immediately, without discarding its saved state.
         self.engine('legacy')
@@ -39,25 +42,34 @@ class Sessions:
 
     def create(self,data):
         with self.lock:
-            name=self.name(data.get('name'));title=str(data.get('title') or 'Gemeinsame Disposition').strip()[:60]
+            name=self.name(data.get('name'));mode=data.get('mode','multi')
+            if mode not in ('single','multi'):raise ValueError('Singleplayer oder Multiplayer wählen.')
+            title=str(data.get('title') or ('Meine Leitstelle' if mode=='single' else 'Gemeinsame Disposition')).strip()[:60]
             if self.db.execute('SELECT count(*) FROM rooms').fetchone()[0]>=100: raise ValueError('Maximale Sitzungsanzahl erreicht.')
+            centre=data.get('centre','Mödling');dispo=data.get('dispo','05');hour=int(data.get('hour',8))
+            if centre not in CENTRES or dispo not in {z['id'] for z in ZONES} or not 0<=hour<=23:raise ValueError('Leitstellenstandort, Dispozone und Startzeit prüfen.')
             id=secrets.token_hex(16)
             while True:
                 code=''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(8))
                 if not self.db.execute('SELECT 1 FROM rooms WHERE code=?',(code,)).fetchone():break
-            self.db.execute('INSERT INTO rooms VALUES (?,?,?,?)',(id,code,title,time.time()));self.db.commit()
+            self.db.execute('INSERT INTO rooms (id,code,title,created,mode) VALUES (?,?,?,?,?)',(id,code,title,time.time(),mode));self.db.commit()
             e=self.engine(id)
             if data.get('adopt_legacy'):
                 e.state=copy.deepcopy(self.engine('legacy').snapshot()); e.state['paused']=True
                 for j in e.state['jobs']:j['owner']=None
                 e.save()
+            e.state['setup']={'centre':centre,'dispo':dispo}
+            if not data.get('adopt_legacy'):
+                e.state['clock']=hour*3600;e.state['next_transport']=hour*3600+60;e.state['next_emergency']=hour*3600+180
+                for v in e.state['vehicles']:v['status']='ready' if e.in_shift(v) else 'out'
+            e.save()
             credential=self.add_member(id,name,True);return credential
 
     def join(self,data):
         with self.lock:
             name=self.name(data.get('name'));code=str(data.get('code','')).strip().upper().replace(' ','').replace('-','')
-            room=self.db.execute('SELECT id FROM rooms WHERE code=?',(code,)).fetchone()
-            if not room:raise ValueError('Sitzungscode nicht gefunden.')
+            room=self.db.execute('SELECT id,mode FROM rooms WHERE code=?',(code,)).fetchone()
+            if not room or room[1]=='single':raise ValueError('Multiplayer-Sitzungscode nicht gefunden.')
             return self.add_member(room[0],name)
 
     def member(self,token,touch=True):
@@ -70,15 +82,15 @@ class Sessions:
 
     def snapshot(self,member):
         with self.lock:
-            room=self.db.execute('SELECT code,title FROM rooms WHERE id=?',(member['room_id'],)).fetchone()
+            room=self.db.execute('SELECT code,title,mode FROM rooms WHERE id=?',(member['room_id'],)).fetchone()
             roster=self.db.execute('SELECT id,name,host,last_seen FROM members WHERE room_id=?',(member['room_id'],)).fetchall()
             s=self.engine(member['room_id']).snapshot()
-            s['session']={'code':room[0],'title':room[1],'me':member['id'],'host':member['host'],'players':[{'id':r[0],'name':r[1],'host':bool(r[2]),'online':time.time()-r[3]<45} for r in roster]}
+            s['session']={'code':room[0] if room[2]=='multi' else None,'mode':room[2],'title':room[1],'me':member['id'],'host':member['host'],'players':[{'id':r[0],'name':r[1],'host':bool(r[2]),'online':time.time()-r[3]<45} for r in roster]}
             return s
 
     def command(self,member,action,data):
         with self.lock:
-            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
+            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic','rules') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
             engine=self.engine(member['room_id'])
             if action=='leave':
                 self.db.execute('UPDATE members SET last_seen=0 WHERE id=?',(member['id'],));self.db.commit();return {'left':True}

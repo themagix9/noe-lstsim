@@ -1,0 +1,74 @@
+"""AAO approximation from public NÖ guidance, using simulated ETAs.
+No road routing, tactical optimisation, NAH, ACN or secondary triage engine.
+"""
+import json
+from pathlib import Path
+SOURCE=json.loads((Path(__file__).parent/'data'/'ampds.json').read_text())
+CODES={r['code']:r for r in SOURCE['entries']}
+REFERENCE='https://www.notrufnoe.at/ausrueckordnung-detail/'
+
+def code_rule(code):
+    item=CODES.get(code)
+    if not item:return None
+    category=item['category'];signal=category in ('BLS rot','ALS grün','ALS gelb','ALS orange','ALS rot','Akuttransport rot')
+    needs=[] if category in ('Telemedizin','Weitergabe','Großunfall','Alpinunfall') else ['RTW','NEF'] if category in ('ALS orange','ALS rot') else ['RTW']
+    return {**item,'kind':'emergency','priority':'hoch' if signal else 'mittel','needs':needs,'signal':signal}
+
+def estimated_seconds(engine,v,j):
+    from engine import distance
+    return distance(v,j)*1.25/45*3600+float(v.get('turnout',60))+max(0,(v.get('handover_due') or v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
+
+def recommend(engine,j):
+    candidates=[v for v in engine.state['vehicles'] if engine.sendable(v,j)]
+    assigned=[engine.get('vehicles',id) for id in j['vehicles']]
+    result={'vehicles':[],'missing':[],'rule':j.get('code'),'category':j.get('category','Übungsregel'),'description':'Simulationsvorschlag · geschätzte Eintreffzeit aus Luftlinie + Ausrückzeit','warnings':[],'source':REFERENCE,'code_date':SOURCE['date']}
+    category=j.get('category');eta=lambda v:estimated_seconds(engine,v,j)
+    transport_types=('KTW','KTW-B','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C')
+    transporters=[v for v in candidates if v['type'] in transport_types];nefs=[v for v in candidates if v['type']=='NEF']
+    def nearest(vs):return min(vs,key=eta) if vs else None
+    chosen=None;need_nef=False
+    if category in ('Telemedizin','Weitergabe') and not j.get('secondary_unavailable'):
+        result['warnings'].append('Sekundärsystem / Weitergabe benötigt normalerweise kein Rettungsmittel. Bei Nichtverfügbarkeit BLS grün als Fallback auswählen.');return result
+    if category in ('Großunfall','Alpinunfall'):
+        result['warnings'].append('Sonderrettung / Großeinsatz-AAO noch nicht implementiert; manuell disponieren.');result['missing']=['Sondereinsatzmittel'];return result
+    if category in ('Telemedizin','Weitergabe'):category='BLS grün'
+    if j['kind']=='transport':
+        org=j.get('organization','RK');transporters=[v for v in transporters if v.get('organization','RK')==org]
+        preferred=[v for v in transporters if v['type'] in ('KTW','KTW-B')];chosen=nearest(preferred) or nearest(transporters)
+    elif category=='BLS rot':
+        rtws=[v for v in transporters if v['type']=='RTW'];ktws=[v for v in transporters if v['type']=='KTW'];rtw=nearest(rtws);ktw=nearest(ktws)
+        chosen=rtw if rtw and (not ktw or eta(rtw)<=eta(ktw)+90) else ktw or nearest([v for v in transporters if v['type']=='RTW-C'])
+    elif category=='BLS/ALS aufwertbar':
+        for typ in ('RTW-C','RTW','KTW'):
+            chosen=nearest([v for v in transporters if v['type']==typ])
+            if chosen:break
+        result['warnings'].append('Optionale Aufwertung durch ACN / Notarzt muss manuell beurteilt werden.')
+    elif category in ('ALS grün','ALS gelb'):
+        qualified=[v for v in transporters if v['type'] in ('RTW','RTW-C') and v.get('nfs')]
+        chosen=nearest(qualified)
+        if category=='ALS gelb' and not chosen:chosen=nearest(transporters);need_nef=True
+        if not chosen and category=='ALS grün':result['missing'].append('RTW/RTW-C mit bestätigtem NFS')
+        if category=='ALS gelb':result['warnings'].append('ACN-Pilotregionen und NKV/NKI-Zusatzregeln sind noch nicht modelliert.')
+    elif category in ('ALS orange','ALS rot'):
+        chosen=nearest(transporters);need_nef=True
+        result['warnings'].append('Nur bodengebundene Notarztmittel berücksichtigt; NAH- und ACN-Zeitvorteile noch nicht modelliert.')
+    elif category:chosen=nearest(transporters)
+    else:
+        # Custom exercise rule; each requirement consumes one distinct resource.
+        used=[]
+        for need in j['needs']:
+            existing=next((v for v in assigned if v['id'] not in used and (v['type'].startswith(need) or need=='KTW' and v['type'].startswith('RTW'))),None)
+            if existing:used.append(existing['id']);continue
+            options=[v for v in candidates if v['id'] not in used and (v['type'].startswith(need) or need=='KTW' and v['type'].startswith('RTW'))]
+            options.sort(key=lambda v:(need=='KTW' and not v['type'].startswith('KTW'),eta(v)))
+            if options:result['vehicles'].append(options[0]['id']);used.append(options[0]['id'])
+            else:result['missing'].append(need)
+        return result
+    if not any(v['type'] in transport_types for v in assigned):
+        if chosen:result['vehicles'].append(chosen['id'])
+        elif not result['missing']:result['missing'].append('Transportierendes Rettungsmittel')
+    if need_nef and not any(v['type']=='NEF' for v in assigned):
+        nef=nearest(nefs)
+        if nef:result['vehicles'].append(nef['id'])
+        else:result['missing'].append('Notarztmittel')
+    return result

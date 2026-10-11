@@ -9,6 +9,8 @@ from collections import defaultdict,deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from sessions import Sessions
+from catalog import CENTRES,ZONES,RULES
+from aao import SOURCE,code_rule
 
 ROOT=Path(__file__).parent/'static'
 DATA=Path(os.environ.get('DATA_DIR','./data')); DATA.mkdir(parents=True,exist_ok=True)
@@ -22,11 +24,13 @@ class Handler(BaseHTTPRequestHandler):
     def member(self):return sessions.member(self.headers.get('Authorization','').removeprefix('Bearer '))
     def do_GET(self):
         path=urlparse(self.path).path
-        if path=='/api/health':return self.json_response({'ok':True,'version':'0.2'})
+        if path=='/api/codes':return self.json_response({'date':SOURCE['date'],'rules':[code_rule(r['code']) for r in SOURCE['entries']]})
+        if path=='/api/catalog':return self.json_response({'centres':CENTRES,'zones':ZONES,'rules':RULES})
+        if path=='/api/health':return self.json_response({'ok':True,'version':'0.3'})
         if path in ('/api/state','/api/config'):
             try:
                 s=sessions.snapshot(self.member())
-                if path=='/api/config':s={'version':2,'stations':s['stations'],'vehicles':[{k:v.get(k) for k in ('id','callsign','type','station','start','end','staffed','source','graphic')} for v in s['vehicles']]}
+                if path=='/api/config':s={'version':2,'stations':s['stations'],'vehicles':[{k:v.get(k) for k in ('id','callsign','type','station','start','end','staffed','source','graphic','nfs','turnout','organization')} for v in s['vehicles']]}
                 return self.json_response(s)
             except PermissionError as e:return self.json_response({'error':str(e)},401)
         if path.startswith('/media/'):
@@ -69,5 +73,5 @@ def run_clock():
 
 if __name__=='__main__':
     threading.Thread(target=run_clock,daemon=True).start()
-    print('NÖ Dispo v0.2 läuft auf Port 8080',flush=True)
+    print('NÖ Dispo v0.3 läuft auf Port 8080',flush=True)
     ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()

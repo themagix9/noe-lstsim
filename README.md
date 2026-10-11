@@ -1,4 +1,4 @@
-# NÖ Dispo – Docker-Leitstellensimulator v0.2
+# NÖ Dispo – Docker-Leitstellensimulator v0.3
 
 Eigenständiger, spielbarer Prototyp für Niederösterreich, zunächst Raum Bruck/Leitha, Schwechat und Hainburg. Keine Kopie des LstSim-Quellcodes; keine Anbindung an echte Leitstellen.
 
@@ -18,7 +18,7 @@ Der Port ist standardmäßig nur lokal erreichbar. Für Zugriff über LAN änder
 ssh -L 8088:127.0.0.1:8088 benutzer@server
 ```
 
-Anschließend lokal `http://localhost:8088` öffnen. Es gibt keine kostenpflichtigen APIs und keine externen Frontend-Abhängigkeiten. Der erste Docker-Build benötigt Zugriff auf das Python-Basisimage.
+Anschließend lokal `http://localhost:8088` öffnen. Es gibt keine kostenpflichtigen APIs. Leaflet 1.9.4 wird lokal mitgeliefert; die Karte lädt nur die gerade benötigten OpenStreetMap-Kacheln im Browser. Der erste Docker-Build benötigt Zugriff auf das Python-Basisimage.
 
 ## Portainer direkt aus GitHub
 
@@ -70,7 +70,7 @@ Für eine vollständige Sicherung Container stoppen und das Docker-Volume sicher
 
 ## Multiplayer und Sitzungen
 
-Eine Sitzung erstellen und den achtstelligen Code über den Code-Button kopieren. Andere Spieler öffnen denselben Simulator, wählen **Mit Code beitreten** und geben Code und eigenen Namen ein. Bis zu 16 Spieleridentitäten sind pro Sitzung möglich; mehrere unabhängige Sitzungen laufen auf demselben Server. Für Einzelspieler einfach alleine eine Sitzung erstellen.
+Multiplayer wählen, eine Sitzung erstellen und den achtstelligen Code über den Code-Button kopieren. Andere Spieler öffnen denselben Simulator, wählen **Mit Code beitreten** und geben Code und eigenen Namen ein. Bis zu 16 Spieleridentitäten sind pro Sitzung möglich; mehrere unabhängige Sitzungen laufen auf demselben Server. Am Start ausdrücklich **Singleplayer** oder **Multiplayer** wählen. Singleplayer-Sitzungen haben keinen nutzbaren Beitrittscode; Teamchat, Betreuungschips und Spielerliste sind dort ausgeblendet.
 
 Alle Spieler einer Sitzung sehen dieselben Aufträge, Fahrzeugstatus, Simulationszeit und Funkmeldungen. Aktualisierung erfolgt durch HTTP-Polling etwa alle zwei Sekunden. Die Teamleiste zeigt Namen, Online-Status und Zahl der betreuten offenen Einsätze; der Stern markiert den Sitzungsleiter. Der Teamchat gehört ausschließlich zur Sitzung.
 
@@ -129,14 +129,49 @@ node --check app/static/app.js
 
 ## Bekannte Grenzen und nächste Schritte
 
-Dies ist ein funktionierender Multiplayer-Grundprototyp, kein vollständiger LstSim-Ersatz. Die Karte ist schematisch, keine navigierbare Straßenkarte. Fahrzeugpositionen springen zwischen Phasen; Fahrzeiten werden aus Luftlinie mit pauschalem Umwegfaktor berechnet. Beispieladressen, Anrufer und Szenarien sind erfunden. Die Abholzeit wird angezeigt; Verspätungen werden noch nicht bewertet. Keine Sprachsynthese, Spracherkennung oder KI-Anbindung.
+Dies ist ein funktionierender Multiplayer-Grundprototyp, kein vollständiger LstSim-Ersatz. Die Karte nutzt OpenStreetMap und lässt sich verschieben/zoomen. Fahrzeugpositionen bewegen sich entlang einer Luftlinie; Fahrzeiten werden weiterhin aus Luftlinie mit pauschalem Umwegfaktor berechnet. Es gibt kein Straßenrouting. Beispieladressen, Anrufer und Szenarien sind erfunden. Die Abholzeit wird angezeigt; Verspätungen werden noch nicht bewertet. Keine Sprachsynthese, Spracherkennung oder KI-Anbindung.
 
-Ressourcenanforderungen sind Szenariohinweise. Unvollständige Alarmierungen bleiben möglich, damit der Disponent nachalarmieren kann; der Ablauf wartet noch nicht zwingend auf den Notarzt. NEF fährt nach Versorgung ohne Begleitung zurück. Keine Rendezvous- oder Nachführungslogik, Vorhaltung, Pausen, dynamische Krankenhauskapazität oder echte AAO. BEL ist im Bestand pflegbar, aber noch ohne spielbare Führungsaufgaben. Krankenhäuser sind zunächst feste Ziele, Transportzieländerung nach Alarmierung ist gesperrt. Rückfahrende Fahrzeuge können noch nicht umdisponiert werden.
+Ressourcenanforderungen sind Szenariohinweise. Unvollständige Alarmierungen bleiben möglich, damit der Disponent nachalarmieren kann; der Ablauf wartet noch nicht zwingend auf den Notarzt. NEF fährt nach Versorgung ohne Begleitung zurück. Keine Rendezvous- oder Nachführungslogik, Vorhaltung, Pausen, dynamische Krankenhauskapazität oder echte AAO. BEL ist im Bestand pflegbar, aber noch ohne spielbare Führungsaufgaben. Bei Notfällen legt die simulierte Mannschaft vor Ort das Ziel fest. Frei über Funk zurückfahrende Ressourcen können erneut disponiert werden. Der Krankenhausbestand enthält zunächst nur drei Ziele.
 
-Sinnvolle nächste Ausbaustufen: geprüfter Fahrzeug-/Dienststellenimport für alle NÖ-Zonen, echte Straßenkarte und Routing, zusätzliche POIs und Transportziele, parametrisierte Funkdialoge, AAO/Qualifikationen, zeitabhängige Einsatzverteilung, Transportplanung, Benutzerkonten, Rollenverwaltung und echte Sprachkommunikation.
+Sinnvolle nächste Ausbaustufen: geprüfter Fahrzeug-/Dienststellenimport für alle NÖ-Zonen, Straßenrouting, zusätzliche POIs und Transportziele, parametrisierte Funkdialoge, AAO/Qualifikationen, zeitabhängige Einsatzverteilung, Transportplanung, Benutzerkonten, Rollenverwaltung und echte Sprachkommunikation.
 
 ## Prüfung dieser Ausgabe
 
 Automatisierte Python-Tests decken Einsatzabläufe, Verfügbarkeit, atomare Disposition, Import-Rollback und Persistenz sowie Sitzungsisolation, konkurrierende Übernahmen, Betreuung, Übergabe, Offline-Übernahme, Teamchat, Rollenrechte, PNG-Import und Migration ab. API-Tests prüfen Beitritt und unberechtigte Zugriffe. Die GitHub-Pipeline prüft zusätzlich in zwei getrennten Browserkontexten: Erstellung/Beitritt, Spielerliste, Betreuung, Übergabe, Alarmierung, Chat, Reload, Grafikdarstellung und Simulationsstart. Desktop- und Mobilansichten werden als interne QA-Artefakte erstellt. Container-Build, Startprüfung und Portainer-Compose-Validierung laufen ebenfalls in GitHub Actions.
 
-Für den Browser-Test separat Playwright installieren (`pip install playwright==1.58.0`, `python -m playwright install chromium`) und `python tests/browser_smoke.py` ausführen. Der Browser-Test verwendet Port 8080; dort darf kein weiterer Testserver laufen. Docker und Chromium waren in der lokalen Erstellungsumgebung nicht vorhanden; die tatsächliche Prüfung erfolgt durch die Pipeline. Cloudflare-Tunnelverbindung wird erst mit einem gültigen Token und Hostnamen auf deinem Server geprüft.
+Für den Browser-Test separat Playwright installieren (`pip install playwright==1.58.0`, `python -m playwright install chromium`) und `python tests/browser_smoke.py` ausführen. Der Browser-Test verwendet Port 8080; dort darf kein weiterer Testserver laufen. Docker und ein lauffähiges Chromium waren in der lokalen Erstellungsumgebung nicht vorhanden; die tatsächliche Prüfung erfolgt durch die Pipeline. Cloudflare-Tunnelverbindung wird erst mit einem gültigen Token und Hostnamen auf deinem Server geprüft.
+
+## v0.3: Einsatzmodal, Status, Zielkoordination und Vordisposition
+
+Die Startseite bietet Singleplayer/Multiplayer, die Leitstellenstandorte Mödling, St. Pölten, Stockerau und Zwettl, die Dispozonen 01–06 und eine Startstunde. Notruf NÖ betreibt eine zentrale, standortübergreifende Leitstelle; die Standortwahl ist im Simulator Arbeitsplatzmetadatum, keine behauptete ausschließliche Bezirkszuständigkeit. Quelle: https://www.notrufnoe.at/unsere-standorte/. Die Zonennummern stammen aus der Nutzerabbildung; Grenzen/Zuständigkeiten sind nicht verifiziert. Nur Dispo 05 hat aktuell den Bruck/Leitha-Startbestand und automatischen Ereigniseingang. Andere Zonen sind zur Konfiguration auswählbar, ohne erfundene Fahrzeuge oder automatische Ereignisse aus fremden Gebieten. Pro Dienststelle ist die Zonennummer bearbeitbar.
+
+Notrufe öffnen ein Einsatzmodal. Transportaufträge erscheinen elektronisch in der Liste. **Einsatz erstellen** öffnet das Formular für einen manuellen Auftrag; danach folgt das Dispositionsmodal mit Ressourcen. Adresse und Koordinaten sind manuell einzutragen; Kartenmitte dient als Koordinatenvorschlag, keine automatische Adressprüfung. Der Ressourcenbereich zeigt Typ, Status, Entfernung als Luftlinie und Dienstende, mit Filtern und einem AAO-Übernahmebutton. Er zeigt auch momentan nicht alarmierbare Ressourcen grau. Einsatzstichwort, Zusatztext, Dringlichkeit sowie simulierte Polizei-/Feuerwehranforderung können vor der ersten Alarmierung geändert werden. Diese Anforderungen werden protokolliert; es gibt noch keine spielbaren Polizei-/Feuerwehreinheiten.
+
+| Status | Bedeutung |
+|---|---|
+| 1 | Frei auf Wache |
+| 2 | Zum Berufungsort |
+| 3 | Am Berufungsort |
+| 4 | Zum Zielort |
+| 5 | Am Zielort |
+| 6 | Frei über Funk |
+| 7 | Dienstfahrt |
+| 8 | Bereitschaft, 10 Minuten Quittierungsfrist |
+| 9 | Alarmiert und Quittiert |
+| 0 | Außer Betrieb |
+
+Vor Quittierung: **Alarmiert auf Wache** aus Status 1, andernfalls **Alarmiert über Funk**. Die simulierte Mannschaft setzt nach kurzer Zeit 9, danach 2; manche Alarmierungen gehen direkt auf 2. Bei Bereitschaft liegt eine 10-Minuten-Frist vor; Überschreitung erzeugt einen Hinweis ohne erfundene Quittierung. Über den Statusbutton lassen sich Mannschaftsmeldungen 9/2 zur offenen Alarmierung sowie 0/1/6/7/8 ohne laufende Versorgung simulieren. Status 0 bleibt bei manueller Abmeldung bestehen. Die tatsächliche Versorgung wird nicht durch freie Statusmeldungen abgebrochen.
+
+Eine offene KT-Anforderung lässt sich auf eine Ressource **vordisponieren**, auch während eines anderen Einsatzes. Das reserviert sie, alarmiert sie aber nicht. Der Disponent sendet den Auftrag selbst, wenn Status **1, 5 oder 6** erreicht ist. Der Versand im Status 5 ist möglich; die bestehende Patientenübergabe endet trotzdem erst zu ihrer vorgesehenen Zeit, erst dann fährt die Mannschaft zum nächsten Auftrag. Reservierungen sind exklusiv, lösbar und persistent. Im Mehrspielermodus gelten die Betreuungsrechte auch für Reservierungen, Einsatzänderungen und Zielkoordination.
+
+Bei einem RD-Einsatz ist zunächst kein Krankenhaus festgelegt. Nach Versorgung meldet die simulierte Mannschaft das Ziel. Für ein NÖ-Ziel folgt der Transport unmittelbar. Für ein Wiener Ziel bleibt sie am Berufungsort: Ziel-KH auswählen → **Bettenmann Wien kontaktieren** → nach simuliertem Telefonkontakt wird eine fiktive Kasusnummer `SIM-W-…` vergeben → **Per SDS** oder **Per ESApp senden** → Mannschaft bestätigt und fährt → bei Zielankunft wird die Kasusnummer bei der Aufnahme genannt. Der Ablauf verwendet Simulationszeit; bei Pause kommt keine Telefonantwort. Das ist ein simuliertes Gegenüber, keine echte Bettenanfrage, SDS-Verbindung oder ESApp-Anbindung. Elektronische Transportaufträge behalten ihr bereits beauftragtes Ziel. Unter **+ Ereignis** gibt es einen Notruf mit gezielter Wiener Zielanforderung, um diesen Ablauf auszuprobieren.
+
+## AMPDS-Katalog und AAO-Stand
+
+`app/data/ampds.json` enthält **2.650** Codes mit Beschreibung, Kategorie und PDF-Seite, aus dem vom Nutzer bereitgestellten `leoreport_ampds_codes_21022025.pdf`, Stand **21.02.2025**. Auslesen erfolgte aus den originalen PDF-Textobjekten, damit überlappende Tabellenzellen nicht vermischt werden. `scripts/import_ampds.py` reproduziert den Import mit pypdf (nur Entwicklung, keine Runtime-Abhängigkeit). Das vollständige PDF ist nicht Teil des Repositorys. Suche im Einsatzmodal nach Code, Stichwort oder Kategorie; die Auswahlliste zeigt höchstens 100 Treffer, die Suche erreicht den ganzen Katalog. Codezuordnung ist der PDF-Stand, keine Zusicherung einer tagesaktuellen Zuordnung.
+
+AAO-Quelle: https://www.notrufnoe.at/ausrueckordnung-detail/, abgerufen 11.10.2026. Implementiert sind Kategoriezuordnung, KT-Typpräferenz und Organisation, BLS-rot-Präferenz mit 90 Sekunden, BLS/ALS-Typreihenfolge, bestätigter NFS bei ALS grün/gelb sowie bodengebundene Notarztmittel bei ALS orange/rot und ALS-gelb-Fallback. Telemedizin/Weitergabe erzeugen zunächst keinen automatischen Rettungsmittelvorschlag; bei markierter Nichtverfügbarkeit des Sekundärsystems greift der BLS-grün-Fallback. Fahrzeug-Ausrückzeiten sind manuell gepflegte Schätzwerte (Startwert 60 Sekunden); Eintreffzeiten bleiben Simulationsschätzungen. NFS ist im Ausgangsbestand **nicht bestätigt** und kann pro Ressource gepflegt werden. Es wird nicht aus einer Fahrzeugkennung abgeleitet.
+
+Der Vorschlag bildet **nicht** die gesamte einsatztaktische AAO ab: ACN/Pilotregionen, NKV/NKI-Zusatzregeln, NAH-Zeitvergleiche, First Responder, Großeinsatzpläne und Sonderrettung fehlen. Die Oberfläche zeigt diese Lücken. Die Entscheidung über die tatsächliche Sondersignalverwendung liegt auch laut öffentlicher AAO beim Lenker; das Simulatorfeld ist ein Dringlichkeitshinweis im Trainingsablauf. Zusätzliche `SIM-…`-Regeln sind unter Konfiguration als JSON bearbeitbar, werden gespeichert und ändern keine originale AMPDS-Tabelle. Automatische Demoanrufe sind weiterhin fiktive Szenarien; es wird kein AMPDS-Abfrageprotokoll nachgebildet.
+
+Leaflet-Lizenz liegt unter `app/static/vendor/Leaflet-LICENSE.txt`. OSM-Attribution bleibt sichtbar. Keine Karten-Vorabrufe, Offlinepakete oder serverseitigen Tile-Proxys. Browser-Tests ersetzen OSM-Kacheln lokal, damit die Tests keine öffentlichen Kartendienste belasten. Tile-Nutzungsregeln: https://operations.osmfoundation.org/policies/tiles/.
