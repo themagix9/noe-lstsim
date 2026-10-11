@@ -63,6 +63,13 @@ class FleetTests(unittest.TestCase):
         self.e.state['clock']=12*3600;j=self.job();j.update(lat=48.1844,lon=16.4136,category='ALS orange',priority='hoch')
         ids=self.e.recommendation(j)['vehicles'];types=[self.e.get('vehicles',id)['type'] for id in ids];self.assertIn('NEF',types)
         j['category']='ALS rot';ids=self.e.recommendation(j)['vehicles'];self.assertIn('NAH',[self.e.get('vehicles',id)['type'] for id in ids])
+    def test_vienna_sds_only_starts_patient_transport(self):
+        j=self.job();j.update(bed_state='allocated',destination='kh-donaustadt',case_number='SIM-W-TEST')
+        crew=self.vehicle('77/011');nah=self.vehicle('C9');fr=self.vehicle('FR-SCH-01')
+        for v in (crew,nah,fr):v.update(job=j['id'],status='scene');j['vehicles'].append(v['id'])
+        self.e.send_case({'job':j['id'],'channel':'SDS'})
+        self.assertEqual(crew['status'],'transport');self.assertEqual(nah['status'],'scene');self.assertEqual(fr['status'],'scene')
+        self.assertEqual([m['vehicle'] for m in self.e.state['messages']],[crew['id']])
     def test_migration_and_switch_persist_without_duplicates(self):
         self.e.command('rtwc',{'vehicle':self.vehicle('77/002')['id']});count=len(self.e.state['vehicles']);self.e.db.close();self.e=Engine(self.path)
         self.assertEqual(len(self.e.state['vehicles']),count);self.assertEqual(self.vehicle('77/002')['type'],'RTW-C')

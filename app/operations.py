@@ -137,7 +137,7 @@ class Operations:
         j=self.get('jobs',data['job']);channel=data.get('channel')
         if j['bed_state']!='allocated' or not j['case_number']:raise ValueError('Noch keine Kasusnummer vom Bettenmann vorhanden.')
         if channel not in ('SDS','ESApp'):raise ValueError('SDS oder ESApp wählen.')
-        targets=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type']!='NEF']
+        targets=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('KTW','RTW','RTW-C')]
         if not targets or any(v['status']!='scene' for v in targets):raise ValueError('Keine wartende Mannschaft am Berufungsort.')
         h=self.get('hospitals',j['destination']);j['bed_state']='sent';j['case_channel']=channel
         for v in targets:

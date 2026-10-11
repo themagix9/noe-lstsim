@@ -8,3 +8,5 @@
 .detail h3{overflow-wrap:anywhere;max-width:85%}.detail-summary .primary{width:100%}.landing-layout{padding:20px 0}.lobby{min-height:100vh}.job-fields .wide-field{grid-column:1/-1}
 
 body.lobby-open>header,body.lobby-open>.subbar,body.lobby-open>.team-bar,body.lobby-open>main{display:none}body.lobby-open{overflow:hidden}.map .leaflet-control-attribution svg{width:12px;height:8px;display:inline}
+
+body.lobby-open{height:100dvh;background:#11243a}
