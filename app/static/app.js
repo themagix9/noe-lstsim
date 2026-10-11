@@ -99,16 +99,19 @@ function renderMap(vehicles,jobs){
  if(!window.L){$('map').textContent='Kartenbibliothek nicht verfügbar.';return}
  const room=state.session.me;
  if(!leafletMap){
-  leafletMap=L.map('map',{scrollWheelZoom:false,minZoom:6,maxZoom:18}).setView([48.12,16.65],10);mapLayers=L.layerGroup().addTo(leafletMap);
+  leafletMap=L.map('map',{scrollWheelZoom:true,minZoom:6,maxZoom:18}).setView([48.12,16.65],10);mapLayers=L.layerGroup().addTo(leafletMap);
   tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>'}).addTo(leafletMap);
   tiles.on('tileerror',()=>{$('map-note').textContent='Kartenkacheln nicht erreichbar · Ressourcen bleiben sichtbar.'});
   tiles.on('tileload',()=>{$('map-note').textContent='OpenStreetMap · Fahrbewegung als Luftlinie'});
  }
  mapLayers.clearLayers();
- state.stations.filter(s=>!s.responder_area&&(!zone||s.zone===zone)).forEach(s=>L.circleMarker([s.lat,s.lon],{radius:9,color:'#16836d',fillOpacity:.8}).bindPopup(esc(s.name)).addTo(mapLayers));
+ state.stations.filter(s=>!s.responder_area&&s.dispo===state.setup.dispo&&(!zone||s.zone===zone)).forEach(s=>{
+  const parked=vehicles.filter(v=>v.station===s.id&&v.status==='ready');
+  L.circleMarker([s.lat,s.lon],{radius:parked.length?11:9,color:'#16836d',fillOpacity:.8}).bindTooltip(esc(s.name)+(parked.length?' · '+parked.length+' auf Wache':''),{direction:'top'}).bindPopup(`<b>${esc(s.name)}</b><br>${parked.length?parked.map(v=>esc(v.callsign)+' · '+esc(v.type)+' · Frei auf Wache').join('<br>'):'Keine freien Ressourcen auf Wache'}`).addTo(mapLayers);
+ });
  state.hospitals.forEach(h=>L.circleMarker([h.lat,h.lon],{radius:6,color:'#7c5abc',fillOpacity:.6}).bindPopup(esc(h.name)).addTo(mapLayers));
  jobs.forEach(j=>L.circleMarker([j.lat,j.lon],{radius:6,color:j.kind==='emergency'?'#d64854':'#2563eb',fillOpacity:.8}).bindPopup(esc(j.accepted?j.title:'144-Anruf')+' · '+esc(j.address)).on('click',()=>{selected=j.id;renderDetail()}).addTo(mapLayers));
- const overlaps={};vehicles.forEach(v=>{
+ const overlaps={};vehicles.filter(v=>v.status!=='ready').forEach(v=>{
   const key=v.lat.toFixed(5)+','+v.lon.toFixed(5),n=overlaps[key]||0;overlaps[key]=n+1;
   const icon=L.divIcon({className:'resource-marker',html:`<img src="${esc(graphic(v).url)}" alt=""><span>${esc(v.callsign)}</span>`,iconSize:[60,35],iconAnchor:[30-n*8,20-n*5]});
   L.marker([v.lat,v.lon],{icon}).bindPopup(`<b>${esc(v.callsign)}</b><br>${esc(statusName(v))}${v.reservation?'<br>Vordisponiert':''}`).addTo(mapLayers);
@@ -183,3 +186,5 @@ $('manual-form').onsubmit=async e=>{e.preventDefault();const form=e.target,data=
 fetch('/api/codes').then(r=>r.json()).then(s=>{ampdsRules=s.rules;if(state){detailSignature='';renderDetail()}}).catch(()=>toast('AMPDS-Katalog konnte nicht geladen werden. Übungsregeln bleiben verfügbar.'));
 
 $('simulation-date').value=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Vienna'}).format(new Date());
+
+window.addEventListener("resize",()=>requestAnimationFrame(()=>leafletMap?.invalidateSize()));

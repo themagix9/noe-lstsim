@@ -12,3 +12,47 @@ body.lobby-open>header,body.lobby-open>.subbar,body.lobby-open>.team-bar,body.lo
 body.lobby-open{height:100dvh;background:#11243a}
 
 .alarm-data{display:grid;grid-template-columns:minmax(110px,1fr) 2fr;gap:6px 12px;font-size:13px}.alarm-data dt{color:var(--muted,#64748b)}.alarm-data dd{margin:0;overflow-wrap:anywhere}
+
+/* One viewport; independent panels keep long lists and dialogs reachable. */
+html,body{height:100%;overflow:hidden}
+body{height:100dvh;display:flex;flex-direction:column;font-size:15px}
+body>header,body>.subbar,body>.team-bar{flex:none}
+header{padding:10px 18px}.subbar,.team-bar{padding:8px 18px}
+main.view{flex:1;min-height:0;padding:12px 18px;overflow:auto;overscroll-behavior:contain}
+#desk{display:grid;grid-template-columns:minmax(0,1.42fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(130px,.32fr);gap:12px;overflow:hidden}
+#desk .stats{grid-column:1/-1;margin:0;gap:12px}
+.stat{padding:8px 12px}.stat small{font-size:12px}.stat b{font-size:24px}.stat-symbol{padding:6px}
+#desk .workspace{grid-column:1/-1;min-height:0;gap:12px;grid-template-columns:minmax(0,1.42fr) minmax(0,1fr)}
+#desk .panel{min-height:0;min-width:0}
+.map-panel{display:grid;grid-template-rows:auto minmax(90px,1fr) auto auto minmax(70px,1fr)}
+.map-panel .map{height:100%;min-height:0}
+.map-panel .table-wrap{max-height:none;min-height:0;overflow:auto}
+.jobs-panel{display:flex;flex-direction:column}
+.job-list{flex:1;height:auto;min-height:0}.detail-summary{flex:none;padding:10px 14px}.detail-summary p{margin:0 0 8px}
+.log-panel,.chat-panel{display:flex;flex-direction:column;margin:0;min-height:0}
+#logs,#chat{flex:1;height:auto;max-height:none;min-height:0;overflow:auto}
+#desk:has(#chat-panel.hidden) .log-panel{grid-column:1/-1}
+.panel-head{padding:9px 13px}h2{font-size:16px}
+th{font-size:12px}td{font-size:14px;padding:9px 12px}
+.badge,.type,.status-button,.job-kind,.owner-chip,.count,.pill,.player-chip{font-size:12px}
+.job b{font-size:15px}.job small,.tabs button,.hint,.log,.log-channel,.map-caption,.detail-summary,.team-bar{font-size:13px}
+.detail p,.detail label,.manual-fields label,#fields label,.graphic-fields label,.lobby-card form>label,.setup-fields label{font-size:14px}
+.detail h3{font-size:20px}.aao-box small,.resource-toolbar,.resource-toolbar button,.resource-header,.dispatch-options .resource-row,.alarm-data{font-size:13px}
+.resource-marker span{font-size:12px}.resource-marker img{height:25px}.clock small,.brand small,.team-bar .dim{font-size:11px}
+.resources-head input{font-size:14px;max-width:55%;min-width:0}.chat-message,.chat-message b,.chat-message time{font-size:13px}
+dialog{max-height:94dvh;overflow:auto;overscroll-behavior:contain}.dispatch-dialog{width:min(1040px,96vw);max-height:94dvh}
+.dispatch-dialog .panel-head{flex:none}.resource-list{overscroll-behavior:contain}.lobby{min-height:0;height:100dvh;overscroll-behavior:contain}
+@media(max-width:1000px){#desk .workspace{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}.station-grid,.settings-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){
+ header{gap:6px;padding:8px}nav{order:4;margin:0;width:100%;justify-content:center}.nav{padding:7px 10px}.clock>span{font-size:19px}.brand small{font-size:9px}
+ .subbar,.team-bar{padding:6px 9px;font-size:12px}.team-bar{gap:6px}#players{max-height:34px;overflow:auto}.team-bar>div:first-child{max-width:70%}
+ main.view{padding:8px}#desk{gap:8px;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(110px,.3fr)}
+ #desk .stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.stat{padding:6px}.stat small{font-size:10px;letter-spacing:0}.stat b{font-size:20px}.stat-symbol{display:none}
+ #desk .workspace{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:8px}
+ .map-panel{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(60px,1fr)}
+ .map-panel>.panel-head:first-child{grid-column:1}.map-panel .resources-head{grid-column:2;grid-row:1}.map-panel .map{grid-column:1;grid-row:2}.map-panel .table-wrap{grid-column:2;grid-row:2}.map-panel .map-caption{display:none}
+ .resources-head input{max-width:60%;width:100px}.resources-head h2{display:none}.panel-head{padding:6px 8px}h2{font-size:14px}.tabs{padding:5px;gap:3px}.tabs button{padding:6px;font-size:12px}
+ .jobs-panel .detail-summary{padding:6px 8px}.detail-summary p{display:none}.detail-summary button{padding:6px}.job{padding:8px}.job-list{padding:5px}
+ .log{grid-template-columns:45px 1fr;font-size:12px;gap:5px}.log-channel{display:none}#logs,#chat{padding:5px 8px}.chat-panel .dim{display:none}#chat-form{padding:6px;gap:4px}#chat-form button{padding:6px}#chat-input{width:0;padding:6px}
+ .station-grid,.settings-grid{grid-template-columns:1fr}.alarm-data{grid-template-columns:1fr 1.4fr}
+}
