@@ -9,6 +9,14 @@ import sqlite3
 import threading
 import uuid
 
+GRAPHICS = [
+    {'id':'van','name':'Rettungswagen · Kastenwagen','url':'/graphics/van.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
+    {'id':'box','name':'Rettungswagen · Kofferaufbau','url':'/graphics/box.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
+    {'id':'car','name':'Notarzteinsatzfahrzeug · SUV','url':'/graphics/car.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
+    {'id':'command','name':'Führungsfahrzeug · Bus','url':'/graphics/command.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
+]
+DEFAULT_GRAPHIC = {'KTW':'van','KTW-B':'van','RTW':'van','RTW-C':'box','NEF':'car','BEL':'command'}
+
 TYPES = ['KTW', 'KTW-B', 'RTW', 'RTW-C', 'NEF', 'BEL']
 STATUSES = {'ready': 'Frei auf Wache', 'radio': 'Frei über Funk', 'out': 'Außer Dienst', 'assigned': 'Alarmiert', 'enroute': 'Zum Berufungsort', 'scene': 'Am Berufungsort', 'transport': 'Zum Zielort', 'hospital': 'Am Zielort', 'return': 'Rückfahrt', 'clean': 'Desinfektion'}
 SCENARIOS = [
@@ -37,16 +45,27 @@ def seed():
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':HOSPITALS,'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
 class Engine:
-    def __init__(self, path):
+    def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
-        self.db.execute('CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, value TEXT NOT NULL)')
-        row=self.db.execute('SELECT value FROM state WHERE id=1').fetchone()
+        self.db.execute('PRAGMA busy_timeout=5000')
+        self.db.execute('PRAGMA journal_mode=WAL')
+        self.db.execute('CREATE TABLE IF NOT EXISTS room_states (room_id TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        self.room_id=room_id
+        row=self.db.execute('SELECT value FROM room_states WHERE room_id=?',(room_id,)).fetchone()
+        # Preserve the v0.1 state on migration; first host can explicitly adopt it.
+        if not row and room_id=='legacy':
+            old=self.db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='state'").fetchone()
+            row=self.db.execute('SELECT value FROM state WHERE id=1').fetchone() if old else None
         self.state=json.loads(row[0]) if row else seed()
+        self.state.setdefault('graphics',copy.deepcopy(GRAPHICS))
+        self.state.setdefault('chat',[])
+        for v in self.state['vehicles']: v.setdefault('graphic',DEFAULT_GRAPHIC[v['type']])
+        for j in self.state['jobs']: j.setdefault('owner',None)
         self.save()
 
     def save(self):
-        self.db.execute('INSERT OR REPLACE INTO state VALUES (1, ?)', (json.dumps(self.state,ensure_ascii=False),))
+        self.db.execute('INSERT OR REPLACE INTO room_states VALUES (?, ?)', (self.room_id,json.dumps(self.state,ensure_ascii=False)))
         self.db.commit()
 
     def snapshot(self):
@@ -74,7 +93,7 @@ class Engine:
     def new_job(self, kind):
         place, lat, lon=random.choice(PLACES)
         clock=self.state['clock']
-        job={'id':uid(),'kind':kind,'place':place,'lat':lat+random.uniform(-.008,.008),'lon':lon+random.uniform(-.008,.008),'address':f'{place}, Beispieladresse {random.randint(1,40)}','created':clock,'vehicles':[],'status':'new','accepted':False,'asked':False,'destination':random.choice(self.state['hospitals'])['id']}
+        job={'id':uid(),'kind':kind,'place':place,'lat':lat+random.uniform(-.008,.008),'lon':lon+random.uniform(-.008,.008),'address':f'{place}, Beispieladresse {random.randint(1,40)}','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice(self.state['hospitals'])['id']}
         if kind=='emergency':
             scenario=copy.deepcopy(random.choice(SCENARIOS)); job.update(scenario)
             job['due']=clock
@@ -164,7 +183,28 @@ class Engine:
 
     def command(self, action, data):
         with self.lock:
-            if action=='control':
+            actor=data.get('_actor')
+            if actor and action in ('accept','ask','dispatch'):
+                j=self.get('jobs',data.get('job') if action=='dispatch' else data.get('id'))
+                if j.get('owner') and j['owner']!=actor['id']:
+                    raise ValueError('Dieser Einsatz wird bereits von einem anderen Disponenten betreut.')
+                # Claim only after a successful operation below.
+            if action=='claim':
+                j=self.get('jobs',data['id'])
+                if not actor: raise ValueError('Spieler benötigt.')
+                if j['status']=='done': raise ValueError('Einsatz bereits abgeschlossen.')
+                if j.get('owner') and j['owner']!=actor['id']: raise ValueError('Einsatz bereits übernommen.')
+                j['owner']=actor['id']; self.log(f"{actor['name']} übernimmt Einsatz {j['id']}.",'System')
+            elif action=='release':
+                j=self.get('jobs',data['id'])
+                if not actor or (j.get('owner')!=actor['id'] and not actor.get('host')): raise ValueError('Nur der Betreuer oder Sitzungsleiter kann den Einsatz freigeben.')
+                j['owner']=None; self.log(f"{actor['name']} gibt Einsatz {j['id']} zur Übergabe frei.",'System')
+            elif action=='chat':
+                text=str(data.get('text','')).strip()
+                if not actor or not text or len(text)>500: raise ValueError('Nachricht mit 1–500 Zeichen erforderlich.')
+                self.state['chat'].append({'id':uid(),'time':self.state['clock'],'player':actor['id'],'name':actor['name'],'text':text})
+                self.state['chat']=self.state['chat'][-100:]
+            elif action=='control':
                 speed=data.get('speed',self.state['speed'])
                 if speed not in (1,5,15,60): raise ValueError('Ungültige Geschwindigkeit.')
                 self.state['speed']=speed; self.state['paused']=bool(data.get('paused',self.state['paused']))
@@ -202,11 +242,12 @@ class Engine:
                     self.state=old; raise ValueError('Ungültiger Import; bisherige Konfiguration bleibt erhalten.')
                 self.log('Dienststellen- und Fahrzeugkonfiguration importiert.','System')
             elif action=='reset':
-                vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']
-                self.state=seed(); self.state['stations']=stations; self.state['vehicles']=vehicles
+                vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; graphics=self.state['graphics']
+                self.state=seed(); self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations; self.state['vehicles']=vehicles
                 for v in vehicles:
                     s=self.station(v['station']); v.update(job=None,phase_due=None,status='ready' if self.in_shift(v) else 'out',lat=s['lat'],lon=s['lon'])
             else: raise ValueError('Unbekannte Aktion.')
+            if actor and action in ('accept','ask','dispatch'): j['owner']=actor['id']
             self.save()
             return self.snapshot()
 
@@ -236,7 +277,9 @@ class Engine:
             except (ValueError,TypeError): raise ValueError('Dienstzeiten als HH:MM eingeben.')
         record_id=existing['id'] if existing else str(d.get('id') or uid())
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',record_id): raise ValueError('Ungültige Fahrzeug-ID.')
-        v={'id':record_id,'callsign':call,'type':typ,'station':station,'start':start,'end':end,'staffed':bool(d.get('staffed',True)),'status':'ready','lat':home['lat'],'lon':home['lon'],'job':None,'phase_due':None,'source':str(d.get('source','Manuell gepflegt'))[:300]}
+        graphic=d.get('graphic',existing.get('graphic') if existing else DEFAULT_GRAPHIC[typ])
+        if graphic not in {g['id'] for g in self.state['graphics']}: raise ValueError('Unbekannte Fahrzeuggrafik.')
+        v={'graphic':graphic,'id':record_id,'callsign':call,'type':typ,'station':station,'start':start,'end':end,'staffed':bool(d.get('staffed',True)),'status':'ready','lat':home['lat'],'lon':home['lon'],'job':None,'phase_due':None,'source':str(d.get('source','Manuell gepflegt'))[:300]}
         v['status']='ready' if self.in_shift(v) else 'out'
         if existing: existing.update(v)
         else: self.state['vehicles'].append(v)

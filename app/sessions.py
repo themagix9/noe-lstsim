@@ -1,0 +1,123 @@
+"""Persistent rooms, membership tokens and isolated simulation state."""
+import base64
+import copy
+import hashlib
+import secrets
+import sqlite3
+import struct
+import threading
+import time
+from engine import Engine, GRAPHICS
+
+class Sessions:
+    def __init__(self,path):
+        self.path=path; self.lock=threading.RLock(); self.engines={}
+        self.db=sqlite3.connect(path,check_same_thread=False)
+        self.db.execute('PRAGMA busy_timeout=5000'); self.db.execute('PRAGMA journal_mode=WAL')
+        self.db.execute('CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, code TEXT UNIQUE, title TEXT, created REAL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS members (id TEXT PRIMARY KEY, room_id TEXT, name TEXT, token_hash TEXT UNIQUE, host INTEGER, last_seen REAL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS graphics_files (id TEXT PRIMARY KEY, room_id TEXT, content BLOB)')
+        self.db.commit()
+        # Run the legacy migration immediately, without discarding its saved state.
+        self.engine('legacy')
+
+    def engine(self,id):
+        if id not in self.engines: self.engines[id]=Engine(self.path,id)
+        return self.engines[id]
+
+    def name(self,value):
+        name=str(value or '').strip()
+        if not 2<=len(name)<=30 or any(ord(c)<32 for c in name): raise ValueError('Spielername: 2–30 Zeichen.')
+        return name
+
+    def add_member(self,room,name,host=False):
+        if self.db.execute('SELECT count(*) FROM members WHERE room_id=?',(room,)).fetchone()[0]>=16: raise ValueError('Sitzung ist voll (maximal 16 Spieleridentitäten).')
+        if self.db.execute('SELECT 1 FROM members WHERE room_id=? AND lower(name)=lower(?)',(room,name)).fetchone(): raise ValueError('Dieser Spielername ist bereits vergeben. Zum Fortsetzen den gespeicherten Zugang verwenden.')
+        id=secrets.token_hex(16);token=secrets.token_urlsafe(32)
+        self.db.execute('INSERT INTO members VALUES (?,?,?,?,?,?)',(id,room,name,hashlib.sha256(token.encode()).hexdigest(),int(host),time.time()));self.db.commit()
+        return {'token':token,'player':id}
+
+    def create(self,data):
+        with self.lock:
+            name=self.name(data.get('name'));title=str(data.get('title') or 'Gemeinsame Disposition').strip()[:60]
+            if self.db.execute('SELECT count(*) FROM rooms').fetchone()[0]>=100: raise ValueError('Maximale Sitzungsanzahl erreicht.')
+            id=secrets.token_hex(16)
+            while True:
+                code=''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(8))
+                if not self.db.execute('SELECT 1 FROM rooms WHERE code=?',(code,)).fetchone():break
+            self.db.execute('INSERT INTO rooms VALUES (?,?,?,?)',(id,code,title,time.time()));self.db.commit()
+            e=self.engine(id)
+            if data.get('adopt_legacy'):
+                e.state=copy.deepcopy(self.engine('legacy').snapshot()); e.state['paused']=True
+                for j in e.state['jobs']:j['owner']=None
+                e.save()
+            credential=self.add_member(id,name,True);return credential
+
+    def join(self,data):
+        with self.lock:
+            name=self.name(data.get('name'));code=str(data.get('code','')).strip().upper().replace(' ','').replace('-','')
+            room=self.db.execute('SELECT id FROM rooms WHERE code=?',(code,)).fetchone()
+            if not room:raise ValueError('Sitzungscode nicht gefunden.')
+            return self.add_member(room[0],name)
+
+    def member(self,token,touch=True):
+        with self.lock:
+            if not token or len(token)>200: raise PermissionError('Bitte einer Sitzung beitreten.')
+            row=self.db.execute('SELECT id,room_id,name,host,last_seen FROM members WHERE token_hash=?',(hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+            if not row:raise PermissionError('Sitzungszugang ungültig. Bitte erneut beitreten.')
+            if touch:self.db.execute('UPDATE members SET last_seen=? WHERE id=?',(time.time(),row[0]));self.db.commit()
+            return {'id':row[0],'room_id':row[1],'name':row[2],'host':bool(row[3]),'last_seen':row[4]}
+
+    def snapshot(self,member):
+        with self.lock:
+            room=self.db.execute('SELECT code,title FROM rooms WHERE id=?',(member['room_id'],)).fetchone()
+            roster=self.db.execute('SELECT id,name,host,last_seen FROM members WHERE room_id=?',(member['room_id'],)).fetchall()
+            s=self.engine(member['room_id']).snapshot()
+            s['session']={'code':room[0],'title':room[1],'me':member['id'],'host':member['host'],'players':[{'id':r[0],'name':r[1],'host':bool(r[2]),'online':time.time()-r[3]<45} for r in roster]}
+            return s
+
+    def command(self,member,action,data):
+        with self.lock:
+            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
+            engine=self.engine(member['room_id'])
+            if action=='leave':
+                self.db.execute('UPDATE members SET last_seen=0 WHERE id=?',(member['id'],));self.db.commit();return {'left':True}
+            if action=='claim':
+                job=engine.get('jobs',data['id']);owner=job.get('owner')
+                if job['status']=='done':raise ValueError('Einsatz bereits abgeschlossen.')
+                if owner and owner!=member['id']:
+                    seen=self.db.execute('SELECT last_seen FROM members WHERE id=? AND room_id=?',(owner,member['room_id'])).fetchone()
+                    if seen and time.time()-seen[0]<45:raise ValueError('Dieser Einsatz wird von einem aktiven Disponenten betreut.')
+                    # Under the room lock, disconnected owners can be replaced safely.
+                    job['owner']=None
+            if action=='upload_graphic':self.upload_graphic(member,data)
+            else:engine.command(action,{**data,'_actor':member})
+            return self.snapshot(member)
+
+    def upload_graphic(self,member,data):
+        try:raw=base64.b64decode(data.get('data',''),validate=True)
+        except (ValueError,TypeError):raise ValueError('Ungültige Bilddatei.')
+        if not 32<=len(raw)<=512*1024 or raw[:8]!=b'\x89PNG\r\n\x1a\n' or raw[12:16]!=b'IHDR':raise ValueError('Nur PNG-Dateien bis 512 KiB erlaubt.')
+        width,height=struct.unpack('>II',raw[16:24])
+        if not 1<=width<=4096 or not 1<=height<=4096:raise ValueError('Bildgröße maximal 4096 × 4096 Pixel.')
+        name=str(data.get('name','')).strip()[:80]; author=str(data.get('author','')).strip()[:100];license=str(data.get('license','')).strip()[:250]
+        if not name or not author or not license:raise ValueError('Name, Autor und Lizenz/Freigabe benötigt.')
+        e=self.engine(member['room_id'])
+        if len(e.state['graphics'])>=54:raise ValueError('Maximal 50 eigene Grafiken pro Sitzung.')
+        id=secrets.token_hex(16)
+        self.db.execute('INSERT INTO graphics_files VALUES (?,?,?)',(id,member['room_id'],raw));self.db.commit()
+        e.state['graphics'].append({'id':id,'name':name,'author':author,'license':license,'source':str(data.get('source',''))[:500],'url':'/media/'+id+'.png'})
+        e.log(f'{member["name"]} hat die Fahrzeuggrafik {name} hinzugefügt.','System');e.save()
+
+    def media(self,id):
+        with self.lock:
+            row=self.db.execute('SELECT content FROM graphics_files WHERE id=?',(id,)).fetchone();return row[0] if row else None
+
+    def tick(self,seconds):
+        with self.lock:
+            ids=[r[0] for r in self.db.execute('SELECT DISTINCT room_id FROM members WHERE last_seen>?',(time.time()-45,)).fetchall()]
+            for id in ids:self.engine(id).tick(seconds)
+
+    def close(self):
+        for e in self.engines.values():e.db.close()
+        self.db.close()

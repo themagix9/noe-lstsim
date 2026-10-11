@@ -1,4 +1,4 @@
-# NÖ Dispo – Docker-Leitstellensimulator v0.1
+# NÖ Dispo – Docker-Leitstellensimulator v0.2
 
 Eigenständiger, spielbarer Prototyp für Niederösterreich, zunächst Raum Bruck/Leitha, Schwechat und Hainburg. Keine Kopie des LstSim-Quellcodes; keine Anbindung an echte Leitstellen.
 
@@ -43,7 +43,7 @@ Jeder Build besitzt zusätzlich einen unveränderlichen Tag `sha-<vollständige 
 
 ## Erste Übung
 
-1. Die Simulation beginnt pausiert um 08:00. Starte sie oben rechts; zum Testen eignet sich 15×.
+1. In der Lobby Spielernamen eingeben und eine Sitzung erstellen oder mit dem achtstelligen Code beitreten. Die Simulation beginnt pausiert um 08:00. Starte sie oben rechts; zum Testen eignet sich 15×.
 2. Über **+ Ereignis** kannst du sofort einen Notruf oder Transportauftrag erzeugen. Während der Übung treffen auch automatisch neue Ereignisse ein.
 3. Notruf auswählen, annehmen und die zusätzliche Abfrage öffnen.
 4. Transportziel auswählen, passende Ressourcen markieren und alarmieren. Bei Szenarien mit RTW + NEF beide auswählen; ein NEF kann später ergänzt werden.
@@ -68,20 +68,48 @@ Unter **Konfiguration** lassen sich Dienststellen/Fahrzeuge als JSON exportieren
 
 Für eine vollständige Sicherung Container stoppen und das Docker-Volume sichern; ein JSON-Konfigurationsexport enthält keine laufenden Einsätze.
 
+## Multiplayer und Sitzungen
+
+Eine Sitzung erstellen und den achtstelligen Code über den Code-Button kopieren. Andere Spieler öffnen denselben Simulator, wählen **Mit Code beitreten** und geben Code und eigenen Namen ein. Bis zu 16 Spieleridentitäten sind pro Sitzung möglich; mehrere unabhängige Sitzungen laufen auf demselben Server. Für Einzelspieler einfach alleine eine Sitzung erstellen.
+
+Alle Spieler einer Sitzung sehen dieselben Aufträge, Fahrzeugstatus, Simulationszeit und Funkmeldungen. Aktualisierung erfolgt durch HTTP-Polling etwa alle zwei Sekunden. Die Teamleiste zeigt Namen, Online-Status und Zahl der betreuten offenen Einsätze; der Stern markiert den Sitzungsleiter. Der Teamchat gehört ausschließlich zur Sitzung.
+
+Ein Einsatz kann über **Einsatz übernehmen** reserviert werden. Notrufannahme, Abfrage oder Alarmierung übernehmen unbesetzte Einsätze automatisch. Die Betreuung steht direkt am Auftrag. Andere Spieler können den Einsatz beobachten, aber während der Betreuung nicht abfragen oder disponieren. **Zur Übergabe freigeben** macht ihn für Kollegen verfügbar; der Sitzungsleiter kann eine Betreuung ebenfalls freigeben. Wenn ein Spieler offline ist, ist die Übernahme nach spätestens 45 Sekunden möglich. Gleichzeitige Übernahmeversuche werden serverseitig gesperrt; genau ein Spieler erhält den Einsatz.
+
+Pause/Geschwindigkeit und manuelle Ereignisse sind gemeinsame Steuerungen. Nur der Sitzungsleiter kann Stammdaten ändern, Grafiken importieren oder die Übung zurücksetzen. Alle können die Konfiguration exportieren. Der Beitrittscode erlaubt Zugriff auf die Runde; nicht öffentlich veröffentlichen, wenn sie privat bleiben soll. Der Simulator verwendet zufällige individuelle Zugangstoken und benötigt für `/api/state` nun einen Sitzungszugang. Das ersetzt noch keine dauerhaften Benutzerkonten oder Cloudflare Access.
+
+Der Browser merkt sich den letzten Zugang; nach Reload bleibt die Identität erhalten. **Sitzung wechseln** öffnet die Lobby, wo die letzte Sitzung fortgesetzt werden kann. Ein gelöschter Browser-Speicher verliert diesen Zugang; ein erneuter Beitritt erzeugt eine neue Identität und stellt nicht automatisch Sitzungsleiterrechte wieder her. Namen sind pro Sitzung eindeutig. Wenn alle offline sind, friert die Simulationszeit nach Ablauf der Online-Frist ein. Es gibt bisher keine Raumlöschung oder Übertragung der Sitzungsleiterrolle; maximal 100 persistierte Sitzungen pro Installation.
+
+### Bestehende Installation aktualisieren
+
+Denselben Portainer-Stack und sein Volume behalten; Stack aktualisieren und das neue Image erneut ziehen. In der ersten Lobby kann der Sitzungsleiter **Bestehenden v0.1-Übungsstand übernehmen** wählen. Die alte SQLite-Tabelle wird bei der Migration erhalten. Ohne Auswahl startet eine neue Übung mit dem Ausgangsbestand. Kein `down -v` verwenden, wenn Daten erhalten bleiben sollen.
+
+## Fahrzeuggrafiken
+
+Vier eigene schematische SVG-Fahrzeugbilder (Kastenwagen, Kofferwagen, SUV und Führungsbus) sind enthalten. Sie sind keine exakten Abbildungen der realen NÖ-Flotte. In den Ressourcen kann pro Fahrzeug eine Grafik ausgewählt werden. Die Bilder erscheinen in den Fahrzeuglisten und als Fahrzeugmarker auf der Karte.
+
+Der Sitzungsleiter kann unter **Ressourcen → Fahrzeuggrafiken → Eigene PNG-Grafik** PNG-Dateien bis 512 KiB und maximal 4096 × 4096 Pixel hinzufügen. Autor, Quelle und Lizenz/Freigabe werden mitgespeichert. Nur eigene oder für dieses separate Projekt freigegebene Dateien verwenden. Die Grafiken werden in SQLite gespeichert und bleiben beim Neustart erhalten. Die Metadaten sind Angaben des Hochladenden, keine automatisch geprüfte Lizenzbestätigung.
+
+Die gewünschte LstSim-Sammlung wurde geprüft, aber es wurde keine ausreichende Freigabe für die Übernahme konkreter österreichischer Grafiken in dieses separate Projekt gefunden. Daher werden keine fremden LstSim-Dateien oder Blankos mitgeliefert. Recherchequellen:
+
+- https://wiki.lstsim.de/Fahrzeuggrafiken
+- https://forum.lstsim.de/thread/4749-lukas-fahrzeuggrafiken/ (österreichische Fahrzeuge, teils auf Blankos anderer Autoren)
+- https://forum.lstsim.de/thread/3809-westf%C3%A4lische-grafiken/ (ausdrückliche Zustimmung für externe Verwendung erforderlich)
+
+Ein JSON-Konfigurationsexport enthält Fahrzeug-Grafikzuordnungen, aber keine PNG-Dateien. Bei Import in eine andere Sitzung müssen eigene Grafiken dort vorher passend verfügbar sein; unbekannte Grafik-IDs werden zurückgewiesen. Eine vollständige Sicherung umfasst deshalb immer die SQLite-Datenbank, nicht nur den JSON-Export.
+
 ## Datenbank heute und später
 
-Die Datenbank ist bereits vorhanden: **SQLite unter `/data/simulation.sqlite3`**, dauerhaft im Docker-Volume. Aktuell enthält sie Fahrzeuge, Dienststellen, Dienstzeiten, Besetzung, Krankenhäuser, Aufträge, Uhrzeit und das letzte Kommunikationsprotokoll gemeinsam als JSON-Simulationsstand in einer `state`-Tabelle. Es wird bei der ersten Installation automatisch ein Ausgangsbestand angelegt. Neustarts behalten den Stand bei; die Uhr läuft nur während der Server läuft.
+**SQLite unter `/data/simulation.sqlite3`**, dauerhaft im Docker-Volume. Neu sind getrennte Tabellen für Sitzungen (`rooms`), Spielerzugänge (`members`), Grafikdateien (`graphics_files`) und den Simulationsstand pro Raum (`room_states`). Zugangstoken werden serverseitig nur als SHA-256-Hash gespeichert. Der vorhandene v0.1-Stand bleibt als Legacy-Datenbestand erhalten.
 
-SQLite ist eine echte Datenbank, benötigt aber keinen separaten Datenbank-Service. Die jetzige Speicherung ist eine Prototyp-Struktur: keine normalisierten Tabellen, Benutzerkonten oder getrennten Übungssitzungen. Für den späteren Ausbau sollten diese Bereiche in eigene Tabellen mit Migrationen aufgeteilt werden: Dispozonen, Organisationen, Dienststellen, Fahrzeugbestand, Schichtmodelle, POIs/Kliniken, Einsatzvorlagen, Transportaufträge, Funkdialoge und Übungssitzungen. Bei Mehrbenutzerbetrieb kann PostgreSQL als zusätzlicher Service eingesetzt werden. Ein PostgreSQL-Container allein würde die aktuelle Anwendung noch nicht anbinden; die Migration muss im Backend umgesetzt werden.
-
-Es findet kein automatischer Import vollständiger realer NÖ-Daten statt. Stammdaten lassen sich bereits manuell pflegen und als JSON übertragen. Mehrere aktive App-Replikate auf demselben SQLite-Volume werden nicht unterstützt.
+Der eigentliche Fahrzeug-/Einsatzbestand wird weiterhin gemeinsam als JSON-Simulationsstand pro Raum gespeichert. Für den späteren Ausbau sollten Dispozonen, Organisationen, Dienststellen, Schichtmodelle, POIs/Kliniken, Einsatzvorlagen, Transportaufträge und Funkdialoge in eigene Tabellen mit Migrationen aufgeteilt werden. PostgreSQL kann später für größere Installationen ergänzt werden; der jetzige Code nutzt weiterhin SQLite. Mehrere aktive App-Replikate auf demselben Volume werden nicht unterstützt.
 
 ## Technischer Aufbau
 
 - Python 3.12, Standardbibliothek, HTTP-Server und SQLite; keine Python-Pakete nötig.
 - HTML/CSS/JavaScript ohne Buildschritt oder CDN.
 - Hintergrunduhr, serverseitige Verfügbarkeitsprüfung und gesperrte Schreiboperationen.
-- Eine gemeinsame Übung pro Installation; mehrere Browser sehen denselben Stand.
+- Getrennte persistente Sitzungen; mehrere Browser einer Sitzung teilen denselben Stand.
 - Nicht privilegierter Container, Healthcheck, keine zusätzlichen Linux-Capabilities.
 
 Für lokale Entwicklung ohne Docker:
@@ -101,12 +129,14 @@ node --check app/static/app.js
 
 ## Bekannte Grenzen und nächste Schritte
 
-Dies ist ein funktionierender Grundprototyp, kein vollständiger LstSim-Ersatz. Die Karte ist schematisch, keine navigierbare Straßenkarte. Fahrzeugpositionen springen zwischen Phasen; Fahrzeiten werden aus Luftlinie mit pauschalem Umwegfaktor berechnet. Beispieladressen, Anrufer und Szenarien sind erfunden. Die Abholzeit wird angezeigt; Verspätungen werden noch nicht bewertet. Keine Sprachsynthese, Spracherkennung oder KI-Anbindung.
+Dies ist ein funktionierender Multiplayer-Grundprototyp, kein vollständiger LstSim-Ersatz. Die Karte ist schematisch, keine navigierbare Straßenkarte. Fahrzeugpositionen springen zwischen Phasen; Fahrzeiten werden aus Luftlinie mit pauschalem Umwegfaktor berechnet. Beispieladressen, Anrufer und Szenarien sind erfunden. Die Abholzeit wird angezeigt; Verspätungen werden noch nicht bewertet. Keine Sprachsynthese, Spracherkennung oder KI-Anbindung.
 
 Ressourcenanforderungen sind Szenariohinweise. Unvollständige Alarmierungen bleiben möglich, damit der Disponent nachalarmieren kann; der Ablauf wartet noch nicht zwingend auf den Notarzt. NEF fährt nach Versorgung ohne Begleitung zurück. Keine Rendezvous- oder Nachführungslogik, Vorhaltung, Pausen, dynamische Krankenhauskapazität oder echte AAO. BEL ist im Bestand pflegbar, aber noch ohne spielbare Führungsaufgaben. Krankenhäuser sind zunächst feste Ziele, Transportzieländerung nach Alarmierung ist gesperrt. Rückfahrende Fahrzeuge können noch nicht umdisponiert werden.
 
-Sinnvolle nächste Ausbaustufen: geprüfter Fahrzeug-/Dienststellenimport für alle NÖ-Zonen, echte Straßenkarte und Routing, zusätzliche POIs und Transportziele, parametrisierte Funkdialoge, AAO/Qualifikationen, zeitabhängige Einsatzverteilung, Transportplanung und eigene Übungssitzungen mit Anmeldung.
+Sinnvolle nächste Ausbaustufen: geprüfter Fahrzeug-/Dienststellenimport für alle NÖ-Zonen, echte Straßenkarte und Routing, zusätzliche POIs und Transportziele, parametrisierte Funkdialoge, AAO/Qualifikationen, zeitabhängige Einsatzverteilung, Transportplanung, Benutzerkonten, Rollenverwaltung und echte Sprachkommunikation.
 
 ## Prüfung dieser Ausgabe
 
-Automatisierte Tests decken getrennten KT-Eingang, Notrufannahme, Doppelalarmierung, atomare Disposition, Nacht-/unbesetzte Dienste, kompletten Einsatzzyklus, Import-Rollback, Konfigurationsimport, Neustartpersistenz und Rücksetzung ab. HTTP-Smoke-Test prüft Oberfläche, API, Persistenz und Eingabevalidierung. JavaScript-Syntax geprüft. Docker ist in der Erstellungsumgebung nicht installiert; daher wurde kein Docker-Build ausgeführt. Eine visuelle Browserprüfung war dort nicht verfügbar.
+Automatisierte Python-Tests decken Einsatzabläufe, Verfügbarkeit, atomare Disposition, Import-Rollback und Persistenz sowie Sitzungsisolation, konkurrierende Übernahmen, Betreuung, Übergabe, Offline-Übernahme, Teamchat, Rollenrechte, PNG-Import und Migration ab. API-Tests prüfen Beitritt und unberechtigte Zugriffe. Die GitHub-Pipeline prüft zusätzlich in zwei getrennten Browserkontexten: Erstellung/Beitritt, Spielerliste, Betreuung, Übergabe, Alarmierung, Chat, Reload, Grafikdarstellung und Simulationsstart. Desktop- und Mobilansichten werden als interne QA-Artefakte erstellt. Container-Build, Startprüfung und Portainer-Compose-Validierung laufen ebenfalls in GitHub Actions.
+
+Für den Browser-Test separat Playwright installieren (`pip install playwright==1.58.0`, `python -m playwright install chromium`) und `python tests/browser_smoke.py` ausführen. Der Browser-Test verwendet Port 8080; dort darf kein weiterer Testserver laufen. Docker und Chromium waren in der lokalen Erstellungsumgebung nicht vorhanden; die tatsächliche Prüfung erfolgt durch die Pipeline. Cloudflare-Tunnelverbindung wird erst mit einem gültigen Token und Hostnamen auf deinem Server geprüft.

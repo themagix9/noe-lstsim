@@ -27,6 +27,19 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check frontend syntax
         run: node --check app/static/app.js
+      - name: Install browser test dependencies
+        run: |
+          pip install playwright==1.58.0
+          python -m playwright install --with-deps chromium
+      - name: Test multiplayer in two browser sessions
+        run: python tests/browser_smoke.py
+      - name: Upload internal UI previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-preview
+          path: /tmp/noe-ui-qa/*.png
+          if-no-files-found: ignore
       - name: Validate Portainer stack
         env:
           CLOUDFLARE_TUNNEL_TOKEN: ci-validation-placeholder
@@ -39,7 +52,7 @@ jobs:
           trap 'docker logs smoke; docker rm -f smoke' EXIT
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:18080/api/health; then
-              curl --fail --silent http://127.0.0.1:18080/api/state | python -c 'import json,sys; assert len(json.load(sys.stdin)["vehicles"]) == 14'
+              curl --fail --silent http://127.0.0.1:18080/ | python -c 'import sys; assert "NÖ Dispo" in sys.stdin.read()'
               exit 0
             fi
             sleep 1

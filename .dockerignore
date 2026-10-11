@@ -3,3 +3,7 @@ __pycache__
 *.pyc
 data
 tests
+
+.github
+README.md
+node_modules
