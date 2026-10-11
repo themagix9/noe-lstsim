@@ -22,6 +22,15 @@ class SessionTests(unittest.TestCase):
     def tearDown(self):self.s.close();self.temp.cleanup()
     def job(self):
         self.s.command(self.host,'generate',{'kind':'transport'});return self.s.snapshot(self.host)['jobs'][-1]
+    def test_leave_pauses_only_private_simulation(self):
+        auth=self.s.create({'name':'Solo','mode':'single'});member=self.s.member(auth['token'])
+        self.s.command(member,'control',{'paused':False})
+        self.s.command(member,'leave',{})
+        self.assertTrue(self.s.engine(member['room_id']).state['paused'])
+        self.s.command(self.host,'control',{'paused':False})
+        self.s.command(self.guest,'leave',{})
+        self.assertFalse(self.s.engine(self.host['room_id']).state['paused'])
+
     def test_players_share_state_and_owner(self):
         j=self.job();self.s.command(self.guest,'claim',{'id':j['id']})
         self.assertEqual(self.s.snapshot(self.host)['jobs'][-1]['owner'],self.guest['id'])

@@ -7,7 +7,7 @@ STATIONS=[
  {'id':'nef-baden','name':'NEF Baden · Stützpunktlage prüfen','lat':48.002,'lon':16.246,'address':'Baden · ungeprüfter Übungsstartpunkt','external':True},
  {'id':'nef-moedling','name':'NEF Mödling · Stützpunktlage prüfen','lat':48.087,'lon':16.286,'address':'Mödling · ungeprüfter Übungsstartpunkt','external':True},
  {'id':'schwechat','name':'RK Schwechat','lat':48.1384,'lon':16.4802,'address':'Bruck-Hainburger Straße 27, 2320 Schwechat'},
- {'id':'goetzendorf','name':'RK Götzendorf','lat':48.0133,'lon':16.5866,'address':'Heidrichgasse 6, 2434 Götzendorf'},
+ {'id':'goetzendorf','name':'RK Götzendorf','lat':48.0133,'lon':16.5866,'address':'Dr. Heudrich Gasse 6, 2434 Götzendorf'},
  {'id':'himberg','name':'RK Himberg','lat':48.0835,'lon':16.4372,'address':'Wiener Straße 9, 2325 Himberg'},
  {'id':'leopoldsdorf','name':'RK Leopoldsdorf','lat':48.1124,'lon':16.4035,'address':'Achauerstraße 43, 2333 Leopoldsdorf'},
  {'id':'fr-fischamend','name':'First Responder Fischamend','lat':48.116,'lon':16.612,'address':'Getreideplatz, 2401 Fischamend'},
@@ -22,13 +22,15 @@ def defaults(call,typ,station):
 def upgrade(engine):
     state=engine.state
     state.setdefault('start_date',dt.datetime.now(ZoneInfo('Europe/Vienna')).date().isoformat())
-    if state.get('fleet_version',0)>=2:return
+    if state.get('fleet_version',0)>=2:
+        upgrade_addresses(state);return
     from engine import uid
     for item in STATIONS:
         existing=next((s for s in state['stations'] if s['id']==item['id']),None)
         if not existing:state['stations'].append({**copy.deepcopy(item),'zone':'Bruck/Leitha','dispo':'05','source':'Öffentliche Betreiberadressen; Kartenkoordinaten angenähert','external':item.get('external',False)})
         elif item['id']=='schwechat':
             existing.setdefault('address',item['address']);existing.setdefault('source','Koordinaten aus älterem Übungsbestand')
+    upgrade_addresses(state)
     pending=False
     for call,typ,station in ROWS:
         v=next((v for v in state['vehicles'] if v['callsign']==call),None)
@@ -40,6 +42,22 @@ def upgrade(engine):
         else:v={'id':uid(),**data};state['vehicles'].append(v)
         v['status']='ready' if engine.in_shift(v) else 'out'
     if not pending:state['fleet_version']=2
+
+def upgrade_addresses(state):
+    if not state.get('address_version'):
+        base='https://www.roteskreuz.at/niederoesterreich/'
+        verified={
+            'schwechat':('Bruck-Hainburger Straße 27, 2320 Schwechat',base+'wer-wir-sind-der-landesverband-noe/bezirksstellen'),
+            'goetzendorf':('Dr. Heudrich Gasse 6, 2434 Götzendorf',base+'schwechat/kontakte/bezirksstelle/rotes-kreuz-goetzendorf'),
+            'himberg':('Wiener Straße 9, 2325 Himberg',base+'schwechat/kontakte/bezirksstelle/rotes-kreuz-himberg'),
+            'leopoldsdorf':('Achauerstraße 43, 2333 Leopoldsdorf',base+'schwechat/kontakte/bezirksstelle/rotes-kreuz-leopoldsdorf'),
+            'bruck':('Höfleiner Straße 18, 2460 Bruck an der Leitha',base+'bruck-an-der-leitha/kontakte/bezirksstelle'),
+            'hainburg':('Rot-Kreuz-Straße 14, 2410 Hainburg an der Donau',base+'wer-wir-sind-der-landesverband-noe/bezirksstellen')}
+        for station in state['stations']:
+            if station['id'] in verified and not station.get('source','').startswith('Manuell'):
+                address,url=verified[station['id']]
+                station.update(address=address,address_source=url,address_checked='2026-10-11',coordinate_accuracy='Angenäherter Kartenpunkt; noch nicht gebäudegenau verifiziert')
+        if all(any(s['id']==id for s in state['stations']) for id in verified):state['address_version']=1
 
 class Fleet:
     def configure_rtwc(self,data):

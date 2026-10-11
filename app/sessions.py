@@ -98,6 +98,8 @@ class Sessions:
             if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
             engine=self.engine(member['room_id'])
             if action=='leave':
+                mode=self.db.execute('SELECT mode FROM rooms WHERE id=?',(member['room_id'],)).fetchone()[0]
+                if mode=='single':engine.command('control',{'paused':True})
                 self.db.execute('UPDATE members SET last_seen=0 WHERE id=?',(member['id'],));self.db.commit();return {'left':True}
             if action=='claim':
                 job=engine.get('jobs',data['id']);owner=job.get('owner')
