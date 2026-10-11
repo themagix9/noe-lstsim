@@ -22,16 +22,18 @@ class Operations:
         for v in self.state['vehicles']:
             if v['status']=='return':v['status']='radio'
             elif v['status']=='clean':v['status']='out';v['out_reason']='Fahrzeugaufbereitung'
-            v.setdefault('nfs',False);v.setdefault('turnout',60);v.setdefault('organization','RK')
+            v.setdefault('rtwc_capable',v['type']=='RTW-C');v.setdefault('rtwc_fixed',False);v.setdefault('daylight',False);v.setdefault('nfs',False)
+            if v['type']=='RTW-C':v['nfs']=True
+            v.setdefault('turnout',60);v.setdefault('organization','RK')
             v.setdefault('alarm_from','ready');v.setdefault('ack_deadline',None)
             v.setdefault('reservation',None);v.setdefault('manual_out',False);v.setdefault('leg',None)
 
     def eligible(self,v,j):
-        return v['type'] in (('KTW','KTW-B','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C','NEF'))
+        return v['type'] in (('KTW','KTW-B','BKTW','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C','NEF','NAH','FR'))
 
     def sendable(self,v,j):
         # Hospital handover can finish while the next transport is transmitted.
-        return self.in_shift(v) and v['status'] in ('ready','radio','hospital') and self.eligible(v,j) and (not v.get('reservation') or v['reservation']==j['id'])
+        return self.in_shift(v) and v['status'] in (('ready','radio','hospital') if j['kind']=='transport' else ('ready','radio')) and self.eligible(v,j) and (not v.get('reservation') or v['reservation']==j['id'])
 
     def reserve(self,data):
         j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])
@@ -55,7 +57,7 @@ class Operations:
 
     def drive(self,v,target,status,minimum=120):
         from engine import distance
-        now=self.state['clock'];duration=max(minimum,distance(v,target)*1.25/45*3600)
+        now=self.state['clock'];duration=max(60 if v['type']=='NAH' else minimum,distance(v,target)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600)
         v.update(status=status,phase_due=now+duration,leg={'start':now,'end':now+duration,'lat':v['lat'],'lon':v['lon'],'target_lat':target['lat'],'target_lon':target['lon']})
 
     def dispatch(self,data):
@@ -164,9 +166,9 @@ class Operations:
             j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])
             if j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
             elif j['status'] not in ('transport','hospital'):j['status']='scene'
-            self.log(f'{v["callsign"]}, Status 3: am Berufungsort. '+(j['scene'] if v['type']!='NEF' else 'Notarzt übernimmt Versorgung.'));return
+            self.log(f'{v["callsign"]}, Status 3: am Berufungsort. '+('First Responder leistet Erstversorgung, wartet auf Rettungsmittel.' if v['type']=='FR' else 'Notarzt übernimmt Versorgung.' if v['type'] in ('NEF','NAH') else j['scene']));return
         if status=='scene':
-            if v['type']=='NEF':self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')
+            if v['type'] in ('NEF','NAH','FR'):self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')
             else:self.crew_destination(v)
             return
         if status=='transport':

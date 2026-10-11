@@ -9,16 +9,20 @@ import sqlite3
 import threading
 import uuid
 from operations import Operations, STATUS_LABELS, JOB_ACTIONS
+from fleet import Fleet, upgrade
+from daylight import window
 
 GRAPHICS = [
+    {'id':'helicopter','name':'Notarzthubschrauber · schematisch','url':'/graphics/helicopter.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
+    {'id':'responder','name':'First Responder · schematisch','url':'/graphics/responder.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
     {'id':'van','name':'Rettungswagen · Kastenwagen','url':'/graphics/van.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
     {'id':'box','name':'Rettungswagen · Kofferaufbau','url':'/graphics/box.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
     {'id':'car','name':'Notarzteinsatzfahrzeug · SUV','url':'/graphics/car.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
     {'id':'command','name':'Führungsfahrzeug · Bus','url':'/graphics/command.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
 ]
-DEFAULT_GRAPHIC = {'KTW':'van','KTW-B':'van','RTW':'van','RTW-C':'box','NEF':'car','BEL':'command'}
+DEFAULT_GRAPHIC = {'KTW':'van','KTW-B':'van','RTW':'van','RTW-C':'box','NEF':'car','BEL':'command','BKTW':'van','FR':'responder','NAH':'helicopter'}
 
-TYPES = ['KTW', 'KTW-B', 'RTW', 'RTW-C', 'NEF', 'BEL']
+TYPES = ['KTW', 'KTW-B', 'BKTW', 'RTW', 'RTW-C', 'NEF', 'NAH', 'FR', 'BEL']
 STATUSES = STATUS_LABELS
 SCENARIOS = [
     {'title': 'Atemnot', 'caller': 'Mein Vater bekommt schlecht Luft. Er sitzt am Sofa und kann kaum einen ganzen Satz sagen.', 'detail': 'Männlich, 68 Jahre, wach, Atmung vorhanden, zunehmende Atemnot seit etwa 20 Minuten.', 'priority': 'hoch', 'needs': ['RTW', 'NEF'], 'scene': 'Patient wach, ausgeprägte Atemnot. Notarzt erforderlich; Transport nach Versorgung.'},
@@ -45,7 +49,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':HOSPITALS,'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(Operations):
+class Engine(Operations, Fleet):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -64,6 +68,9 @@ class Engine(Operations):
         for v in self.state['vehicles']: v.setdefault('graphic',DEFAULT_GRAPHIC[v['type']])
         for j in self.state['jobs']: j.setdefault('owner',None)
         self.migrate_operations()
+        for g in GRAPHICS:
+            if not any(item['id']==g['id'] for item in self.state['graphics']):self.state['graphics'].append(copy.deepcopy(g))
+        upgrade(self)
         self.save()
 
     def save(self):
@@ -73,6 +80,9 @@ class Engine(Operations):
     def snapshot(self):
         with self.lock:
             result=copy.deepcopy(self.state)
+            for v in result['vehicles']:
+                v['in_shift']=self.in_shift(v);v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
+                if v.get('daylight'):v['duty_window']=list(self.daylight_window(v))
             for j in result['jobs']:
                 if j['accepted']:j['aao']=self.recommendation(j)
             return result
@@ -90,7 +100,13 @@ class Engine(Operations):
             raise ValueError('Datensatz nicht gefunden.')
         return found
 
+    def daylight_window(self,v):
+        date=dt.date.fromisoformat(self.state['start_date'])+dt.timedelta(days=int(self.state['clock']//86400))
+        home=self.station(v['station']);return window(date.isoformat(),home['lat'],home['lon'])
+
     def in_shift(self,v):
+        if v.get('daylight'):
+            a,b=self.daylight_window(v);return v['staffed'] and a<=self.state['clock']//60%1440<b
         minute=int(self.state['clock']//60)%1440
         a,b=[int(x[:2])*60+int(x[3:]) for x in (v['start'],v['end'])]
         return v['staffed'] and (a==b or (a<=minute<b if a<b else minute>=a or minute<b))
@@ -120,6 +136,7 @@ class Engine(Operations):
             if self.state['paused']: return
             self.state['clock']+=real_seconds*self.state['speed']
             now=self.state['clock']
+            upgrade(self)
             self.update_operations(now)
             for v in self.state['vehicles']:
                 if v['phase_due'] is not None and now>=v['phase_due']: self.advance(v)
@@ -168,6 +185,7 @@ class Engine(Operations):
                 speed=data.get('speed',self.state['speed'])
                 if speed not in (1,5,15,60): raise ValueError('Ungültige Geschwindigkeit.')
                 self.state['speed']=speed; self.state['paused']=bool(data.get('paused',self.state['paused']))
+            elif action=='rtwc':self.configure_rtwc(data)
             elif action=='generate':
                 target=data.get('crew_target')
                 if target:
@@ -218,8 +236,8 @@ class Engine(Operations):
                     self.state=old; raise ValueError('Ungültiger Import; bisherige Konfiguration bleibt erhalten.')
                 self.log('Dienststellen- und Fahrzeugkonfiguration importiert.','System')
             elif action=='reset':
-                vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; graphics=self.state['graphics']; rules=self.state['rules']; setup=self.state['setup']
-                self.state=seed(); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations; self.state['vehicles']=vehicles
+                vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; graphics=self.state['graphics']; start_date=self.state['start_date'];fleet_version=self.state.get('fleet_version',0); rules=self.state['rules']; setup=self.state['setup']
+                self.state=seed();self.state.update(start_date=start_date,fleet_version=fleet_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations; self.state['vehicles']=vehicles
                 for v in vehicles:
                     s=self.station(v['station']); v.update(job=None,phase_due=None,status='ready' if self.in_shift(v) else 'out',lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
                 self.migrate_operations()
@@ -237,7 +255,7 @@ class Engine(Operations):
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',record_id): raise ValueError('Ungültige Dienststellen-ID.')
         dispo=str(d.get('dispo',existing.get('dispo','05') if existing else '05'))
         if dispo not in ('01','02','03','04','05','06'):raise ValueError('Dispozone 01–06 wählen.')
-        s={'id':record_id,'name':name,'zone':zone,'dispo':dispo,'lat':lat,'lon':lon}
+        s={'id':record_id,'name':name,'zone':zone,'dispo':dispo,'lat':lat,'lon':lon,'external':bool(d.get('external',existing.get('external',False) if existing else False)),'address':str(d.get('address',existing.get('address','') if existing else ''))[:250],'source':str(d.get('source',existing.get('source','Manuell gepflegt') if existing else 'Manuell gepflegt'))[:500]}
         if existing: existing.update(s)
         else: self.state['stations'].append(s)
         for v in self.state['vehicles']:
@@ -260,8 +278,12 @@ class Engine(Operations):
         if graphic not in {g['id'] for g in self.state['graphics']}: raise ValueError('Unbekannte Fahrzeuggrafik.')
         turnout=float(d.get('turnout',existing.get('turnout',60) if existing else 60))
         organization=str(d.get('organization',existing.get('organization','RK') if existing else 'RK'))
-        if not 0<=turnout<=1800 or organization not in ('RK','ASB','JUH','Sonstige'):raise ValueError('Ausrückzeit 0–1800 Sekunden und Organisation prüfen.')
+        if not 0<=turnout<=1800 or organization not in ('RK','ASB','JUH','ÖAMTC','FR Fischamend','Sonstige'):raise ValueError('Ausrückzeit 0–1800 Sekunden und Organisation prüfen.')
         v={'nfs':bool(d.get('nfs',existing.get('nfs',False) if existing else False)),'turnout':turnout,'organization':organization,'graphic':graphic,'id':record_id,'callsign':call,'type':typ,'station':station,'start':start,'end':end,'staffed':bool(d.get('staffed',True)),'status':'ready','lat':home['lat'],'lon':home['lon'],'job':None,'phase_due':None,'source':str(d.get('source','Manuell gepflegt'))[:300],'reservation':None,'alarm_from':'ready','ack_deadline':None,'manual_out':False,'leg':None}
+        v.update(rtwc_capable=bool(d.get('rtwc_capable',existing.get('rtwc_capable',False) if existing else typ=='RTW-C')),rtwc_fixed=call=='77/030' or bool(existing and existing.get('rtwc_fixed')),daylight=bool(d.get('daylight',existing.get('daylight',False) if existing else typ=='NAH')),flight_speed=220 if typ=='NAH' else 0)
+        if typ=='RTW-C' and (not v['rtwc_capable'] or not v['nfs']):raise ValueError('RTW-C braucht Fahrzeugfähigkeit und bestätigte NFS-Besetzung.')
+        if typ=='RTW-C' and any(u['station']==station and u['type']=='RTW-C' and u is not existing for u in self.state['vehicles']):raise ValueError('Pro Dienststelle ist nur ein RTW-C erlaubt. RTW-C-Besetzung wechseln verwenden.')
+        if v['rtwc_fixed'] and (typ!='RTW-C' or station!='goetzendorf' or call!='77/030'):raise ValueError('77/030 bleibt RTW-C in Götzendorf.')
         v['status']='ready' if self.in_shift(v) else 'out'
         if existing: existing.update(v)
         else: self.state['vehicles'].append(v)

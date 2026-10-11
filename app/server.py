@@ -30,7 +30,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in ('/api/state','/api/config'):
             try:
                 s=sessions.snapshot(self.member())
-                if path=='/api/config':s={'version':2,'stations':s['stations'],'vehicles':[{k:v.get(k) for k in ('id','callsign','type','station','start','end','staffed','source','graphic','nfs','turnout','organization')} for v in s['vehicles']]}
+                if path=='/api/config':s={'version':2,'stations':s['stations'],'vehicles':[{k:v.get(k) for k in ('id','callsign','type','station','start','end','staffed','source','graphic','nfs','turnout','organization','rtwc_capable','rtwc_fixed','daylight')} for v in s['vehicles']]}
                 return self.json_response(s)
             except PermissionError as e:return self.json_response({'error':str(e)},401)
         if path.startswith('/media/'):

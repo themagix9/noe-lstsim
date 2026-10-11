@@ -16,14 +16,14 @@ def code_rule(code):
 
 def estimated_seconds(engine,v,j):
     from engine import distance
-    return distance(v,j)*1.25/45*3600+float(v.get('turnout',60))+max(0,(v.get('handover_due') or v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
+    return distance(v,j)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600+float(v.get('turnout',60))+max(0,(v.get('handover_due') or v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
 
 def recommend(engine,j):
     candidates=[v for v in engine.state['vehicles'] if engine.sendable(v,j)]
     assigned=[engine.get('vehicles',id) for id in j['vehicles']]
     result={'vehicles':[],'missing':[],'rule':j.get('code'),'category':j.get('category','Übungsregel'),'description':'Simulationsvorschlag · geschätzte Eintreffzeit aus Luftlinie + Ausrückzeit','warnings':[],'source':REFERENCE,'code_date':SOURCE['date']}
     category=j.get('category');eta=lambda v:estimated_seconds(engine,v,j)
-    transport_types=('KTW','KTW-B','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C')
+    transport_types=('KTW','KTW-B','BKTW','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C')
     transporters=[v for v in candidates if v['type'] in transport_types];nefs=[v for v in candidates if v['type']=='NEF']
     def nearest(vs):return min(vs,key=eta) if vs else None
     chosen=None;need_nef=False
@@ -34,7 +34,7 @@ def recommend(engine,j):
     if category in ('Telemedizin','Weitergabe'):category='BLS grün'
     if j['kind']=='transport':
         org=j.get('organization','RK');transporters=[v for v in transporters if v.get('organization','RK')==org]
-        preferred=[v for v in transporters if v['type'] in ('KTW','KTW-B')];chosen=nearest(preferred) or nearest(transporters)
+        preferred=[v for v in transporters if v['type'] in ('KTW','KTW-B','BKTW')];chosen=nearest(preferred) or nearest(transporters)
     elif category=='BLS rot':
         rtws=[v for v in transporters if v['type']=='RTW'];ktws=[v for v in transporters if v['type']=='KTW'];rtw=nearest(rtws);ktw=nearest(ktws)
         chosen=rtw if rtw and (not ktw or eta(rtw)<=eta(ktw)+90) else ktw or nearest([v for v in transporters if v['type']=='RTW-C'])
@@ -51,7 +51,7 @@ def recommend(engine,j):
         if category=='ALS gelb':result['warnings'].append('ACN-Pilotregionen und NKV/NKI-Zusatzregeln sind noch nicht modelliert.')
     elif category in ('ALS orange','ALS rot'):
         chosen=nearest(transporters);need_nef=True
-        result['warnings'].append('Nur bodengebundene Notarztmittel berücksichtigt; NAH- und ACN-Zeitvorteile noch nicht modelliert.')
+        result['warnings'].append('NAH-Eintreffzeit als geschätzte Flugzeit; Wetter, Landeplätze und ACN-Zeitvorteile noch nicht modelliert.')
     elif category:chosen=nearest(transporters)
     else:
         # Custom exercise rule; each requirement consumes one distinct resource.
@@ -67,8 +67,13 @@ def recommend(engine,j):
     if not any(v['type'] in transport_types for v in assigned):
         if chosen:result['vehicles'].append(chosen['id'])
         elif not result['missing']:result['missing'].append('Transportierendes Rettungsmittel')
-    if need_nef and not any(v['type']=='NEF' for v in assigned):
-        nef=nearest(nefs)
+    frs=[v for v in candidates if v['type']=='FR' and (not chosen or eta(v)<eta(chosen))]
+    result['supplementary']=[nearest(frs)['id']] if frs and j['kind']=='emergency' and j.get('priority')=='hoch' and not any(v['type']=='FR' for v in assigned) else []
+    if result['supplementary']:result['warnings'].append('Optionaler First Responder mit geschätztem Zeitvorteil; ersetzt kein Rettungs- oder Notarztmittel.')
+    if need_nef and not any(v['type'] in ('NEF','NAH') for v in assigned):
+        helicopters=[v for v in candidates if v['type']=='NAH'] if category in ('ALS orange','ALS rot') else []
+        ground=nearest(nefs)
+        nef=ground if category=='ALS orange' and ground and eta(ground)<=900 else nearest(nefs+helicopters)
         if nef:result['vehicles'].append(nef['id'])
         else:result['missing'].append('Notarztmittel')
     return result

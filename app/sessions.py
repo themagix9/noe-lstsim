@@ -1,5 +1,6 @@
 """Persistent rooms, membership tokens and isolated simulation state."""
 import base64
+import datetime as dt
 import copy
 import hashlib
 import secrets
@@ -48,6 +49,10 @@ class Sessions:
             if self.db.execute('SELECT count(*) FROM rooms').fetchone()[0]>=100: raise ValueError('Maximale Sitzungsanzahl erreicht.')
             centre=data.get('centre','Mödling');dispo=data.get('dispo','05');hour=int(data.get('hour',8))
             if centre not in CENTRES or dispo not in {z['id'] for z in ZONES} or not 0<=hour<=23:raise ValueError('Leitstellenstandort, Dispozone und Startzeit prüfen.')
+            start_date=str(data.get('date') or dt.date.today().isoformat())
+            try:date=dt.date.fromisoformat(start_date)
+            except ValueError:raise ValueError('Simulationsdatum als JJJJ-MM-TT wählen.')
+            if not 2020<=date.year<=2100:raise ValueError('Simulationsdatum zwischen 2020 und 2100 wählen.')
             id=secrets.token_hex(16)
             while True:
                 code=''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(8))
@@ -60,7 +65,7 @@ class Sessions:
                 e.save()
             e.state['setup']={'centre':centre,'dispo':dispo}
             if not data.get('adopt_legacy'):
-                e.state['clock']=hour*3600;e.state['next_transport']=hour*3600+60;e.state['next_emergency']=hour*3600+180
+                e.state['start_date']=start_date;e.state['clock']=hour*3600;e.state['next_transport']=hour*3600+60;e.state['next_emergency']=hour*3600+180
                 for v in e.state['vehicles']:v['status']='ready' if e.in_shift(v) else 'out'
             e.save()
             credential=self.add_member(id,name,True);return credential
@@ -90,7 +95,7 @@ class Sessions:
 
     def command(self,member,action,data):
         with self.lock:
-            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic','rules') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
+            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
             engine=self.engine(member['room_id'])
             if action=='leave':
                 self.db.execute('UPDATE members SET last_seen=0 WHERE id=?',(member['id'],));self.db.commit();return {'left':True}

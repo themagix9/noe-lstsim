@@ -33,14 +33,18 @@ with tempfile.TemporaryDirectory() as data:
             b.locator('.dispatch-options input').first.check();b.locator('#dispatch').click();expect(b.locator('#detail')).to_contain_text('Alarmiert');b.locator('#close-dispatch').click();a.locator('#close-dispatch').click();expect(a.locator('#fleet-table')).to_contain_text('Alarmiert',timeout=8000)
             b.locator('#chat-input').fill('Transport übernommen.');b.get_by_role('button',name='Senden',exact=True).click();expect(a.locator('#chat')).to_contain_text('Transport übernommen.',timeout=8000)
             a.reload();expect(a.locator('#lobby')).to_be_hidden(timeout=8000);expect(a.locator('#copy-code')).to_have_text(code)
-            a.get_by_role('button',name='Ressourcen',exact=True).click();expect(a.locator('#graphic-list img')).to_have_count(4);a.wait_for_function("[...document.querySelectorAll('#graphic-list img')].every(img=>img.complete&&img.naturalWidth>0)")
+            a.get_by_role('button',name='Ressourcen',exact=True).click();expect(a.locator('#graphic-list img')).to_have_count(6);a.wait_for_function("[...document.querySelectorAll('#graphic-list img')].every(img=>img.complete&&img.naturalWidth>0)")
             a.get_by_role('button',name='Disposition',exact=True).click();a.locator('#speed').select_option('60');a.locator('#pause').click();expect(a.locator('#running')).to_have_text('SIMULATION LÄUFT')
             Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);a.screenshot(path='/tmp/noe-ui-qa/desktop.png',full_page=True)
             a.set_viewport_size({'width':390,'height':844});a.screenshot(path='/tmp/noe-ui-qa/mobile.png',full_page=True)
             assert not errors,errors
             # Validate a private session, manual AMPDS modal, reservation and a Vienna bed workflow.
             solo=browser.new_context(viewport={'width':1440,'height':1100});solo.route('https://tile.openstreetmap.org/**',lambda route:route.abort());c=solo.new_page();c.on('pageerror',lambda e:errors.append(str(e)));c.goto('http://127.0.0.1:8080');c.get_by_label('Dein Disponentenname').fill('Solo');c.locator('#lobby-submit').click();expect(c.locator('#lobby')).to_be_hidden();expect(c.locator('#copy-code')).to_be_hidden();expect(c.locator('#chat-panel')).to_be_hidden();c.locator('#create-manual').click();c.locator('#manual-kind').select_option('transport');c.get_by_label('Einsatzort / Adresse',exact=True).fill('Teststraße, Schwechat');c.locator('#manual-form button.primary').click();expect(c.locator('#dispatch-dialog')).to_be_visible();expect(c.locator('.resource-row').first).to_contain_text('km');c.locator('#reserve').click();expect(c.locator('#detail')).to_contain_text('Reserviert:');c.locator('#apply-aao').click();c.locator('#dispatch').click();expect(c.locator('#detail')).to_contain_text('Alarmiert');c.locator('#close-dispatch').click();
-            c.locator('#demo').click();c.locator('#new-vienna').click();expect(c.locator('#dispatch-dialog')).to_be_visible(timeout=8000);c.locator('#accept').click();c.locator('#job-search').fill('RD-31D3');c.locator('#job-code').select_option('RD-31D3');c.locator('#save-job').click();expect(c.locator('#detail')).to_contain_text('ALS orange');c.locator('#apply-aao').click()
+            c.locator('#demo').click();c.locator('#new-vienna').click();expect(c.locator('#dispatch-dialog')).to_be_visible(timeout=8000);c.locator('#accept').click();c.locator('#job-search').fill('RD-31D3');c.locator('#job-code').select_option('RD-31D3');
+            with c.expect_response(lambda response:response.url.endswith('/api/edit_job')) as edited:
+                c.locator('#save-job').click()
+            assert edited.value.ok,edited.value.text()
+            expect(c.locator('#detail')).to_contain_text('ALS orange');c.locator('#apply-aao').click()
             with c.expect_response(lambda response:response.url.endswith('/api/dispatch')) as dispatched:
                 c.locator('#dispatch').click()
             assert dispatched.value.ok,dispatched.value.text()
