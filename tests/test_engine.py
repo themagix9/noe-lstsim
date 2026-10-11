@@ -30,7 +30,7 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.e.command('dispatch',{'job':j['id'],'vehicles':[ktw['id'],nef['id']]})
         self.assertIsNone(ktw['job']);self.assertEqual(j['vehicles'],[])
     def test_shift_overnight_and_unstaffed(self):
-        v=copy.deepcopy(self.e.state['vehicles'][0]);v.update(start='20:00',end='06:00');self.e.state['clock']=23*3600
+        v=copy.deepcopy(self.e.state['vehicles'][0]);v.update(start='20:00',end='06:00',duty_managed=False);self.e.state['clock']=23*3600
         self.assertTrue(self.e.in_shift(v));self.e.state['clock']=12*3600;self.assertFalse(self.e.in_shift(v))
         v.update(start='00:00',end='00:00',staffed=False);self.assertFalse(self.e.in_shift(v))
     def test_full_lifecycle(self):
@@ -55,7 +55,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.e.snapshot(),old)
     def test_valid_import_round_trip(self):
         old=self.e.snapshot();self.e.command('import',{'config':{'stations':old['stations'],'vehicles':old['vehicles']}})
-        self.assertEqual(len(self.e.state['vehicles']),41)
+        self.assertEqual(len(self.e.state['vehicles']),55)
     def test_restart_persists_config_and_simulation(self):
         self.e.command('generate',{'kind':'transport'});self.e.command('control',{'speed':15});new=Engine(self.path)
         self.assertEqual(new.snapshot(),self.e.snapshot());new.db.close()

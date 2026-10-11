@@ -2,20 +2,24 @@
 import random
 import uuid
 
-STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job')
+STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr')
 
 class Operations:
     def migrate_operations(self):
         for h in self.state['hospitals']:
             h.setdefault('region','Wien' if h['id'].startswith('kh-donaustadt') else 'NÖ')
+        for h in self.state['hospitals']:h.setdefault('helipad',True)
+        if not any(h['id']=='kh-akh-ecpr' for h in self.state['hospitals']):self.state['hospitals'].append({'id':'kh-akh-ecpr','name':'AKH Wien · eCPR (Übungsziel)','region':'Wien','lat':48.220,'lon':16.347,'helipad':True,'ecpr':True,'source':'eCPR-Zentrum MedUni Wien; Annahme/Verfügbarkeit simuliert'})
         from catalog import RULES
         self.state.setdefault('rules',__import__('copy').deepcopy(RULES))
         self.state.setdefault('setup',{'centre':'Mödling','dispo':'05'})
         for station in self.state['stations']:station.setdefault('dispo','05' if station['zone']=='Bruck/Leitha' else '')
         self.state.setdefault('messages',[])
+        self.state.setdefault('incident_counter',0)
         for j in self.state['jobs']:
-            j.setdefault('code',next((r['code'] for r in self.state['rules'] if r['title']==j['title']),'SIM-KT' if j['kind']=='transport' else 'SIM-STURZ'));j.setdefault('signal',j['priority']=='hoch');j.setdefault('additional','');j.setdefault('police',False);j.setdefault('fire',False)
+            self.ensure_alarm_identity(j)
+            j.setdefault('code',next((r['code'] for r in self.state['rules'] if r['title']==j['title']),'SIM-KT' if j['kind']=='transport' else 'RD-17B1'));j.setdefault('signal',j['priority']=='hoch');j.setdefault('additional','');j.setdefault('police',False);j.setdefault('fire',False)
             j.setdefault('reserved',None); j.setdefault('bed_state','none');j.setdefault('case_number',None)
             j.setdefault('requested_destination',None);j.setdefault('bed_due',None)
             if j['kind']=='emergency' and j['status']=='new':j['destination']=None
@@ -28,12 +32,22 @@ class Operations:
             v.setdefault('alarm_from','ready');v.setdefault('ack_deadline',None)
             v.setdefault('reservation',None);v.setdefault('manual_out',False);v.setdefault('leg',None)
 
+    def ensure_alarm_identity(self,j):
+        if not j.get('incident_number'):
+            self.state['incident_counter']=self.state.get('incident_counter',0)+1
+            serial=self.state['incident_counter']
+            year=str(self.state.get('start_date','2026'))[:4]
+            j['incident_number']=year+f'{serial:07d}'
+            j['billing_number']=f'SIM-{serial:07d}'
+        j.setdefault('patient',{'name':'Übungspatient '+j['incident_number'][-7:],'fictitious':True})
+        j.setdefault('event_title',j['title'])
+
     def eligible(self,v,j):
         return v['type'] in (('KTW','KTW-B','BKTW','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C','NEF','NAH','FR'))
 
     def sendable(self,v,j):
         # Hospital handover can finish while the next transport is transmitted.
-        return self.in_shift(v) and v['status'] in (('ready','radio','hospital') if j['kind']=='transport' else ('ready','radio')) and self.eligible(v,j) and (not v.get('reservation') or v['reservation']==j['id'])
+        return self.in_shift(v) and v['status'] in (('ready','radio','hospital','fr_ready') if j['kind']=='transport' else ('ready','radio','fr_ready')) and self.eligible(v,j) and (not v.get('reservation') or v['reservation']==j['id'])
 
     def reserve(self,data):
         j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])
@@ -53,7 +67,7 @@ class Operations:
     def detach(self,v):
         if not v['job']:return
         old=self.get('jobs',v['job'])
-        if v['status']=='hospital' and v['type'] not in ('NEF','NAH','FR'):old['patient_delivered']=True
+        if v['status']=='hospital' and v['type'] not in ('NEF','FR'):old['patient_delivered']=True
         v['job']=None
         if all(self.get('vehicles',id)['job']!=old['id'] for id in old['vehicles']):
             old['status']='done' if old.get('patient_delivered') else 'assigned'
@@ -76,14 +90,25 @@ class Operations:
             if v['status']=='hospital' and j['kind']!='transport':raise ValueError('Während der Übergabe nur Transportaufträge senden.')
         if j['kind']=='transport' and j.get('reserved'):
             self.unreserve({'job':j['id']})
+        if j.get('code')=='RD-9E1' and any(v['type']=='NAH' for v in selected) and j['status'] in ('transport','hospital'):raise ValueError('eCPR-Flug vor Beginn des Patiententransports abstimmen.')
+        if j.get('code')=='RD-9E1':
+            j['police']=True;self.log('Polizei: simulierte Alarmierung für 9E1.','System')
+            if any(v['type']=='NAH' for v in selected):
+                if j['status'] in ('transport','hospital'):raise ValueError('eCPR-Flug vor Beginn des Patiententransports abstimmen.')
+                j['carrier']=next(v['id'] for v in selected if v['type']=='NAH');self.ecpr_precall(j)
         for v in selected:
+            self.ensure_alarm_identity(j)
+            text=f'Einsatz {j["incident_number"]} | {j["code"]} – {j["title"]} | {j.get("category") or "Transportauftrag"} | {j["address"]} | {j["detail"]} | Zusatz: {j.get("additional") or "—"} | Ressource: {v["callsign"]} | Verrechnung: {j["billing_number"]}'
+            self.state['messages'].append({'job':j['id'],'vehicle':v['id'],'channel':'Alarmierung','text':text,'time':self.state['clock'],'incident_number':j['incident_number'],'code':j['code']})
+            self.state['messages']=self.state['messages'][-250:]
             previous=v['status'];handover=v.get('phase_due') if previous=='hospital' else None
             self.detach(v)
             v.update(status='standby' if data.get('standby') else 'assigned',alarm_from=previous,job=j['id'],phase_due=self.state['clock']+random.randint(20,45),ack_deadline=self.state['clock']+600,handover_due=handover,leg=None,manual_out=False)
             j['vehicles'].append(v['id'])
             if v.get('reservation')==j['id']:v['reservation']=None;j['reserved']=None
             self.log(f'Leitstelle an {v["callsign"]}: {j["title"]}, {j["address"]}. '+('Mit Sondersignal.' if j.get('signal',j['priority']=='hoch') else 'Ohne Sondersignal.')+((' Zusatz: '+j['additional']) if j.get('additional') else '')+(' Bereitschaft, innerhalb von 10 Minuten quittieren.' if data.get('standby') else ''))
-        if j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
+        if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
+        elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
         elif j['status'] not in ('scene','transport','hospital'):j['status']='assigned'
         return j
 
@@ -103,6 +128,13 @@ class Operations:
 
     def crew_destination(self,v):
         j=self.get('jobs',v['job'])
+        carrier=self.patient_carrier(j)
+        if carrier and v['id']!=carrier['id']:
+            if carrier['status'] in ('transport','hospital') or j.get('patient_delivered'):self.detach(v);self.drive(v,self.home(v),'radio')
+            else:v['phase_due']=None
+            return
+        if j.get('ecpr_state') in ('prealerted','awaiting_question','question_sent'):
+            j['ecpr_state']='awaiting_question' if j['ecpr_state']=='prealerted' else j['ecpr_state'];j['status']='awaiting_cpr';v['phase_due']=None;return
         if j['kind']=='transport':
             self.start_transport(v);return
         if j['bed_state']!='none':
@@ -112,7 +144,7 @@ class Operations:
                 self.start_transport(v)
             else:v['phase_due']=None
             return
-        h=self.get('hospitals',j['crew_target']) if j.get('crew_target') else random.choice(self.state['hospitals']);j['requested_destination']=h['id']
+        h=self.get('hospitals',j['crew_target']) if j.get('crew_target') else random.choice([h for h in self.state['hospitals'] if not h.get('ecpr') and (v['type']!='NAH' or h.get('helipad'))]);j['requested_destination']=h['id']
         if h['region']=='Wien':
             j['destination']=None;j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None
             self.log(f'{v["callsign"]} an Leitstelle: Patient transportbereit, benötigen ein Ziel in Wien, Wunsch {h["name"]}. Bitte Bettenmann verständigen.')
@@ -123,12 +155,18 @@ class Operations:
 
     def start_transport(self,v):
         j=self.get('jobs',v['job']);h=self.get('hospitals',j['destination'])
+        if v['type']=='NAH' and not h.get('helipad'):raise ValueError('Hubschrauberziel benötigt einen Landeplatz.')
+        if j.get('cpr_confirmed') and (v['type']!='NAH' or not h.get('ecpr') or j.get('ecpr_state')!='confirmed'):raise ValueError('eCPR-Flug erst nach Mannschaftsrückmeldung und Zielbestätigung.')
+        for id in j['vehicles']:
+            other=self.get('vehicles',id)
+            if other['id']!=v['id'] and other['job']==j['id'] and other['status']=='scene':self.detach(other);self.drive(other,self.home(other),'radio')
         self.drive(v,h,'transport',180);j['status']='transport'
         self.log(f'{v["callsign"]}, Status 4: Patient übernommen, zum Zielort {h["name"]}.')
 
     def request_bed(self,data):
         j=self.get('jobs',data['job']);h=self.get('hospitals',data['hospital'])
         if j['bed_state']!='requested':raise ValueError('Zuerst muss die Mannschaft ein Wiener Ziel anfordern.')
+        if j.get('cpr_confirmed') and (not h.get('ecpr') or not h.get('helipad')):raise ValueError('Bestätigter Reanimationstransport benötigt eCPR-Ziel mit Heli-Landeplatz.')
         if h['region']!='Wien':raise ValueError('Beim Wiener Bettenmann ein Wiener Krankenhaus wählen.')
         j.update(destination=h['id'],bed_state='calling',bed_due=self.state['clock']+30)
         self.log(f'Leitstelle NÖ an Bettenmann Wien: Zielanfrage {h["name"]}, Einsatz {j["id"]}, {j["title"]}.','Bettenmann')
@@ -137,7 +175,7 @@ class Operations:
         j=self.get('jobs',data['job']);channel=data.get('channel')
         if j['bed_state']!='allocated' or not j['case_number']:raise ValueError('Noch keine Kasusnummer vom Bettenmann vorhanden.')
         if channel not in ('SDS','ESApp'):raise ValueError('SDS oder ESApp wählen.')
-        targets=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('KTW','RTW','RTW-C')]
+        carrier=self.patient_carrier(j);targets=[carrier] if carrier else []
         if not targets or any(v['status']!='scene' for v in targets):raise ValueError('Keine wartende Mannschaft am Berufungsort.')
         h=self.get('hospitals',j['destination']);j['bed_state']='sent';j['case_channel']=channel
         for v in targets:
@@ -162,16 +200,17 @@ class Operations:
                 self.log(f'{v["callsign"]}: Quittierungsfrist von 10 Minuten überschritten. Mannschaft nachfragen.','System');v['ack_deadline']=None
 
     def advance(self,v):
-        now=self.state['clock'];home=self.station(v['station']);status=v['status'];v['leg']=None
+        now=self.state['clock'];home=self.home(v);status=v['status'];v['leg']=None
         if status in ('assigned','standby'):self.acknowledge(v,direct=status=='assigned' and random.random()<.25);return
         if status=='acknowledged':self.depart(v);return
         if status=='enroute':
             j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])
-            if j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
+            if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
+            elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
             elif j['status'] not in ('transport','hospital'):j['status']='scene'
             self.log(f'{v["callsign"]}, Status 3: am Berufungsort. '+('First Responder leistet Erstversorgung, wartet auf Rettungsmittel.' if v['type']=='FR' else 'Notarzt übernimmt Versorgung.' if v['type'] in ('NEF','NAH') else j['scene']));return
         if status=='scene':
-            if v['type'] in ('NEF','NAH','FR'):self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')
+            if v['type'] in ('NEF','FR'):self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')
             else:self.crew_destination(v)
             return
         if status=='transport':
@@ -180,9 +219,9 @@ class Operations:
         if status=='hospital':
             self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Übergabe abgeschlossen, Status 6: frei über Funk.');return
         if status in ('radio','duty'):
-            v.update(status='ready' if self.in_shift(v) else 'out',phase_due=None,lat=home['lat'],lon=home['lon']);self.log(f'{v["callsign"]}, '+('Status 1: frei auf Wache.' if v['status']=='ready' else 'Status 0: außer Betrieb.'));return
+            v.update(status=self.idle_status(v),phase_due=None,lat=home['lat'],lon=home['lon']);self.log(f'{v["callsign"]}, '+('Status 1: frei auf Wache.' if v['status']=='ready' else 'Status 0: außer Betrieb.'));return
         if status=='out' and v['job']:
-            self.detach(v);v.update(status='ready' if self.in_shift(v) else 'out',phase_due=None);return
+            self.detach(v);v.update(status=self.idle_status(v),phase_due=None);return
         v['phase_due']=None
 
     def vehicle_status(self,data):
@@ -194,6 +233,9 @@ class Operations:
             else:raise ValueError('Status 2 nur nach Alarmierung oder Quittierung.')
             return
         if v['job']:raise ValueError('Eine laufende Versorgung kann nicht mit einem freien Status beendet werden.')
+        if v['type']=='FR' and code=='1':raise ValueError('First Responder haben keine Wache; Bereitschaft zuhause verwenden.')
+        if v['type']=='FR' and code=='8':
+            v.update(status='fr_ready',phase_due=None,ack_deadline=None,manual_out=False);return
         mapping={'0':'out','1':'ready','6':'radio','7':'duty','8':'standby'}
         if code not in mapping:raise ValueError('Ungültiger Statuswechsel.')
         if code!='0' and not self.in_shift(v):raise ValueError('Fahrzeug außerhalb der Dienstzeit oder unbesetzt.')
@@ -218,11 +260,12 @@ class Operations:
         additional=str(data.get('additional',j.get('additional',''))).strip()
         if len(additional)>500:raise ValueError('Zusatztext maximal 500 Zeichen.')
         j.update(code=rule['code'],title=rule['title'],priority=rule['priority'],needs=rule['needs'][:],category=rule.get('category'),signal=bool(data.get('signal',rule['signal'])),additional=additional,fire=bool(data.get('fire',False)),police=bool(data.get('police',False)),secondary_unavailable=bool(data.get('secondary_unavailable',False)))
+        if j['code']=='RD-9E1':j.update(needs=['RTW-C','NEF'],police=True)
         for name in ('fire','police'):
             if j[name]:self.log(('Feuerwehr' if name=='fire' else 'Polizei')+f': simulierte Unterstützungsanforderung zu Einsatz {j["id"]}.','System')
 
     def create_job(self,data):
-        kind=data.get('kind','emergency');code=data.get('code','SIM-KT' if kind=='transport' else 'SIM-STURZ')
+        kind=data.get('kind','emergency');code=data.get('code','SIM-KT' if kind=='transport' else 'RD-17B1')
         if not self.rule(code) or self.rule(code)['kind']!=kind:raise ValueError('Ungültiges Übungsstichwort.')
         address=str(data.get('address','')).strip();lat=float(data.get('lat',0));lon=float(data.get('lon',0));due=float(data.get('due',self.state['clock']))
         if not address or len(address)>200 or not -90<=lat<=90 or not -180<=lon<=180 or not __import__('math').isfinite(due) or due<0:raise ValueError('Einsatzort, Koordinaten und Abholzeit prüfen.')

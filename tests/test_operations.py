@@ -25,7 +25,7 @@ class OperationsTests(unittest.TestCase):
         v=next(v for v in self.e.state['vehicles'] if v['type']=='RTW');j=self.job('emergency');j['crew_target']='kh-donaustadt' if region=='Wien' else 'kh-hainburg'
         self.dispatch(j,v);self.e.command('vehicle_status',{'vehicle':v['id'],'status':'2'});self.advance(v);self.advance(v);return j,v
     def test_status_numbers(self):
-        self.assertEqual({int(label.split(' · ')[0]) for label in STATUS_LABELS.values()},set(range(10)))
+        self.assertEqual({int(label.split(' · ')[0]) for key,label in STATUS_LABELS.items() if key!='fr_ready'},set(range(10)))
     def test_dispatcher_cannot_set_emergency_destination(self):
         j=self.job('emergency');v=next(v for v in self.e.state['vehicles'] if v['type']=='RTW')
         self.assertIsNone(j['destination'])
@@ -104,7 +104,7 @@ class OperationsTests(unittest.TestCase):
     def test_second_transporting_unit_uses_existing_crew_destination(self):
         j,v=self.scene('NÖ');other=next(x for x in self.e.state['vehicles'] if x['type']=='RTW' and x['id']!=v['id'])
         self.dispatch(j,other);self.e.command('vehicle_status',{'vehicle':other['id'],'status':'2'});self.advance(other);self.advance(other)
-        self.assertEqual(other['status'],'transport');self.assertEqual(j['destination'],'kh-hainburg')
+        self.assertEqual(other['status'],'radio');self.assertEqual(j['destination'],'kh-hainburg')
 
     def test_pending_bed_and_reservations_persist(self):
         j,v=self.scene();self.e.command('bed_request',{'job':j['id'],'hospital':'kh-donaustadt'});t=self.job();self.e.command('reserve',{'job':t['id'],'vehicle':self.v['id']})

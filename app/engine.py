@@ -11,6 +11,8 @@ import uuid
 from operations import Operations, STATUS_LABELS, JOB_ACTIONS
 from fleet import Fleet, upgrade
 from daylight import window
+from staffing import Staffing
+from air_ops import AirOps
 
 GRAPHICS = [
     {'id':'helicopter','name':'Notarzthubschrauber · schematisch','url':'/graphics/helicopter.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
@@ -49,7 +51,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':HOSPITALS,'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(Operations, Fleet):
+class Engine(Operations, Fleet, Staffing, AirOps):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -71,6 +73,7 @@ class Engine(Operations, Fleet):
         for g in GRAPHICS:
             if not any(item['id']==g['id'] for item in self.state['graphics']):self.state['graphics'].append(copy.deepcopy(g))
         upgrade(self)
+        self.upgrade_staffing()
         self.save()
 
     def save(self):
@@ -81,7 +84,7 @@ class Engine(Operations, Fleet):
         with self.lock:
             result=copy.deepcopy(self.state)
             for v in result['vehicles']:
-                v['in_shift']=self.in_shift(v);v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
+                v['in_shift']=self.in_shift(v);v['crew_shift']='Tagmannschaft 06–18' if 21600<=self.state['clock']%86400<64800 else 'Nachtmannschaft 18–06';v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
                 if v.get('daylight'):v['duty_window']=list(self.daylight_window(v))
             for j in result['jobs']:
                 if j['accepted']:j['aao']=self.recommendation(j)
@@ -105,6 +108,8 @@ class Engine(Operations, Fleet):
         home=self.station(v['station']);return window(date.isoformat(),home['lat'],home['lon'])
 
     def in_shift(self,v):
+        if v['type']=='FR':return v['staffed']
+        if v.get('duty_managed') and not v.get('daylight'):return self.managed_shift(v)
         if v.get('daylight'):
             a,b=self.daylight_window(v);return v['staffed'] and a<=self.state['clock']//60%1440<b
         minute=int(self.state['clock']//60)%1440
@@ -127,7 +132,9 @@ class Engine(Operations, Fleet):
         code={'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1'}.get(job['title'],'SIM-KT')
         rule=self.rule(code)
         job.update(code=code,category=rule.get('category') if rule else None,signal=rule['signal'] if rule else False,additional='',fire=False,police=False,organization='RK')
-        if rule:job.update(needs=rule['needs'][:],priority=rule['priority'])
+        job['event_title']=job['title']
+        if rule:job.update(title=rule['title'],needs=rule['needs'][:],priority=rule['priority'])
+        self.ensure_alarm_identity(job)
         self.state['jobs'].append(job)
         return job
 
@@ -136,13 +143,17 @@ class Engine(Operations, Fleet):
             if self.state['paused']: return
             self.state['clock']+=real_seconds*self.state['speed']
             now=self.state['clock']
+            period='Tagmannschaft 06–18' if 21600<=now%86400<64800 else 'Nachtmannschaft 18–06'
+            if self.state.get('crew_period')!=period:self.state['crew_period']=period;self.log(f'Mannschaftswechsel: {period}. Laufende Einsätze werden beendet; Besetzung nach Nachtvorhaltung.','System')
             upgrade(self)
+            self.upgrade_staffing()
             self.update_operations(now)
+            self.update_air(now)
             for v in self.state['vehicles']:
                 if v['phase_due'] is not None and now>=v['phase_due']: self.advance(v)
                 elif v['job']: pass
-                elif self.in_shift(v) and v['status']=='out' and not v.get('manual_out'): v['status']='ready'
-                elif not self.in_shift(v) and not v.get('leg') and v['status'] in ('ready','radio'): v['status']='out'
+                elif self.in_shift(v) and v['status']=='out' and not v.get('manual_out'): v['status']=self.idle_status(v)
+                elif not self.in_shift(v) and not v.get('leg') and v['status'] in ('ready','radio','fr_ready'): v['status']='out'
             auto_enabled=any(s.get('dispo')==self.state['setup']['dispo'] for s in self.state['stations']) and self.state['setup']['dispo']=='05'
             if auto_enabled and now>=self.state['next_transport']:
                 self.new_job('transport'); self.state['next_transport']=now+random.randint(600,1500)
@@ -185,6 +196,8 @@ class Engine(Operations, Fleet):
                 speed=data.get('speed',self.state['speed'])
                 if speed not in (1,5,15,60): raise ValueError('Ungültige Geschwindigkeit.')
                 self.state['speed']=speed; self.state['paused']=bool(data.get('paused',self.state['paused']))
+            elif action=='carrier':self.choose_carrier(data)
+            elif action=='ask_cpr':self.ask_cpr(data)
             elif action=='rtwc':self.configure_rtwc(data)
             elif action=='generate':
                 target=data.get('crew_target')
@@ -201,7 +214,7 @@ class Engine(Operations, Fleet):
                 j=self.get('jobs',data['id'])
                 if not j['accepted']: raise ValueError('Anruf zuerst annehmen.')
                 if not j['asked']: self.log('Abfrage: Bewusstsein, Atmung und nähere Umstände. '+j['detail'],'Telefon')
-                j['asked']=True
+                j['asked']=True;j['asked_at']=self.state['clock']
             elif action=='dispatch': self.dispatch(data)
             elif action=='reserve': self.reserve(data)
             elif action=='unreserve': self.unreserve(data)
@@ -236,10 +249,10 @@ class Engine(Operations, Fleet):
                     self.state=old; raise ValueError('Ungültiger Import; bisherige Konfiguration bleibt erhalten.')
                 self.log('Dienststellen- und Fahrzeugkonfiguration importiert.','System')
             elif action=='reset':
-                vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; graphics=self.state['graphics']; start_date=self.state['start_date'];fleet_version=self.state.get('fleet_version',0); rules=self.state['rules']; setup=self.state['setup']
-                self.state=seed();self.state.update(start_date=start_date,fleet_version=fleet_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations; self.state['vehicles']=vehicles
+                incident_counter=self.state.get('incident_counter',0);vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; graphics=self.state['graphics']; staffing_version=self.state.get('staffing_version');start_date=self.state['start_date'];fleet_version=self.state.get('fleet_version',0); rules=self.state['rules']; setup=self.state['setup']
+                self.state=seed();self.state.update(incident_counter=incident_counter,start_date=start_date,fleet_version=fleet_version,staffing_version=staffing_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations; self.state['vehicles']=vehicles
                 for v in vehicles:
-                    s=self.station(v['station']); v.update(job=None,phase_due=None,status='ready' if self.in_shift(v) else 'out',lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
+                    s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
                 self.migrate_operations()
             else: raise ValueError('Unbekannte Aktion.')
             if actor and action in JOB_ACTIONS: j['owner']=actor['id']
@@ -284,6 +297,11 @@ class Engine(Operations, Fleet):
         if typ=='RTW-C' and (not v['rtwc_capable'] or not v['nfs']):raise ValueError('RTW-C braucht Fahrzeugfähigkeit und bestätigte NFS-Besetzung.')
         if typ=='RTW-C' and any(u['station']==station and u['type']=='RTW-C' and u is not existing for u in self.state['vehicles']):raise ValueError('Pro Dienststelle ist nur ein RTW-C erlaubt. RTW-C-Besetzung wechseln verwenden.')
         if v['rtwc_fixed'] and (typ!='RTW-C' or station!='goetzendorf' or call!='77/030'):raise ValueError('77/030 bleibt RTW-C in Götzendorf.')
-        v['status']='ready' if self.in_shift(v) else 'out'
+        for key in ('duty_managed','home_lat','home_lon','home_address'):
+            if key in d:v[key]=d[key]
+            elif existing and key in existing:v[key]=existing[key]
+        v['status']=self.idle_status(v)
+        if typ=='FR':
+            origin=self.home(v);v.update(lat=origin['lat'],lon=origin['lon'])
         if existing: existing.update(v)
         else: self.state['vehicles'].append(v)

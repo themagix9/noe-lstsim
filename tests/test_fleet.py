@@ -51,7 +51,7 @@ class FleetTests(unittest.TestCase):
         self.assertEqual(j['bed_state'],'none');self.assertNotEqual(j['status'],'done')
     def test_fr_count_and_fischamend_unknown_pool(self):
         self.assertEqual(len([v for v in self.e.state['vehicles'] if v['type']=='FR' and v['station']=='schwechat']),10)
-        self.assertEqual(self.vehicle('FR-FISCHAMEND-POOL')['organization'],'FR Fischamend');self.assertFalse(self.vehicle('FR-FISCHAMEND-POOL')['staffed'])
+        self.assertEqual(len([v for v in self.e.state['vehicles'] if v['organization']=='FR Fischamend']),15)
     def test_c3_c9_daylight_and_night_unavailable(self):
         self.e.state['start_date']='2026-12-21'
         for call in ('C3','C9'):
@@ -68,7 +68,7 @@ class FleetTests(unittest.TestCase):
         crew=self.vehicle('77/011');nah=self.vehicle('C9');fr=self.vehicle('FR-SCH-01')
         for v in (crew,nah,fr):v.update(job=j['id'],status='scene');j['vehicles'].append(v['id'])
         self.e.send_case({'job':j['id'],'channel':'SDS'})
-        self.assertEqual(crew['status'],'transport');self.assertEqual(nah['status'],'scene');self.assertEqual(fr['status'],'scene')
+        self.assertEqual(crew['status'],'transport');self.assertEqual(nah['status'],'radio');self.assertEqual(fr['status'],'radio')
         self.assertEqual([m['vehicle'] for m in self.e.state['messages']],[crew['id']])
     def test_migration_and_switch_persist_without_duplicates(self):
         self.e.command('rtwc',{'vehicle':self.vehicle('77/002')['id']});count=len(self.e.state['vehicles']);self.e.db.close();self.e=Engine(self.path)

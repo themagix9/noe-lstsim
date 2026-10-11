@@ -66,7 +66,7 @@ class Sessions:
             e.state['setup']={'centre':centre,'dispo':dispo}
             if not data.get('adopt_legacy'):
                 e.state['start_date']=start_date;e.state['clock']=hour*3600;e.state['next_transport']=hour*3600+60;e.state['next_emergency']=hour*3600+180
-                for v in e.state['vehicles']:v['status']='ready' if e.in_shift(v) else 'out'
+                for v in e.state['vehicles']:v['status']=e.idle_status(v)
             e.save()
             credential=self.add_member(id,name,True);return credential
 

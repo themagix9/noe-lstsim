@@ -10,3 +10,5 @@
 body.lobby-open>header,body.lobby-open>.subbar,body.lobby-open>.team-bar,body.lobby-open>main{display:none}body.lobby-open{overflow:hidden}.map .leaflet-control-attribution svg{width:12px;height:8px;display:inline}
 
 body.lobby-open{height:100dvh;background:#11243a}
+
+.alarm-data{display:grid;grid-template-columns:minmax(110px,1fr) 2fr;gap:6px 12px;font-size:13px}.alarm-data dt{color:var(--muted,#64748b)}.alarm-data dd{margin:0;overflow-wrap:anywhere}

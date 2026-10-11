@@ -12,6 +12,7 @@ def code_rule(code):
     if not item:return None
     category=item['category'];signal=category in ('BLS rot','ALS grün','ALS gelb','ALS orange','ALS rot','Akuttransport rot')
     needs=[] if category in ('Telemedizin','Weitergabe','Großunfall','Alpinunfall') else ['RTW','NEF'] if category in ('ALS orange','ALS rot') else ['RTW']
+    if code=='RD-9E1':needs=['RTW-C','NEF']
     return {**item,'kind':'emergency','priority':'hoch' if signal else 'mittel','needs':needs,'signal':signal}
 
 def estimated_seconds(engine,v,j):
@@ -27,6 +28,13 @@ def recommend(engine,j):
     transporters=[v for v in candidates if v['type'] in transport_types];nefs=[v for v in candidates if v['type']=='NEF']
     def nearest(vs):return min(vs,key=eta) if vs else None
     chosen=None;need_nef=False
+    if j.get('code')=='RD-9E1':
+        for typ in ('RTW-C','NEF'):
+            if any(v['type']==typ for v in assigned):continue
+            unit=nearest([v for v in candidates if v['type']==typ])
+            if unit:result['vehicles'].append(unit['id'])
+            else:result['missing'].append(typ)
+        result['warnings'].append('Nutzer-AAO 9E1: RTW-C + NEF + Polizei. NAH optional; bei NAH eCPR-Voranmeldung und Funkrückfrage vor Zielflug.');return result
     if category in ('Telemedizin','Weitergabe') and not j.get('secondary_unavailable'):
         result['warnings'].append('Sekundärsystem / Weitergabe benötigt normalerweise kein Rettungsmittel. Bei Nichtverfügbarkeit BLS grün als Fallback auswählen.');return result
     if category in ('Großunfall','Alpinunfall'):
