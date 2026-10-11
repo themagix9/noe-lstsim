@@ -1,4 +1,4 @@
-# NÖ Dispo – Docker-Leitstellensimulator v0.3
+# NÖ Dispo – Docker-Leitstellensimulator v0.5
 
 Eigenständiger, spielbarer Prototyp für Niederösterreich, zunächst Raum Bruck/Leitha, Schwechat und Hainburg. Keine Kopie des LstSim-Quellcodes; keine Anbindung an echte Leitstellen.
 

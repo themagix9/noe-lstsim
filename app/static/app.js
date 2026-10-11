@@ -202,7 +202,7 @@ function renderRadio(){
  const markup=items=>items.map(c=>{
   const j=state.jobs.find(j=>j.id===c.job),v=state.vehicles.find(v=>v.id===c.vehicle),other=j?.owner&&j.owner!==state.session.me;
   const label=({calling:'LEO hört',reason_needed:'Verstanden, Grund der Nachforderung?, kommen',awaiting_dispatch:'Nachforderung bestätigen'})[c.state];
-  const confirmationReady=['Polizei','Feuerwehr'].includes(c.kind)||j?.vehicles.some(id=>{const unit=state.vehicles.find(v=>v.id===id);return unit?.type===c.kind&&unit.job===j.id});
+  const confirmationReady=['Polizei','Feuerwehr'].includes(c.kind)||j?.vehicles.some(id=>{const unit=state.vehicles.find(v=>v.id===id);return id!==c.vehicle&&unit?.type===c.kind&&unit.job===j.id});
   return `<div class="radio-call"><b>${esc(v?.callsign)} · ${esc(c.state==='calling'?'Funkwunsch':c.kind+' nachgefordert')}</b><span>${c.state==='reason_needed'?'Grund noch offen':c.state==='awaiting_dispatch'?esc(c.reason):'LEO von '+esc(v?.callsign)+', kommen.'}</span><div><button data-radio="${c.id}" data-step="${({calling:'listen',reason_needed:'reason',awaiting_dispatch:'confirm'})[c.state]}" ${other||c.state==='awaiting_dispatch'&&!confirmationReady?'disabled':''}>${esc(label)}</button><button data-radio-job="${c.job}">Einsatz öffnen</button>${c.state==='awaiting_dispatch'&&!confirmationReady?`<button data-radio="${c.id}" data-step="unavailable" ${other?'disabled':''}>Noch kein Rettungsmittel verfügbar</button>`:''}</div></div>`
  }).join('');
  $('radio-queue').innerHTML=markup(calls);if($('radio-detail'))$('radio-detail').innerHTML=markup(calls.filter(c=>c.job===selected));
