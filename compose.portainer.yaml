@@ -10,5 +10,20 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Tunnel-Token in Portainer hinterlegen}
+    depends_on:
+      noe-lstsim:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 volumes:
   simulation-data:

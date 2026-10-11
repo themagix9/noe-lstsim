@@ -29,8 +29,11 @@ Anschließend lokal `http://localhost:8088` öffnen. Es gibt keine kostenpflicht
    - Repository URL: `https://github.com/themagix9/noe-lstsim`
    - Repository reference: `refs/heads/main`
    - Compose path: `compose.portainer.yaml`
-4. Für Zugriff im vertrauenswürdigen LAN in den Stack-Umgebungsvariablen `BIND_HOST=0.0.0.0` setzen. `PORT=8088` ist der Standard. Für ausschließlich lokalen Zugriff oder einen lokalen Reverse Proxy den Standard `127.0.0.1` behalten.
-5. **Deploy the stack**, anschließend bei LAN-Freigabe `http://SERVER-IP:8088` öffnen.
+4. In den Stack-Umgebungsvariablen `CLOUDFLARE_TUNNEL_TOKEN` auf den Token deines Cloudflare-Tunnels setzen. Keinen Token ins Repository schreiben. Ohne Token meldet Compose einen Fehler und deployt nicht.
+5. Im Cloudflare-Tunnel einen veröffentlichten Hostnamen anlegen: Service-Typ **HTTP**, Service-URL **`noe-lstsim:8080`** (vollständiges Ziel: `http://noe-lstsim:8080`). Beide Services befinden sich im selben Docker-Netzwerk. `localhost` im Cloudflared-Container wäre der Tunnel-Container, nicht der Simulator.
+6. **Deploy the stack**, anschließend den konfigurierten HTTPS-Hostnamen öffnen. Für eine private Testversion den Hostnamen über Cloudflare Access auf die gewünschten Benutzer beschränken.
+
+Cloudflared wartet beim Start auf den gesunden Simulator. Der Tunnel stellt selbst ausgehende Verbindungen zu Cloudflare her; eingehende Ports/Portweiterleitungen sind dafür nicht nötig. Die lokale Debug-Schnittstelle bleibt standardmäßig auf `127.0.0.1:8088` begrenzt. `BIND_HOST=0.0.0.0` nur setzen, wenn zusätzlich LAN-Zugriff gewünscht ist.
 
 Für spätere Updates zuerst den erfolgreichen GitHub-Build abwarten. Dann den Git-Stack aktualisieren und dabei **Re-pull image / Pull latest image** aktivieren (Bezeichnung je nach Portainer-Version). Nur Git abzufragen garantiert bei unverändertem Image-Tag `latest` noch keinen Austausch des Containers. Automatische Git-Updates sind optional; dabei muss die Option zum erneuten Laden des Images korrekt konfiguriert sein. Änderungen, die nur Quellcode betreffen, ändern die Compose-Datei nicht; daher manuelles Re-pull oder ein gezielter Webhook nach erfolgreichem Build verwenden.
 
@@ -64,6 +67,14 @@ SQLite speichert Stammdaten, Simulationsstand und das letzte Kommunikationsproto
 Unter **Konfiguration** lassen sich Dienststellen/Fahrzeuge als JSON exportieren und importieren. Ein Import ersetzt beide Stammdatenlisten und ist nur ohne laufende Einsätze erlaubt. Fehlerhafte Imports lassen die alte Konfiguration unverändert. Am einfachsten zunächst exportieren, die JSON-Datei bearbeiten und wieder importieren. IDs müssen eindeutig und aus Buchstaben, Zahlen, Bindestrichen oder Unterstrichen bestehen. Jeder Fahrzeugeintrag muss auf eine vorhandene Dienststellen-ID verweisen. Die Funktion **Übung zurücksetzen** leert Einsätze und Protokoll, erhält aber die eigenen Stammdaten.
 
 Für eine vollständige Sicherung Container stoppen und das Docker-Volume sichern; ein JSON-Konfigurationsexport enthält keine laufenden Einsätze.
+
+## Datenbank heute und später
+
+Die Datenbank ist bereits vorhanden: **SQLite unter `/data/simulation.sqlite3`**, dauerhaft im Docker-Volume. Aktuell enthält sie Fahrzeuge, Dienststellen, Dienstzeiten, Besetzung, Krankenhäuser, Aufträge, Uhrzeit und das letzte Kommunikationsprotokoll gemeinsam als JSON-Simulationsstand in einer `state`-Tabelle. Es wird bei der ersten Installation automatisch ein Ausgangsbestand angelegt. Neustarts behalten den Stand bei; die Uhr läuft nur während der Server läuft.
+
+SQLite ist eine echte Datenbank, benötigt aber keinen separaten Datenbank-Service. Die jetzige Speicherung ist eine Prototyp-Struktur: keine normalisierten Tabellen, Benutzerkonten oder getrennten Übungssitzungen. Für den späteren Ausbau sollten diese Bereiche in eigene Tabellen mit Migrationen aufgeteilt werden: Dispozonen, Organisationen, Dienststellen, Fahrzeugbestand, Schichtmodelle, POIs/Kliniken, Einsatzvorlagen, Transportaufträge, Funkdialoge und Übungssitzungen. Bei Mehrbenutzerbetrieb kann PostgreSQL als zusätzlicher Service eingesetzt werden. Ein PostgreSQL-Container allein würde die aktuelle Anwendung noch nicht anbinden; die Migration muss im Backend umgesetzt werden.
+
+Es findet kein automatischer Import vollständiger realer NÖ-Daten statt. Stammdaten lassen sich bereits manuell pflegen und als JSON übertragen. Mehrere aktive App-Replikate auf demselben SQLite-Volume werden nicht unterstützt.
 
 ## Technischer Aufbau
 

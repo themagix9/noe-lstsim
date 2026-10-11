@@ -27,6 +27,10 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check frontend syntax
         run: node --check app/static/app.js
+      - name: Validate Portainer stack
+        env:
+          CLOUDFLARE_TUNNEL_TOKEN: ci-validation-placeholder
+        run: docker compose -f compose.portainer.yaml config --quiet
       - name: Build Docker image
         run: docker build -t noe-lstsim:test .
       - name: Verify container startup and health
