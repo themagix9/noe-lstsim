@@ -11,7 +11,7 @@ function patchHtml(root,html){
   for(const a of [...fresh.attributes])if(!(focused&&a.name==='value')&&old.getAttribute(a.name)!==a.value)old.setAttribute(a.name,a.value);
   if(old.tagName==='INPUT'){
    if(!focused&&old.value!==fresh.value)old.value=fresh.value;
-   if(['checkbox','radio'].includes(old.type))old.checked=fresh.checked;
+   if(!focused&&['checkbox','radio'].includes(old.type))old.checked=fresh.checked;
    return;
   }
   if(focused&&['SELECT','TEXTAREA'].includes(old.tagName))return;

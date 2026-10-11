@@ -39,7 +39,10 @@ function render(){
  const incoming=state.jobs.find(j=>j.kind==='emergency'&&!j.accepted&&(!j.owner||j.owner===state.session.me)&&!noticedCalls.has(j.id));if(incoming&&![...document.querySelectorAll('dialog')].some(d=>d.open)){noticedCalls.add(incoming.id);openDispatch(incoming.id)}
  const logs=state.logs.filter(l=>!$('log-channel').value||l.channel===$('log-channel').value);const logString=JSON.stringify(logs);if(logString!==lastLog){lastLog=logString;$('logs').innerHTML=logs.map(l=>`<div class="log"><time>${time(l.time)}</time><span class="log-channel">${esc(l.channel)}</span><span>${esc(l.text)}</span></div>`).join('')||'<div class="empty">Kommunikation erscheint während der Übung.</div>'}
 }
-$('detail').addEventListener('focusout',()=>requestAnimationFrame(()=>{if(state)renderDetail()}));
+let detailPointerDown=false;
+$('detail').addEventListener('pointerdown',()=>{detailPointerDown=true});
+window.addEventListener('pointerup',()=>setTimeout(()=>{detailPointerDown=false;if(state)renderDetail()},0));
+window.addEventListener('pointercancel',()=>{detailPointerDown=false});
 function etaText(estimate){if(!estimate)return '—';if(estimate.status==='ready')return Math.ceil(estimate.seconds/60)+' min · '+time(estimate.arrival).slice(0,5);return ({pending:'Route wird berechnet …',error:'Keine Route verfügbar',disabled:'Routing deaktiviert'})[estimate.status]||'—'}
 function unitEta(v){return v.eta_seconds!==null&&v.eta_seconds!==undefined?Math.ceil(v.eta_seconds/60)+' min':v.leg?.waiting?'Route '+(v.route_state==='error'?'nicht verfügbar':'wird berechnet'):'—'}
 function alarmSummary(j){
@@ -48,6 +51,7 @@ function alarmSummary(j){
  return `<details class="destination-card" open><summary><b>Alarmmeldung · Einsatz ${esc(j.incident_number)} (Simulation)</b></summary><dl class="alarm-data">${rows.map(([label,value])=>`<dt>${esc(label)}</dt><dd>${esc(value||'—')}</dd>`).join('')}</dl><b>Eventinfo</b><p>${esc(j.event_title||j.title)} · ${esc(j.caller)}</p><b>Abfragedetails</b><p>${j.asked?esc(time(j.asked_at??j.created)+' · '+j.detail):'Telefonische Abfrage noch offen.'}</p></details>`
 }
 function renderDetail(){
+ if(detailPointerDown)return;
  const j=state.jobs.find(j=>j.id===selected);
  const pool=j?state.vehicles.filter(v=>sendable(v,j)&&v.type!=='BEL'&&(j.kind==='transport'?['KTW','KTW-B','BKTW','RTW','RTW-C'].includes(v.type):['KTW','RTW','RTW-C','NEF','NAH','FR'].includes(v.type))):[];
  const reservable=state.vehicles.filter(v=>['KTW','KTW-B','BKTW','RTW','RTW-C'].includes(v.type)&&(!v.reservation||v.reservation===j?.id));
