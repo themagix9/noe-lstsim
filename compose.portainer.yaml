@@ -1,0 +1,14 @@
+services:
+  noe-lstsim:
+    image: ghcr.io/themagix9/noe-lstsim:${IMAGE_TAG:-latest}
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:${PORT:-8088}:8080"
+    volumes:
+      - simulation-data:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  simulation-data:
