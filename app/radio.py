@@ -27,7 +27,7 @@ class Radio:
         if protocol.startswith('29') and roll<.4:
             self.raise_radio(j,v,'RTW','Zweiter Patient vor Ort, bitte ein weiteres Rettungsmittel.',reason_initial=True);return
         if any(self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('NEF','NAH') for id in j['vehicles']):return
-        needed='NEF' in j['needs'] or j.get('exercise_reinforcement') or random.random()<.22
+        needed=j.get('patient_condition',{}).get('notarzt_required',False) or j.get('exercise_reinforcement')
         if needed:
             reason='Laufende Reanimation.' if j.get('code')=='RD-9E1' or j.get('exercise_reinforcement')=='reanimation' else random.choice(['Patientenzustand verschlechtert, deutlich eingeschränktes Bewusstsein.','Zunehmende Atemnot, bitte Notarzt zur weiteren Versorgung.'])
             self.raise_radio(j,v,'NEF',reason,reason_initial=random.random()<.35)

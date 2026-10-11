@@ -2,14 +2,14 @@
 class AirOps:
     def patient_carrier(self,j):
         if j.get('carrier'):return self.get('vehicles',j['carrier'])
-        units=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('KTW','RTW','RTW-C','NAH')]
+        units=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH')]
         ground=[v for v in units if v['type']!='NAH']
         return (ground or units or [None])[0]
 
     def choose_carrier(self,data):
         j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])
         active=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id']]
-        if v not in active or v['type'] not in ('KTW','RTW','RTW-C','NAH') or v['status'] not in ('assigned','acknowledged','enroute','scene'):raise ValueError('Eine alarmierte transportierende Ressource vor Transportbeginn wählen.')
+        if v not in active or v['type'] not in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH') or v['status'] not in ('assigned','acknowledged','enroute','scene'):raise ValueError('Eine alarmierte transportierende Ressource vor Transportbeginn wählen.')
         if any(u['status'] in ('transport','hospital') for u in active):raise ValueError('Patient ist bereits unterwegs.')
         if j.get('ecpr_state','none')!='none' and v['type']!='NAH':raise ValueError('eCPR-Szenario benötigt den vorgesehenen Hubschrauber.')
         j['carrier']=v['id'];v['phase_due']=self.state['clock']+1 if v['status']=='scene' else v['phase_due'];self.log(f'Mannschaft / Leitstelle: Patiententransport durch {v["callsign"]} abgestimmt.','Funk')

@@ -90,8 +90,15 @@ class Sessions:
             room=self.db.execute('SELECT code,title,mode FROM rooms WHERE id=?',(member['room_id'],)).fetchone()
             roster=self.db.execute('SELECT id,name,host,last_seen FROM members WHERE room_id=?',(member['room_id'],)).fetchall()
             s=self.engine(member['room_id']).snapshot()
+            s['sync_time']=time.time()
             s['session']={'code':room[0] if room[2]=='multi' else None,'mode':room[2],'title':room[1],'me':member['id'],'host':member['host'],'players':[{'id':r[0],'name':r[1],'host':bool(r[2]),'online':time.time()-r[3]<45} for r in roster]}
             return s
+
+    def stream_touch(self,member):
+        with self.lock:
+            seen=self.db.execute('SELECT last_seen FROM members WHERE id=?',(member['id'],)).fetchone()
+            if not seen or seen[0]==0:return False
+            self.db.execute('UPDATE members SET last_seen=? WHERE id=?',(time.time(),member['id']));self.db.commit();return True
 
     def command(self,member,action,data):
         with self.lock:

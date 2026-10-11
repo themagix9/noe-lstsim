@@ -8,6 +8,9 @@ CODES={r['code']:r for r in SOURCE['entries']}
 REFERENCE='https://www.notrufnoe.at/ausrueckordnung-detail/'
 
 def code_rule(code):
+    from catalog import TRANSPORT_RULES
+    transport=next((r for r in TRANSPORT_RULES if r['code']==code),None)
+    if transport:return transport.copy()
     item=CODES.get(code)
     if not item:return None
     category=item['category'];signal=category in ('BLS rot','ALS grün','ALS gelb','ALS orange','ALS rot','Akuttransport rot')
@@ -48,6 +51,8 @@ def recommend(engine,j):
     if j['kind']=='transport':
         org=j.get('organization','RK');transporters=[v for v in transporters if v.get('organization','RK')==org]
         preferred=[v for v in transporters if v['type'] in ('KTW','KTW-B','BKTW')];chosen=nearest(preferred) or nearest(transporters)
+        if j.get('code')=='KTx-96K5':
+            chosen=nearest([v for v in transporters if v['type'] in ('RTW','RTW-C')]);result['warnings'].append('Arzt wird laut Auftrag beigestellt; Arztbesetzung muss organisatorisch gesichert sein (nicht als eigenes Einsatzmittel simuliert).')
     elif category=='BLS rot':
         rtws=[v for v in transporters if v['type']=='RTW'];ktws=[v for v in transporters if v['type']=='KTW'];rtw=nearest(rtws);ktw=nearest(ktws)
         chosen=rtw if rtw and (not ktw or eta(rtw)<=eta(ktw)+90) else ktw or nearest([v for v in transporters if v['type']=='RTW-C'])

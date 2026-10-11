@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory() as data:
             context.route('https://tile.openstreetmap.org/**',lambda r:r.fulfill(status=200,content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#edf1ee"/></svg>'))
             p=context.new_page();errors=[];p.on('pageerror',lambda e:errors.append(str(e)));p.goto('http://127.0.0.1:8080');p.get_by_label('Dein Disponentenname').fill('Routingtest');p.locator('#lobby-submit').click();expect(p.locator('#lobby')).to_be_hidden()
             p.wait_for_function('addressPoints.length>500');address=p.evaluate("addressPoints.find(a=>a.city==='Schwechat').address")
-            p.locator('#create-manual').click();p.get_by_label('Einsatzort / Adresse',exact=True).fill(address);p.get_by_label('Zusatztext',exact=True).click();p.locator('#manual-form button.primary').click()
+            p.locator('#create-manual').click();p.locator('#manual-code').select_option('RD-1A1');p.get_by_label('Einsatzort / Adresse',exact=True).fill(address);p.get_by_label('Zusatztext',exact=True).click();p.locator('#manual-form button.primary').click()
             row=p.locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('1.5 km Straße',timeout=15000);expect(row).to_contain_text('3 min');row.locator('input').check();p.locator('#dispatch').click();p.locator('#close-dispatch').click();p.locator('#speed').select_option('60');p.locator('#pause').click()
             p.wait_for_function("state.vehicles.some(v=>v.callsign==='77/002'&&v.leg?.geometry)",timeout=20000);p.evaluate("command('control',{paused:true})")
             if p.locator('#dispatch-dialog').is_visible():p.locator('#close-dispatch').click()

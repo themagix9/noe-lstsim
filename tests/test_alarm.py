@@ -22,12 +22,18 @@ class AlarmTests(unittest.TestCase):
         j=self.job();self.e.edit_job({'job':j['id'],'code':'RD-9E1','additional':'Übungszusatz'})
         units=[self.vehicle('77/001'),self.vehicle('77/099')]
         self.e.dispatch({'job':j['id'],'vehicles':[v['id'] for v in units]})
-        messages=[m for m in self.e.state['messages'] if m['channel']=='Alarmierung']
-        self.assertEqual(len(messages),2)
-        for message,v in zip(messages,units):
+        messages=[m for m in self.e.state['messages'] if m['channel'] in ('SDS','ESApp')]
+        self.assertEqual(len(messages),4)
+        for v in units:
+            channels=[m for m in messages if m['vehicle']==v['id']]
+            self.assertEqual({m['channel'] for m in channels},{'SDS','ESApp'})
+            self.assertEqual(channels[0]['time'],channels[1]['time'])
+        for message in messages:
+            v=next(v for v in units if v['id']==message['vehicle'])
             for field in [j['incident_number'],'RD-9E1',j['title'],j['address'],j['billing_number'],v['callsign'],'Übungszusatz']:
                 self.assertIn(field,message['text'])
         self.assertTrue(j['patient']['fictitious'])
+        self.assertFalse(any(l['channel']=='Funk' and 'Leitstelle an' in l['text'] for l in self.e.state['logs']))
         generated=self.e.new_job('emergency')
         self.assertEqual(generated['title'],self.e.rule(generated['code'])['title'])
 

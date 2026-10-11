@@ -9,7 +9,7 @@ from collections import defaultdict,deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from sessions import Sessions
-from catalog import CENTRES,ZONES,RULES
+from catalog import CENTRES,ZONES,RULES,TRANSPORT_RULES
 from locations import ADDRESSES
 from aao import SOURCE,code_rule
 
@@ -17,6 +17,10 @@ ROOT=Path(__file__).parent/'static'
 DATA=Path(os.environ.get('DATA_DIR','./data')); DATA.mkdir(parents=True,exist_ok=True)
 sessions=Sessions(str(DATA/'simulation.sqlite3'))
 limits=defaultdict(deque);limit_lock=threading.Lock()
+live_changes=threading.Condition()
+
+def notify_live():
+    with live_changes:live_changes.notify_all()
 
 class Handler(BaseHTTPRequestHandler):
     def respond(self,payload,content_type,status=200):
@@ -25,10 +29,26 @@ class Handler(BaseHTTPRequestHandler):
     def member(self):return sessions.member(self.headers.get('Authorization','').removeprefix('Bearer '))
     def do_GET(self):
         path=urlparse(self.path).path
+        if path=='/api/live':
+            try:member=self.member()
+            except PermissionError as e:return self.json_response({'error':str(e)},401)
+            self.send_response(200);self.send_header('Content-Type','text/event-stream; charset=utf-8');self.send_header('Cache-Control','no-cache, no-transform');self.send_header('X-Accel-Buffering','no');self.send_header('Connection','close');self.end_headers()
+            last=None;heartbeat=time.monotonic()
+            try:
+                while True:
+                    if not sessions.stream_touch(member):return
+                    state=sessions.snapshot(member);sync=state.pop('sync_time');body=json.dumps(state,ensure_ascii=False,separators=(',',':'))
+                    if body!=last:
+                        state['sync_time']=sync
+                        self.wfile.write(('event: state\ndata: '+json.dumps(state,ensure_ascii=False,separators=(',',':'))+'\n\n').encode());self.wfile.flush();last=body;heartbeat=time.monotonic()
+                    elif time.monotonic()-heartbeat>5:
+                        self.wfile.write(b': heartbeat\n\n');self.wfile.flush();heartbeat=time.monotonic()
+                    with live_changes:live_changes.wait(timeout=1)
+            except (BrokenPipeError,ConnectionResetError,PermissionError):return
         if path=='/api/addresses':return self.json_response({'addresses':ADDRESSES,'source':'© OpenStreetMap contributors · ODbL 1.0'})
-        if path=='/api/codes':return self.json_response({'date':SOURCE['date'],'rules':[code_rule(r['code']) for r in SOURCE['entries']]})
+        if path=='/api/codes':return self.json_response({'date':SOURCE['date'],'rules':[code_rule(r['code']) for r in SOURCE['entries']]+TRANSPORT_RULES})
         if path=='/api/catalog':return self.json_response({'centres':CENTRES,'zones':ZONES,'rules':RULES})
-        if path=='/api/health':return self.json_response({'ok':True,'version':'0.5'})
+        if path=='/api/health':return self.json_response({'ok':True,'version':'0.6'})
         if path in ('/api/state','/api/config'):
             try:
                 s=sessions.snapshot(self.member())
@@ -63,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
                     window.append(now)
                 credential=sessions.create(data) if action=='session/create' else sessions.join(data)
                 member=sessions.member(credential['token']);return self.json_response({**credential,'state':sessions.snapshot(member)})
-            member=self.member();self.json_response(sessions.command(member,action,data))
+            member=self.member();result=sessions.command(member,action,data);notify_live();self.json_response(result)
         except PermissionError as e:self.json_response({'error':str(e)},403)
         except (ValueError,KeyError,TypeError,StopIteration) as e:self.json_response({'error':str(e) or 'Ungültige Eingabe.'},400)
     def log_message(self,format,*args):pass
@@ -71,9 +91,9 @@ class Handler(BaseHTTPRequestHandler):
 def run_clock():
     last=time.monotonic()
     while True:
-        time.sleep(1);now=time.monotonic();sessions.tick(min(now-last,5));last=now
+        time.sleep(1);now=time.monotonic();sessions.tick(min(now-last,5));last=now;notify_live()
 
 if __name__=='__main__':
     threading.Thread(target=run_clock,daemon=True).start()
-    print('NÖ Dispo v0.5 läuft auf Port 8080',flush=True)
+    print('NÖ Dispo v0.6 läuft auf Port 8080',flush=True)
     ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()

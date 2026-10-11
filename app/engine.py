@@ -15,6 +15,7 @@ from staffing import Staffing
 from air_ops import AirOps
 from routing import router_for
 from radio import Radio
+from patients import Patients
 from locations import ADDRESSES,ADDRESS_CITIES,upgrade_locations
 
 GRAPHICS = [
@@ -54,7 +55,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':HOSPITALS,'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(Operations, Fleet, Staffing, AirOps, Radio):
+class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -74,6 +75,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio):
         for v in self.state['vehicles']: v.setdefault('graphic',DEFAULT_GRAPHIC[v['type']])
         for j in self.state['jobs']: j.setdefault('owner',None)
         self.migrate_operations()
+        for j in self.state['jobs']:self.ensure_patient_condition(j)
         for g in GRAPHICS:
             if not any(item['id']==g['id'] for item in self.state['graphics']):self.state['graphics'].append(copy.deepcopy(g))
         upgrade(self)
@@ -108,6 +110,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio):
             return result
 
     def log(self, text, channel='Funk'):
+        if channel=='Funk' and re.search(r'Status\s*(?:\d|meldung)',text,re.I):channel='Status'
         self.state['logs'].insert(0, {'time':self.state['clock'],'text':text,'channel':channel})
         self.state['logs']=self.state['logs'][:250]
 
@@ -148,11 +151,12 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio):
             self.log(f'Neuer Transportauftrag: {job["title"]}, {place}.','Aufträge')
         else:
             raise ValueError('Unbekannte Auftragsart.')
-        code={'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1'}.get(job['title'],'SIM-KT')
+        code={'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1','Entlassung':random.choice(['KTR-95K2','KTR-95K3']),'Ambulanztermin':random.choice(['KTR-90K2','KTR-90K3']),'Dialysefahrt':random.choice(['KTR-93Y1','KTR-93Y2'])}.get(job['title'],'SIM-KT')
         rule=self.rule(code)
         job.update(code=code,category=rule.get('category') if rule else None,signal=rule['signal'] if rule else False,additional='',fire=False,police=False,organization='RK')
         job['event_title']=job['title']
         if rule:job.update(title=rule['title'],needs=rule['needs'][:],priority=rule['priority'])
+        self.ensure_patient_condition(job)
         self.ensure_alarm_identity(job)
         self.state['jobs'].append(job)
         return job
@@ -168,6 +172,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio):
             self.upgrade_staffing()
             self.update_operations(now)
             self.update_air(now)
+            self.update_patients(now)
             for v in self.state['vehicles']:
                 if v['phase_due'] is not None and now>=v['phase_due']: self.advance(v)
                 elif v['job']: pass

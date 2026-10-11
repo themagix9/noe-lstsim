@@ -44,4 +44,17 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(err.exception.code,403)
     def test_session_chat(self):
         state=json.load(self.req('/api/chat',{'text':'Hallo Team'}));self.assertEqual(state['chat'][-1]['text'],'Hallo Team')
+    def test_authenticated_live_stream_pushes_changes(self):
+        with self.req('/api/live') as response:
+            self.assertIn('text/event-stream',response.headers['Content-Type'])
+            def state_event():
+                while True:
+                    line=response.readline().decode()
+                    if line.startswith('data: '):return json.loads(line[6:])
+            first=state_event();self.assertEqual(first['session']['me'],json.load(self.req('/api/state'))['session']['me'])
+            self.req('/api/chat',{'text':'Live ohne Polling'}).close()
+            pushed=state_event();self.assertEqual(pushed['chat'][-1]['text'],'Live ohne Polling')
+    def test_live_stream_requires_membership(self):
+        with self.assertRaises(urllib.error.HTTPError) as err:self.req('/api/live',token='')
+        self.assertEqual(err.exception.code,401)
 if __name__=='__main__':unittest.main()
