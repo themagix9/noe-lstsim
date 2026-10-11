@@ -93,9 +93,9 @@ function renderDetail(){
  if($('save-job'))$('save-job').onclick=()=>command('edit_job',{job:j.id,code:$('job-code').value,additional:$('job-additional').value,signal:$('job-signal').checked,fire:$('job-fire').checked,police:$('job-police').checked,secondary_unavailable:$('job-secondary').checked});
  if($('apply-aao'))$('apply-aao').onclick=()=>{{resourceFilter='';resourceSelection=new Set(aao.vehicles);detailSignature='';renderDetail()}};
  if($('apply-fr'))$('apply-fr').onclick=()=>{{aao.supplementary.forEach(id=>resourceSelection.add(id));resourceFilter='';detailSignature='';renderDetail()}};
- document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{resourceFilter=b.dataset.filter;detailSignature='';renderDetail()});
- if($('resource-sort'))$('resource-sort').onchange=()=>{resourceSort=$('resource-sort').value;detailSignature='';renderDetail()};
- if($('resource-direction'))$('resource-direction').onchange=()=>{resourceDirection=$('resource-direction').value;detailSignature='';renderDetail()};
+ document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{detailPointerDown=false;resourceFilter=b.dataset.filter;detailSignature='';renderDetail()});
+ if($('resource-sort'))$('resource-sort').onchange=()=>{detailPointerDown=false;resourceSort=$('resource-sort').value;detailSignature='';renderDetail()};
+ if($('resource-direction'))$('resource-direction').onchange=()=>{detailPointerDown=false;resourceDirection=$('resource-direction').value;detailSignature='';renderDetail()};
  document.querySelectorAll('.dispatch-options input').forEach(input=>input.onchange=()=>{if(j.kind==='transport')resourceSelection.clear();if(input.checked)resourceSelection.add(input.value);else resourceSelection.delete(input.value)});
  if($('ask'))$('ask').onclick=()=>command('ask',{id:j.id});
  if($('dispatch'))$('dispatch').onclick=async()=>{const vehicles=[...resourceSelection].filter(id=>pool.some(v=>v.id===id)),standby=!!$('use-standby')?.checked;if($('save-job')&&!await command('edit_job',{job:j.id,code:$('job-code').value,additional:$('job-additional').value,signal:$('job-signal').checked,fire:$('job-fire').checked,police:$('job-police').checked,secondary_unavailable:$('job-secondary').checked}))return;await command('dispatch',{job:j.id,vehicles,standby})};
