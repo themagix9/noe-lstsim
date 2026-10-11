@@ -40,12 +40,24 @@ with tempfile.TemporaryDirectory() as data:
             assert not errors,errors
             # Validate a private session, manual AMPDS modal, reservation and a Vienna bed workflow.
             solo=browser.new_context(viewport={'width':1440,'height':1100});solo.route('https://tile.openstreetmap.org/**',lambda route:route.abort());c=solo.new_page();c.on('pageerror',lambda e:errors.append(str(e)));c.goto('http://127.0.0.1:8080');c.get_by_label('Dein Disponentenname').fill('Solo');c.locator('#lobby-submit').click();expect(c.locator('#lobby')).to_be_hidden();expect(c.locator('#copy-code')).to_be_hidden();expect(c.locator('#chat-panel')).to_be_hidden();c.locator('#create-manual').click();c.locator('#manual-kind').select_option('transport');c.get_by_label('Einsatzort / Adresse',exact=True).fill('Teststraße, Schwechat');c.locator('#manual-form button.primary').click();expect(c.locator('#dispatch-dialog')).to_be_visible();expect(c.locator('.resource-row').first).to_contain_text('km');c.locator('#reserve').click();expect(c.locator('#detail')).to_contain_text('Reserviert:');c.locator('#apply-aao').click();c.locator('#dispatch').click();expect(c.locator('#detail')).to_contain_text('Alarmiert');c.locator('#close-dispatch').click();
-            c.locator('#demo').click();c.locator('#new-vienna').click();expect(c.locator('#dispatch-dialog')).to_be_visible(timeout=8000);c.locator('#accept').click();c.locator('#job-search').fill('RD-31D3');c.locator('#job-code').select_option('RD-31D3');c.locator('#save-job').click();expect(c.locator('#detail')).to_contain_text('ALS orange');c.locator('#apply-aao').click();c.locator('#dispatch').click();c.locator('#close-dispatch').click();c.locator('#speed').select_option('60');c.locator('#pause').click();
+            c.locator('#demo').click();c.locator('#new-vienna').click();expect(c.locator('#dispatch-dialog')).to_be_visible(timeout=8000);c.locator('#accept').click();c.locator('#job-search').fill('RD-31D3');c.locator('#job-code').select_option('RD-31D3');c.locator('#save-job').click();expect(c.locator('#detail')).to_contain_text('ALS orange');c.locator('#apply-aao').click()
+            with c.expect_response(lambda response:response.url.endswith('/api/dispatch')) as dispatched:
+                c.locator('#dispatch').click()
+            assert dispatched.value.ok,dispatched.value.text()
+            expect(c.locator('#detail')).to_contain_text('Alarmiert');c.locator('#close-dispatch').click()
+            with c.expect_response(lambda response:response.url.endswith('/api/control')):
+                c.locator('#speed').select_option('60')
+            with c.expect_response(lambda response:response.url.endswith('/api/control')):
+                c.locator('#pause').click()
+            expect(c.locator('#running')).to_have_text('SIMULATION LÄUFT')
             deadline=time.monotonic()+90
             while time.monotonic()<deadline and not c.locator('.job.emergency').filter(has_text='Wiener Ziel angefordert').count():
                 if c.locator('#dispatch-dialog').is_visible():c.locator('#close-dispatch').click()
                 c.wait_for_timeout(500)
             if c.locator('#dispatch-dialog').is_visible():c.locator('#close-dispatch').click()
+            if not c.locator('.job.emergency').filter(has_text='Wiener Ziel angefordert').count():
+                print('Vienna workflow diagnostic:',c.evaluate("({clock:state.clock,speed:state.speed,paused:state.paused,jobs:state.jobs.filter(j=>j.crew_target),vehicles:state.vehicles.filter(v=>v.job),toast:document.getElementById('toast').textContent})"),flush=True)
+                c.screenshot(path='/tmp/noe-ui-qa/vienna-failure.png',full_page=True)
             expect(c.locator('.job.emergency').filter(has_text='Wiener Ziel angefordert').first).to_be_visible();c.locator('.job.emergency').filter(has_text='Wiener Ziel angefordert').first.click();c.locator('#bed-request').click();expect(c.locator('#send-sds')).to_be_visible(timeout=8000);c.locator('#send-sds').click();expect(c.locator('#detail')).to_contain_text('An Mannschaft übermittelt via SDS');c.screenshot(path='/tmp/noe-ui-qa/vienna-modal.png',full_page=True);
             c.locator('#close-dispatch').click();c.locator('#leave-room').click();c.screenshot(path='/tmp/noe-ui-qa/landing.png',full_page=True);assert not errors,errors
             print('Multiplayer browser test passed: join, roster, claim, handover, dispatch, chat, resume, graphics, clock.')
