@@ -3,6 +3,9 @@ services:
     image: ghcr.io/themagix9/noe-lstsim:${IMAGE_TAG:-latest}
     ports:
       - "${BIND_HOST:-127.0.0.1}:${PORT:-8088}:8080"
+    environment:
+      ROUTING_URL: ${ROUTING_URL:-https://routing.openstreetmap.de/routed-car}
+      ROUTING_ENABLED: ${ROUTING_ENABLED:-1}
     volumes:
       - simulation-data:/data
     restart: unless-stopped

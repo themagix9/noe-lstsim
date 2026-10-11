@@ -13,6 +13,9 @@ from fleet import Fleet, upgrade
 from daylight import window
 from staffing import Staffing
 from air_ops import AirOps
+from routing import router_for
+from radio import Radio
+from locations import ADDRESSES,ADDRESS_CITIES,upgrade_locations
 
 GRAPHICS = [
     {'id':'helicopter','name':'Notarzthubschrauber · schematisch','url':'/graphics/helicopter.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
@@ -51,7 +54,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':HOSPITALS,'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(Operations, Fleet, Staffing, AirOps):
+class Engine(Operations, Fleet, Staffing, AirOps, Radio):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -59,6 +62,7 @@ class Engine(Operations, Fleet, Staffing, AirOps):
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.execute('CREATE TABLE IF NOT EXISTS room_states (room_id TEXT PRIMARY KEY, value TEXT NOT NULL)')
         self.room_id=room_id
+        self.router=router_for(path)
         row=self.db.execute('SELECT value FROM room_states WHERE room_id=?',(room_id,)).fetchone()
         # Preserve the v0.1 state on migration; first host can explicitly adopt it.
         if not row and room_id=='legacy':
@@ -74,6 +78,7 @@ class Engine(Operations, Fleet, Staffing, AirOps):
             if not any(item['id']==g['id'] for item in self.state['graphics']):self.state['graphics'].append(copy.deepcopy(g))
         upgrade(self)
         self.upgrade_staffing()
+        upgrade_locations(self)
         self.save()
 
     def save(self):
@@ -87,7 +92,19 @@ class Engine(Operations, Fleet, Staffing, AirOps):
                 v['in_shift']=self.in_shift(v);v['crew_shift']='Tagmannschaft 06–18' if 21600<=self.state['clock']%86400<64800 else 'Nachtmannschaft 18–06';v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
                 if v.get('daylight'):v['duty_window']=list(self.daylight_window(v))
             for j in result['jobs']:
-                if j['accepted']:j['aao']=self.recommendation(j)
+                if j['accepted']:
+                    origins=[v for v in self.state['vehicles'] if v['type']!='NAH' and self.sendable(v,j)]
+                    estimates=self.router.estimates(origins,j)
+                    for v in self.state['vehicles']:
+                        if v['type']=='NAH' and self.sendable(v,j):estimates[v['id']]={'status':'ready','seconds':distance(v,j)/v.get('flight_speed',220)*3600,'distance_m':distance(v,j)*1000,'source':'Flugzeit · Luftlinie'}
+                        eta=estimates.get(v['id'])
+                        if eta and eta['status']=='ready':
+                            eta['seconds']+=float(v.get('turnout',60))+max(0,(v.get('phase_due') or 0)-self.state['clock'] if v['status']=='hospital' else 0)
+                            eta['arrival']=self.state['clock']+eta['seconds']
+                    j['resource_eta']=estimates;j['aao']=self.recommendation(j)
+            for v in result['vehicles']:
+                v['eta_seconds']=max(0,v['phase_due']-self.state['clock']) if v.get('leg') and v.get('phase_due') else None
+            result['routing']={'enabled':self.router.enabled,'source':'OSRM · OpenStreetMap','mode':'external' if self.router.url.startswith('https://') else 'self-hosted'}
             return result
 
     def log(self, text, channel='Funk'):
@@ -117,9 +134,11 @@ class Engine(Operations, Fleet, Staffing, AirOps):
         return v['staffed'] and (a==b or (a<=minute<b if a<b else minute>=a or minute<b))
 
     def new_job(self, kind, manual=False):
-        place, lat, lon=random.choice(PLACES)
+        city=random.choice(ADDRESS_CITIES)
+        address_point=random.choice([a for a in ADDRESSES if a['city']==city])
+        place,lat,lon=address_point['city'],address_point['lat'],address_point['lon']
         clock=self.state['clock']
-        job={'id':uid(),'kind':kind,'place':place,'lat':lat+random.uniform(-.008,.008),'lon':lon+random.uniform(-.008,.008),'address':f'{place}, Beispieladresse {random.randint(1,40)}','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ'])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
+        job={'id':uid(),'kind':kind,'place':place,'lat':lat,'lon':lon,'address':address_point['address'],'address_point':address_point.copy(),'address_source':'OpenStreetMap','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ'])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
         if kind=='emergency':
             scenario=copy.deepcopy(random.choice(SCENARIOS)); job.update(scenario)
             job['due']=clock
@@ -196,6 +215,10 @@ class Engine(Operations, Fleet, Staffing, AirOps):
                 speed=data.get('speed',self.state['speed'])
                 if speed not in (1,5,15,60): raise ValueError('Ungültige Geschwindigkeit.')
                 self.state['speed']=speed; self.state['paused']=bool(data.get('paused',self.state['paused']))
+            elif action=='radio':self.radio_action(data)
+            elif action=='radio_generate':
+                j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])
+                self.raise_radio(j,v,data.get('kind','NEF'),data.get('reason'),bool(data.get('reason_initial')))
             elif action=='carrier':self.choose_carrier(data)
             elif action=='ask_cpr':self.ask_cpr(data)
             elif action=='rtwc':self.configure_rtwc(data)
@@ -249,8 +272,8 @@ class Engine(Operations, Fleet, Staffing, AirOps):
                     self.state=old; raise ValueError('Ungültiger Import; bisherige Konfiguration bleibt erhalten.')
                 self.log('Dienststellen- und Fahrzeugkonfiguration importiert.','System')
             elif action=='reset':
-                incident_counter=self.state.get('incident_counter',0);vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; graphics=self.state['graphics']; staffing_version=self.state.get('staffing_version');start_date=self.state['start_date'];fleet_version=self.state.get('fleet_version',0); rules=self.state['rules']; setup=self.state['setup']
-                self.state=seed();self.state.update(incident_counter=incident_counter,start_date=start_date,fleet_version=fleet_version,staffing_version=staffing_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations; self.state['vehicles']=vehicles
+                incident_counter=self.state.get('incident_counter',0);location_version=self.state.get('location_version');vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; hospitals=self.state['hospitals'];graphics=self.state['graphics']; staffing_version=self.state.get('staffing_version');start_date=self.state['start_date'];fleet_version=self.state.get('fleet_version',0); rules=self.state['rules']; setup=self.state['setup']
+                self.state=seed();self.state.update(incident_counter=incident_counter,location_version=location_version,start_date=start_date,fleet_version=fleet_version,staffing_version=staffing_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations;self.state['hospitals']=hospitals; self.state['vehicles']=vehicles
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
                 self.migrate_operations()

@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from sessions import Sessions
 from catalog import CENTRES,ZONES,RULES
+from locations import ADDRESSES
 from aao import SOURCE,code_rule
 
 ROOT=Path(__file__).parent/'static'
@@ -24,9 +25,10 @@ class Handler(BaseHTTPRequestHandler):
     def member(self):return sessions.member(self.headers.get('Authorization','').removeprefix('Bearer '))
     def do_GET(self):
         path=urlparse(self.path).path
+        if path=='/api/addresses':return self.json_response({'addresses':ADDRESSES,'source':'© OpenStreetMap contributors · ODbL 1.0'})
         if path=='/api/codes':return self.json_response({'date':SOURCE['date'],'rules':[code_rule(r['code']) for r in SOURCE['entries']]})
         if path=='/api/catalog':return self.json_response({'centres':CENTRES,'zones':ZONES,'rules':RULES})
-        if path=='/api/health':return self.json_response({'ok':True,'version':'0.3'})
+        if path=='/api/health':return self.json_response({'ok':True,'version':'0.5'})
         if path in ('/api/state','/api/config'):
             try:
                 s=sessions.snapshot(self.member())
@@ -73,5 +75,5 @@ def run_clock():
 
 if __name__=='__main__':
     threading.Thread(target=run_clock,daemon=True).start()
-    print('NÖ Dispo v0.3 läuft auf Port 8080',flush=True)
+    print('NÖ Dispo v0.5 läuft auf Port 8080',flush=True)
     ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()

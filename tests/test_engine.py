@@ -1,3 +1,6 @@
+import os
+os.environ.setdefault("ROUTING_ENABLED","0")
+os.environ.setdefault("REINFORCEMENTS_AUTO","0")
 import copy
 from pathlib import Path
 import sys

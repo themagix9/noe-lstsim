@@ -1,5 +1,5 @@
 """AAO approximation from public NÖ guidance, using simulated ETAs.
-No road routing, tactical optimisation, NAH, ACN or secondary triage engine.
+Road routing with provisional estimates while an OSRM matrix is pending.
 """
 import json
 from pathlib import Path
@@ -17,12 +17,17 @@ def code_rule(code):
 
 def estimated_seconds(engine,v,j):
     from engine import distance
+    estimate=engine.router.cached_eta(v,j) if v['type']!='NAH' else None
+    if estimate and estimate['status']=='ready':return estimate['seconds']+float(v.get('turnout',60))+max(0,(v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
     return distance(v,j)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600+float(v.get('turnout',60))+max(0,(v.get('handover_due') or v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
 
 def recommend(engine,j):
     candidates=[v for v in engine.state['vehicles'] if engine.sendable(v,j)]
     assigned=[engine.get('vehicles',id) for id in j['vehicles']]
     result={'vehicles':[],'missing':[],'rule':j.get('code'),'category':j.get('category','Übungsregel'),'description':'Simulationsvorschlag · geschätzte Eintreffzeit aus Luftlinie + Ausrückzeit','warnings':[],'source':REFERENCE,'code_date':SOURCE['date']}
+    if engine.router.enabled:
+        ready=all(v['type']=='NAH' or (engine.router.cached_eta(v,j) or {}).get('status')=='ready' for v in candidates)
+        result['description']='Straßenrouting + Ausrückzeit; NAH Flugzeit' if ready else 'Vorläufiger Vorschlag: Straßenrouten werden berechnet, derzeit Entfernungsschätzung'
     category=j.get('category');eta=lambda v:estimated_seconds(engine,v,j)
     transport_types=('KTW','KTW-B','BKTW','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C')
     transporters=[v for v in candidates if v['type'] in transport_types];nefs=[v for v in candidates if v['type']=='NEF']

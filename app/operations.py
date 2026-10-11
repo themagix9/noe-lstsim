@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate')
 
 class Operations:
     def migrate_operations(self):
@@ -16,6 +16,7 @@ class Operations:
         self.state.setdefault('setup',{'centre':'Mödling','dispo':'05'})
         for station in self.state['stations']:station.setdefault('dispo','05' if station['zone']=='Bruck/Leitha' else '')
         self.state.setdefault('messages',[])
+        self.state.setdefault('radio_calls',[])
         self.state.setdefault('incident_counter',0)
         for j in self.state['jobs']:
             self.ensure_alarm_identity(j)
@@ -74,8 +75,20 @@ class Operations:
 
     def drive(self,v,target,status,minimum=120):
         from engine import distance
-        now=self.state['clock'];duration=max(60 if v['type']=='NAH' else minimum,distance(v,target)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600)
-        v.update(status=status,phase_due=now+duration,leg={'start':now,'end':now+duration,'lat':v['lat'],'lon':v['lon'],'target_lat':target['lat'],'target_lon':target['lon']})
+        now=self.state['clock']
+        if v['type']=='NAH' or not self.router.enabled:
+            duration=max(60 if v['type']=='NAH' else minimum,distance(v,target)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600)
+            v.update(status=status,route_state='flight' if v['type']=='NAH' else 'disabled',phase_due=now+duration,leg={'start':now,'end':now+duration,'lat':v['lat'],'lon':v['lon'],'target_lat':target['lat'],'target_lon':target['lon']})
+            return
+        v.update(status=status,route_state='pending',phase_due=None,leg={'waiting':True,'lat':v['lat'],'lon':v['lon'],'target_lat':target['lat'],'target_lon':target['lon']})
+        self.resolve_route(v)
+
+    def resolve_route(self,v):
+        leg=v['leg'];origin={'lat':leg['lat'],'lon':leg['lon']};target={'lat':leg['target_lat'],'lon':leg['target_lon']}
+        route=self.router.route(origin,target);v['route_state']=route['status']
+        if route['status']!='ready':return
+        now=self.state['clock'];duration=route['seconds']
+        v.update(phase_due=now+duration,leg={**leg,'waiting':False,'start':now,'end':now+duration,'geometry':route['geometry'],'cumulative':route['cumulative'],'distance_m':route['distance_m']})
 
     def dispatch(self,data):
         j=self.get('jobs',data['job']);ids=data.get('vehicles',[])
@@ -128,6 +141,10 @@ class Operations:
 
     def crew_destination(self,v):
         j=self.get('jobs',v['job'])
+        waiting=j.get('reinforcement_waiting')
+        if waiting and not j.get('reinforcement_arrived'):
+            unit=self.get('vehicles',waiting)
+            if unit['job']==j['id'] and unit['status']!='scene':v['phase_due']=self.state['clock']+30;return
         carrier=self.patient_carrier(j)
         if carrier and v['id']!=carrier['id']:
             if carrier['status'] in ('transport','hospital') or j.get('patient_delivered'):self.detach(v);self.drive(v,self.home(v),'radio')
@@ -193,9 +210,19 @@ class Operations:
                 self.log(f'Bettenmann Wien: {self.get("hospitals",j["destination"])["name"]}, Kasusnummer {j["case_number"]}.','Bettenmann')
         for v in self.state['vehicles']:
             leg=v.get('leg')
-            if leg:
+            if leg and self.router.enabled and v['type']!='NAH' and not leg.get('geometry') and not leg.get('waiting'):
+                # Resume persisted journeys from older versions on a road route.
+                self.drive(v,{'lat':leg['target_lat'],'lon':leg['target_lon']},v['status'])
+                leg=v['leg']
+            if leg and leg.get('waiting'):
+                self.resolve_route(v);leg=v['leg']
+            if leg and not leg.get('waiting'):
                 fraction=min(1,max(0,(now-leg['start'])/(leg['end']-leg['start'])))
-                v['lat']=leg['lat']+(leg['target_lat']-leg['lat'])*fraction;v['lon']=leg['lon']+(leg['target_lon']-leg['lon'])*fraction
+                if leg.get('geometry'):
+                    from routing import position
+                    v.update(position(leg,fraction))
+                else:
+                    v['lat']=leg['lat']+(leg['target_lat']-leg['lat'])*fraction;v['lon']=leg['lon']+(leg['target_lon']-leg['lon'])*fraction
             if v.get('ack_deadline') and now>=v['ack_deadline']:
                 self.log(f'{v["callsign"]}: Quittierungsfrist von 10 Minuten überschritten. Mannschaft nachfragen.','System');v['ack_deadline']=None
 
@@ -205,10 +232,13 @@ class Operations:
         if status=='acknowledged':self.depart(v);return
         if status=='enroute':
             j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])
+            if j.get('reinforcement_waiting')==v['id']:j['reinforcement_arrived']=True
+            self.maybe_reinforcement(j,v)
             if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
             elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
             elif j['status'] not in ('transport','hospital'):j['status']='scene'
             self.log(f'{v["callsign"]}, Status 3: am Berufungsort. '+('First Responder leistet Erstversorgung, wartet auf Rettungsmittel.' if v['type']=='FR' else 'Notarzt übernimmt Versorgung.' if v['type'] in ('NEF','NAH') else j['scene']));return
+        if status=='scene' and any(c['vehicle']==v['id'] and c['state']!='closed' for c in self.state['radio_calls']):v['phase_due']=None;return
         if status=='scene':
             if v['type'] in ('NEF','FR'):self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')
             else:self.crew_destination(v)
@@ -268,6 +298,9 @@ class Operations:
         kind=data.get('kind','emergency');code=data.get('code','SIM-KT' if kind=='transport' else 'RD-17B1')
         if not self.rule(code) or self.rule(code)['kind']!=kind:raise ValueError('Ungültiges Übungsstichwort.')
         address=str(data.get('address','')).strip();lat=float(data.get('lat',0));lon=float(data.get('lon',0));due=float(data.get('due',self.state['clock']))
+        from locations import ADDRESSES
+        address_point=next((a for a in ADDRESSES if a['address'].casefold()==address.casefold()),None)
+        if address_point:lat,lon=address_point['lat'],address_point['lon']
         if not address or len(address)>200 or not -90<=lat<=90 or not -180<=lon<=180 or not __import__('math').isfinite(due) or due<0:raise ValueError('Einsatzort, Koordinaten und Abholzeit prüfen.')
         additional=str(data.get('additional','')).strip()
         if len(additional)>500:raise ValueError('Zusatztext maximal 500 Zeichen.')
@@ -275,6 +308,8 @@ class Operations:
         if kind=='transport':self.get('hospitals',destination)
         elif destination:raise ValueError('Notfallziel wird durch die Mannschaft gemeldet.')
         j=self.new_job(kind,manual=True);j.update(address=address,place=address.split(',')[0],lat=lat,lon=lon,due=due,caller='Vom Disponenten erstellter Auftrag',accepted=True,asked=True)
+        j['address_point']=address_point.copy() if address_point else None;j['address_source']='OpenStreetMap' if address_point else 'Manuelle Adresse / Koordinaten'
+        if address_point:j['place']=address_point['city']
         if kind=='transport':j['destination']=destination
         self.edit_job({**data,'job':j['id'],'code':code});return j
 

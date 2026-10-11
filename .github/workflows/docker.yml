@@ -43,7 +43,9 @@ jobs:
       - name: Validate Portainer stack
         env:
           CLOUDFLARE_TUNNEL_TOKEN: ci-validation-placeholder
-        run: docker compose -f compose.portainer.yaml config --quiet
+        run: |
+          docker compose -f compose.portainer.yaml config --quiet
+          docker compose -f compose.portainer.yaml -f compose.routing.yaml config --quiet
       - name: Build Docker image
         run: docker build -t noe-lstsim:test .
       - name: Verify container startup and health
