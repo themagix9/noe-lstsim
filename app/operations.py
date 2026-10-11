@@ -99,7 +99,13 @@ class Operations:
         j=self.get('jobs',v['job'])
         if j['kind']=='transport':
             self.start_transport(v);return
-        if j['bed_state']!='none':v['phase_due']=None;return
+        if j['bed_state']!='none':
+            if j['bed_state'] in ('crew_selected','sent') and j.get('destination'):
+                if j['bed_state']=='sent':
+                    self.log(f'{v["callsign"]}: bestehende Zielinformation mit Kasusnummer {j["case_number"]} per {j["case_channel"]} erhalten.',j['case_channel'])
+                self.start_transport(v)
+            else:v['phase_due']=None
+            return
         h=self.get('hospitals',j['crew_target']) if j.get('crew_target') else random.choice(self.state['hospitals']);j['requested_destination']=h['id']
         if h['region']=='Wien':
             j['destination']=None;j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None

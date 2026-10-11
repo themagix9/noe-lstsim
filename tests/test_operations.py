@@ -95,6 +95,11 @@ class OperationsTests(unittest.TestCase):
         self.dispatch(self.job());self.e.command('vehicle_status',{'vehicle':self.v['id'],'status':'2'});leg=copy.deepcopy(self.v['leg'])
         self.e.command('control',{'paused':False});self.e.tick((leg['end']-leg['start'])/2)
         self.assertAlmostEqual(self.v['lat'],(leg['lat']+leg['target_lat'])/2);self.assertEqual(self.v['status'],'enroute')
+    def test_second_transporting_unit_uses_existing_crew_destination(self):
+        j,v=self.scene('NÖ');other=next(x for x in self.e.state['vehicles'] if x['type']=='RTW' and x['id']!=v['id'])
+        self.dispatch(j,other);self.e.command('vehicle_status',{'vehicle':other['id'],'status':'2'});self.advance(other);self.advance(other)
+        self.assertEqual(other['status'],'transport');self.assertEqual(j['destination'],'kh-hainburg')
+
     def test_pending_bed_and_reservations_persist(self):
         j,v=self.scene();self.e.command('bed_request',{'job':j['id'],'hospital':'kh-donaustadt'});t=self.job();self.e.command('reserve',{'job':t['id'],'vehicle':self.v['id']})
         reopened=Engine(self.path);self.assertEqual(self.e.snapshot(),reopened.snapshot());reopened.db.close()
