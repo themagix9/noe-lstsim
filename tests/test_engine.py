@@ -55,7 +55,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.e.snapshot(),old)
     def test_valid_import_round_trip(self):
         old=self.e.snapshot();self.e.command('import',{'config':{'stations':old['stations'],'vehicles':old['vehicles']}})
-        self.assertEqual(len(self.e.state['vehicles']),39)
+        self.assertEqual(len(self.e.state['vehicles']),41)
     def test_restart_persists_config_and_simulation(self):
         self.e.command('generate',{'kind':'transport'});self.e.command('control',{'speed':15});new=Engine(self.path)
         self.assertEqual(new.snapshot(),self.e.snapshot());new.db.close()

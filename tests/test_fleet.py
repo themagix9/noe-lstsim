@@ -48,7 +48,7 @@ class FleetTests(unittest.TestCase):
         self.assertFalse(self.e.eligible(fr,self.job('transport')))
         self.e.dispatch({'job':j['id'],'vehicles':[fr['id']]});self.e.depart(fr);self.e.advance(fr);self.e.advance(fr)
         self.assertIsNone(fr['job']);self.assertNotEqual(fr['status'],'transport')
-        self.assertEqual(j['bed_state'],'none')
+        self.assertEqual(j['bed_state'],'none');self.assertNotEqual(j['status'],'done')
     def test_fr_count_and_fischamend_unknown_pool(self):
         self.assertEqual(len([v for v in self.e.state['vehicles'] if v['type']=='FR' and v['station']=='schwechat']),10)
         self.assertEqual(self.vehicle('FR-FISCHAMEND-POOL')['organization'],'FR Fischamend');self.assertFalse(self.vehicle('FR-FISCHAMEND-POOL')['staffed'])

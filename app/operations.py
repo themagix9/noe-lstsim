@@ -52,8 +52,11 @@ class Operations:
 
     def detach(self,v):
         if not v['job']:return
-        old=self.get('jobs',v['job']);v['job']=None
-        if all(self.get('vehicles',id)['job']!=old['id'] for id in old['vehicles']):old['status']='done'
+        old=self.get('jobs',v['job'])
+        if v['status']=='hospital' and v['type'] not in ('NEF','NAH','FR'):old['patient_delivered']=True
+        v['job']=None
+        if all(self.get('vehicles',id)['job']!=old['id'] for id in old['vehicles']):
+            old['status']='done' if old.get('patient_delivered') else 'assigned'
 
     def drive(self,v,target,status,minimum=120):
         from engine import distance
