@@ -92,7 +92,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio):
                 v['in_shift']=self.in_shift(v);v['crew_shift']='Tagmannschaft 06–18' if 21600<=self.state['clock']%86400<64800 else 'Nachtmannschaft 18–06';v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
                 if v.get('daylight'):v['duty_window']=list(self.daylight_window(v))
             for j in result['jobs']:
-                if j['accepted']:
+                if j['accepted'] and j['status']!='done':
                     origins=[v for v in self.state['vehicles'] if v['type']!='NAH' and self.sendable(v,j)]
                     estimates=self.router.estimates(origins,j)
                     for v in self.state['vehicles']:
