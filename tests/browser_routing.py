@@ -9,13 +9,13 @@ import threading
 import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-from urllib.parse import urlparse,parse_qs
+from urllib.parse import urlsplit,parse_qs
 from playwright.sync_api import sync_playwright,expect
 
 class OSRM(BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def do_GET(self):
-        url=urlparse(self.path)
+        url=urlsplit(self.path)
         if url.path.startswith('/table/'):
             n=len(parse_qs(url.query)['sources'][0].split(';'))
             result={'code':'Ok','durations':[[120] for _ in range(n)],'distances':[[1500] for _ in range(n)]}

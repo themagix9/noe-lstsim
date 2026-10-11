@@ -123,7 +123,7 @@ function renderMap(vehicles,jobs){
   L.marker([v.lat,v.lon],{icon}).bindPopup(`<b>${esc(v.callsign)}</b><br>${esc(statusName(v))}<br>ETA: ${esc(unitEta(v))}${v.reservation?'<br>Vordisponiert':''}`).addTo(mapLayers);
   if(v.leg&&!v.leg.waiting)L.polyline(v.leg.geometry||[[v.lat,v.lon],[v.leg.target_lat,v.leg.target_lon]],{color:v.type==='NAH'?'#7c5abc':'#2563eb',weight:3,dashArray:v.type==='NAH'?'5 6':null}).addTo(mapLayers);
  });
- if(mapRoom!==room||mapZone!==zone){mapRoom=room;mapZone=zone;const points=state.stations.filter(s=>!zone||s.zone===zone);if(points.length)leafletMap.fitBounds(points.map(s=>[s.lat,s.lon]),{padding:[45,45],maxZoom:12})}
+ if(mapRoom!==room||mapZone!==zone){mapRoom=room;mapZone=zone;fitMap()}
  requestAnimationFrame(()=>leafletMap.invalidateSize());
 }
 function statusDialog(id){
@@ -194,7 +194,8 @@ fetch('/api/codes').then(r=>r.json()).then(s=>{ampdsRules=s.rules;if(state){deta
 
 $('simulation-date').value=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Vienna'}).format(new Date());
 
-window.addEventListener("resize",()=>requestAnimationFrame(()=>leafletMap?.invalidateSize()));
+function fitMap(){if(!leafletMap||!state)return;leafletMap.invalidateSize();const points=state.stations.filter(s=>!s.responder_area&&s.dispo===state.setup.dispo&&(!zone||s.zone===zone));if(points.length)leafletMap.fitBounds(points.map(s=>[s.lat,s.lon]),{padding:[18,18],maxZoom:12})}
+window.addEventListener("resize",()=>requestAnimationFrame(fitMap));
 
 function renderRadio(){
  const calls=(state.radio_calls||[]).filter(c=>c.state!=='closed');

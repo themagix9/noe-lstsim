@@ -307,7 +307,9 @@ class Operations:
         destination=data.get('destination')
         if kind=='transport':self.get('hospitals',destination)
         elif destination:raise ValueError('Notfallziel wird durch die Mannschaft gemeldet.')
-        j=self.new_job(kind,manual=True);j.update(address=address,place=address.split(',')[0],lat=lat,lon=lon,due=due,caller='Vom Disponenten erstellter Auftrag',accepted=True,asked=True)
+        place=address.split(',')[-1].strip();place=__import__('re').sub(r'^\d{4}\s+','',place)
+        j=self.new_job(kind,manual=True);j.update(address=address,place=place,lat=lat,lon=lon,due=due,caller='Vom Disponenten erstellter Auftrag',accepted=True,asked=True)
+        if kind=='emergency':j.update(event_title=self.rule(code)['title'],detail=additional or 'Manuell angelegter Auftrag; Patientenzustand wird durch die Mannschaft gemeldet.',scene='Mannschaft vor Ort, Versorgung läuft.')
         j['address_point']=address_point.copy() if address_point else None;j['address_source']='OpenStreetMap' if address_point else 'Manuelle Adresse / Koordinaten'
         if address_point:j['place']=address_point['city']
         if kind=='transport':j['destination']=destination

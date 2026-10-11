@@ -17,6 +17,8 @@ class LocationTests(unittest.TestCase):
         j=self.e.state['jobs'][-1]
         self.assertEqual((j['lat'],j['lon']),(a['lat'],a['lon']))
         self.assertEqual(j['address_source'],'OpenStreetMap')
+        self.assertEqual(j['event_title'],self.e.rule('RD-1A1')['title'])
+        self.assertNotIn('Unfallstelle',j['detail'])
     def test_hospital_locations_survive_reload(self):
         self.e.save();self.e.db.close()
         from engine import Engine
