@@ -78,7 +78,8 @@ class Operations:
             j['vehicles'].append(v['id'])
             if v.get('reservation')==j['id']:v['reservation']=None;j['reserved']=None
             self.log(f'Leitstelle an {v["callsign"]}: {j["title"]}, {j["address"]}. '+('Mit Sondersignal.' if j.get('signal',j['priority']=='hoch') else 'Ohne Sondersignal.')+((' Zusatz: '+j['additional']) if j.get('additional') else '')+(' Bereitschaft, innerhalb von 10 Minuten quittieren.' if data.get('standby') else ''))
-        j['status']='assigned'
+        if j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
+        elif j['status'] not in ('scene','transport','hospital'):j['status']='assigned'
         return j
 
     def acknowledge(self,v,direct=False):
@@ -160,7 +161,9 @@ class Operations:
         if status in ('assigned','standby'):self.acknowledge(v,direct=status=='assigned' and random.random()<.25);return
         if status=='acknowledged':self.depart(v);return
         if status=='enroute':
-            j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon']);j['status']='scene'
+            j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])
+            if j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
+            elif j['status'] not in ('transport','hospital'):j['status']='scene'
             self.log(f'{v["callsign"]}, Status 3: am Berufungsort. '+(j['scene'] if v['type']!='NEF' else 'Notarzt übernimmt Versorgung.'));return
         if status=='scene':
             if v['type']=='NEF':self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')

@@ -95,6 +95,12 @@ class OperationsTests(unittest.TestCase):
         self.dispatch(self.job());self.e.command('vehicle_status',{'vehicle':self.v['id'],'status':'2'});leg=copy.deepcopy(self.v['leg'])
         self.e.command('control',{'paused':False});self.e.tick((leg['end']-leg['start'])/2)
         self.assertAlmostEqual(self.v['lat'],(leg['lat']+leg['target_lat'])/2);self.assertEqual(self.v['status'],'enroute')
+    def test_late_nef_does_not_hide_waiting_vienna_target(self):
+        j,v=self.scene();self.assertEqual(j['status'],'awaiting_bed')
+        nef=next(x for x in self.e.state['vehicles'] if x['type']=='NEF');self.dispatch(j,nef)
+        self.assertEqual(j['status'],'awaiting_bed');self.e.command('vehicle_status',{'vehicle':nef['id'],'status':'2'});self.advance(nef)
+        self.assertEqual(nef['status'],'scene');self.assertEqual(j['status'],'awaiting_bed');self.assertEqual(j['bed_state'],'requested')
+
     def test_second_transporting_unit_uses_existing_crew_destination(self):
         j,v=self.scene('NÖ');other=next(x for x in self.e.state['vehicles'] if x['type']=='RTW' and x['id']!=v['id'])
         self.dispatch(j,other);self.e.command('vehicle_status',{'vehicle':other['id'],'status':'2'});self.advance(other);self.advance(other)
