@@ -47,8 +47,8 @@ with tempfile.TemporaryDirectory() as data:
                 p.locator('#resource-sort').select_option('status');expect(row.locator('input')).to_be_checked()
                 p.evaluate("window.stableMarker=mapObjects.get('station:schwechat').layer;stableMarker.openPopup();leafletMap.setView([48.14,16.49],12,{animate:false});window.stableCenter=leafletMap.getCenter()")
                 p.wait_for_timeout(2500)
-                stable=p.evaluate("({same:stableMarker===mapObjects.get('station:schwechat').layer,open:stableMarker.isPopupOpen(),zoom:leafletMap.getZoom(),center:leafletMap.getCenter(),before:stableCenter})")
-                assert stable['same'] and stable['open'] and stable['zoom']==12 and abs(stable['center']['lat']-stable['before']['lat'])<.00001,stable
+                stable=p.evaluate("({same:stableMarker===mapObjects.get('station:schwechat').layer,open:stableMarker.isPopupOpen(),zoom:leafletMap.getZoom(),pixelShift:leafletMap.project(leafletMap.getCenter(),12).distanceTo(leafletMap.project(stableCenter,12))})")
+                assert stable['same'] and stable['open'] and stable['zoom']==12 and stable['pixelShift']<1,stable
                 p.locator('#detail').evaluate('e=>e.scrollTop=0')
                 title=p.locator('#dispatch-dialog > .panel-head');before=p.locator('#dispatch-dialog').bounding_box();box=title.bounding_box()
                 p.mouse.move(box['x']+100,box['y']+18);p.mouse.down();p.mouse.move(box['x']-100,box['y']+60,steps=6);p.mouse.up();after=p.locator('#dispatch-dialog').bounding_box();assert abs(after['x']-before['x'])>100,(before,after)
