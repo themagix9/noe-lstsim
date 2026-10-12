@@ -116,7 +116,7 @@ function renderDetail(){
  if($('resource-direction'))$('resource-direction').onchange=()=>{detailPointerDown=false;resourceDirection=$('resource-direction').value;detailSignature='';renderDetail()};
 
  if($('ask'))$('ask').onclick=()=>command('ask',{id:j.id});
- if($('call-next')){$('call-next').disabled=!!other||callBusy;$('call-next').onclick=async()=>{if(callBusy)return;callBusy=true;detailSignature='';renderDetail();try{await command('call_question',{job:j.id,question:nextQuestion.key})}finally{callBusy=false;detailSignature='';renderDetail()}}}
+ if($('call-next')){$('call-next').disabled=!!other||callBusy;$('call-next').onclick=async()=>{if(callBusy)return;callBusy=true;$('call-next').disabled=true;detailSignature='';renderDetail();try{await command('call_question',{job:j.id,question:nextQuestion.key})}finally{callBusy=false;detailSignature='';renderDetail()}}}
  if($('call-finish'))$('call-finish').onclick=()=>command('call_finish',{job:j.id});
  if($('dispatch'))$('dispatch').onclick=async()=>{const vehicles=[...resourceSelection].filter(id=>pool.some(v=>v.id===id)),standby=!!$('use-standby')?.checked;if($('save-job')&&!await command('edit_job',{job:j.id,code:$('job-code').value,additional:$('job-additional').value,signal:$('job-signal').checked,fire:$('job-fire').checked,police:$('job-police').checked,secondary_unavailable:$('job-secondary').checked}))return;if(await command('dispatch',{job:j.id,vehicles,standby}))$('dispatch-dialog').close()};
  if($('reserve'))$('reserve').onclick=()=>command('reserve',{job:j.id,vehicle:$('reserve-vehicle').value});
