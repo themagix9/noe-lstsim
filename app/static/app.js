@@ -129,6 +129,17 @@ function renderDetail(){
  wireOwner(j);
 }
 function wireOwner(j){if($('claim'))$('claim').onclick=()=>command('claim',{id:j.id});if($('release'))$('release').onclick=()=>command('release',{id:j.id})}
+
+const mapObjects=new Map();let mapSeen=new Set();
+function mapObject(key,create){mapSeen.add(key);if(!mapObjects.has(key))mapObjects.set(key,{layer:create().addTo(mapLayers),icon:'',popup:'',tooltip:''});return mapObjects.get(key)}
+function mapMarker(key,create,point,icon,popup,tooltip){
+ const item=mapObject(key,create),layer=item.layer,current=layer.getLatLng();
+ if(current.lat!==point[0]||current.lng!==point[1])layer.setLatLng(point);
+ if(icon){const signature=JSON.stringify(icon.options);if(item.icon!==signature){layer.setIcon(icon);item.icon=signature}}
+ if(item.popup!==popup){if(layer.getPopup())layer.setPopupContent(popup);else layer.bindPopup(popup,{autoPan:false});item.popup=popup}
+ if(tooltip&&item.tooltip!==tooltip){if(layer.getTooltip())layer.setTooltipContent(tooltip);else layer.bindTooltip(tooltip,{direction:'top'});item.tooltip=tooltip}
+ return layer;
+}
 function renderMap(vehicles,jobs){
  if(!window.L){$('map').textContent='Kartenbibliothek nicht verfügbar.';return}
  const room=state.session.me;
@@ -138,25 +149,26 @@ function renderMap(vehicles,jobs){
   tiles.on('tileerror',()=>{$('map-note').textContent='Kartenkacheln nicht erreichbar · Ressourcen bleiben sichtbar.'});
   tiles.on('tileload',()=>{$('map-note').textContent='OpenStreetMap · Straßenrouting / NAH Flugstrecke'});
  }
- mapLayers.clearLayers();
+ if(mapRoom!==room){mapLayers.clearLayers();mapObjects.clear()}mapSeen=new Set();
  state.stations.filter(s=>!s.responder_area&&s.dispo===state.setup.dispo&&(!zone||s.zone===zone)).forEach(s=>{
   const parked=vehicles.filter(v=>v.station===s.id&&v.status==='ready'),staffed=state.vehicles.some(v=>v.station===s.id&&v.in_shift&&!['FR','BEL'].includes(v.type));
   const icon=L.divIcon({className:'station-marker '+(staffed?'staffed':'unstaffed'),html:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 18 20 4 37 18v3h-4v15H7V21H3z" fill="currentColor" stroke="white" stroke-width="2"/><path d="M17 16h6v6h6v6h-6v6h-6v-6h-6v-6h6z" fill="white"/></svg>${parked.length?'<span>'+parked.length+'</span>':''}`,iconSize:[38,40],iconAnchor:[19,36]});
-  L.marker([s.lat,s.lon],{icon}).bindTooltip(esc(s.name)+' · '+(staffed?'besetzt':'unbesetzt'),{direction:'top'}).bindPopup(`<b>${esc(s.name)}</b><br>${esc(s.address||'Adresse noch prüfen')}<br>${staffed?'Besetzt':'Unbesetzt'}<br>${parked.length?parked.map(v=>esc(v.callsign)+' · '+esc(v.type)+' · Frei auf Wache').join('<br>'):'Keine freien Ressourcen auf Wache'}`).addTo(mapLayers);
+  mapMarker('station:'+s.id,()=>L.marker([s.lat,s.lon]),[s.lat,s.lon],icon,`<b>${esc(s.name)}</b><br>${esc(s.address||'Adresse noch prüfen')}<br>${staffed?'Besetzt':'Unbesetzt'}<br>${parked.length?parked.map(v=>esc(v.callsign)+' · '+esc(v.type)+' · Frei auf Wache').join('<br>'):'Keine freien Ressourcen auf Wache'}`,esc(s.name)+' · '+(staffed?'besetzt':'unbesetzt'));
  });
  state.hospitals.forEach(h=>{
   const icon=L.divIcon({className:'hospital-marker',html:'<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="5" y="5" width="30" height="33" rx="4" fill="currentColor" stroke="white" stroke-width="2"/><path d="M12 12h5v7h6v-7h5v18h-5v-7h-6v7h-5z" fill="white"/></svg>',iconSize:[36,38],iconAnchor:[18,34]});
-  L.marker([h.lat,h.lon],{icon}).bindTooltip(esc(h.name)).bindPopup(`<b>${esc(h.name)}</b><br>${esc(h.address||'Adresse noch prüfen')}`).addTo(mapLayers);
+  mapMarker('hospital:'+h.id,()=>L.marker([h.lat,h.lon]),[h.lat,h.lon],icon,`<b>${esc(h.name)}</b><br>${esc(h.address||'Adresse noch prüfen')}`,esc(h.name));
  });
- jobs.forEach(j=>L.circleMarker([j.lat,j.lon],{radius:6,color:j.kind==='emergency'?'#d64854':'#2563eb',fillOpacity:.8}).bindPopup(esc(j.accepted?j.title:'144-Anruf')+' · '+esc(j.address)).on('click',()=>{selected=j.id;renderDetail()}).addTo(mapLayers));
+ jobs.forEach(j=>mapMarker('job:'+j.id,()=>L.circleMarker([j.lat,j.lon],{radius:6,color:j.kind==='emergency'?'#d64854':'#2563eb',fillOpacity:.8}).on('click',()=>openDispatch(j.id)),[j.lat,j.lon],null,esc(j.accepted?j.title:'144-Anruf')+' · '+esc(j.address)));
  const overlaps={};vehicles.filter(v=>v.status!=='ready').forEach(v=>{
   const key=v.lat.toFixed(5)+','+v.lon.toFixed(5),n=overlaps[key]||0;overlaps[key]=n+1;
   const icon=L.divIcon({className:'resource-marker',html:`<img src="${esc(graphic(v).url)}" alt=""><span>${esc(v.callsign)}</span>`,iconSize:[60,35],iconAnchor:[30-n*8,20-n*5]});
-  L.marker([v.lat,v.lon],{icon}).bindPopup(`<b>${esc(v.callsign)}</b><br>${esc(statusName(v))}<br>ETA: ${esc(unitEta(v))}${v.reservation?'<br>Vordisponiert':''}`).addTo(mapLayers);
-  if(v.leg&&!v.leg.waiting)L.polyline(v.leg.geometry||[[v.lat,v.lon],[v.leg.target_lat,v.leg.target_lon]],{color:v.type==='NAH'?'#7c5abc':'#2563eb',weight:3,dashArray:v.type==='NAH'?'5 6':null}).addTo(mapLayers);
+  mapMarker('vehicle:'+v.id,()=>L.marker([v.lat,v.lon]),[v.lat,v.lon],icon,`<b>${esc(v.type)} ${esc(v.callsign)}</b><br>${esc(statusName(v))}<br>ETA: ${esc(unitEta(v))}${v.reservation?'<br>Vordisponiert':''}`);
+  if(v.leg&&!v.leg.waiting){const geometry=v.leg.geometry||[[v.lat,v.lon],[v.leg.target_lat,v.leg.target_lon]],item=mapObject('route:'+v.id,()=>L.polyline(geometry,{color:v.type==='NAH'?'#7c5abc':'#2563eb',weight:3,dashArray:v.type==='NAH'?'5 6':null})),signature=JSON.stringify(geometry);if(item.geometry!==signature){item.layer.setLatLngs(geometry);item.geometry=signature}}
  });
+ for(const [key,item] of mapObjects)if(!mapSeen.has(key)){mapLayers.removeLayer(item.layer);mapObjects.delete(key)}
  if(mapRoom!==room||mapZone!==zone){mapRoom=room;mapZone=zone;fitMap()}
- requestAnimationFrame(()=>leafletMap.invalidateSize());
+ requestAnimationFrame(()=>leafletMap.invalidateSize({pan:false}));
 }
 function statusDialog(id){
  const v=state.vehicles.find(v=>v.id===id);$('status-title').textContent=v.callsign+' · '+statusName(v);

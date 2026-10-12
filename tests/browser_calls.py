@@ -43,6 +43,9 @@ with tempfile.TemporaryDirectory() as data:
                 row.locator('b').tap();expect(row.locator('input')).not_to_be_checked();row.locator('input').tap();expect(row.locator('input')).to_be_checked();p.wait_for_timeout(1200);expect(row.locator('input')).to_be_checked()
                 # Preserve state while sorting and continue to interact with the map.
                 p.locator('#resource-sort').select_option('status');expect(row.locator('input')).to_be_checked()
+                p.evaluate("window.stableMarker=mapObjects.get('station:schwechat').layer;stableMarker.openPopup();leafletMap.setView([48.14,16.49],12,{animate:false});window.stableCenter=leafletMap.getCenter()")
+                p.wait_for_timeout(2500)
+                assert p.evaluate("stableMarker===mapObjects.get('station:schwechat').layer&&stableMarker.isPopupOpen()&&leafletMap.getZoom()===12&&Math.abs(leafletMap.getCenter().lat-stableCenter.lat)<.00001")
                 p.locator('#detail').evaluate('e=>e.scrollTop=0')
                 title=p.locator('#dispatch-dialog > .panel-head');before=p.locator('#dispatch-dialog').bounding_box();box=title.bounding_box()
                 p.mouse.move(box['x']+100,box['y']+18);p.mouse.down();p.mouse.move(box['x']-100,box['y']+60,steps=6);p.mouse.up();after=p.locator('#dispatch-dialog').bounding_box();assert abs(after['x']-before['x'])>100,(before,after)

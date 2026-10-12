@@ -24,7 +24,9 @@ def notify_live():
 
 class Handler(BaseHTTPRequestHandler):
     def respond(self,payload,content_type,status=200):
-        self.send_response(status);self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(payload)));self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(payload)
+        try:
+            self.send_response(status);self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(payload)));self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(payload)
+        except (BrokenPipeError,ConnectionResetError):pass
     def json_response(self,data,status=200):self.respond(json.dumps(data,ensure_ascii=False).encode(),'application/json; charset=utf-8',status)
     def member(self):return sessions.member(self.headers.get('Authorization','').removeprefix('Bearer '))
     def do_GET(self):
