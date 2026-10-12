@@ -261,8 +261,8 @@ fetch('/api/codes').then(r=>r.json()).then(s=>{ampdsRules=s.rules;if(state){deta
 
 $('simulation-date').value=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Vienna'}).format(new Date());
 
-function fitMap(){if(!leafletMap||!state)return;leafletMap.invalidateSize();const points=state.stations.filter(s=>!s.responder_area&&s.dispo===state.setup.dispo&&(!zone||s.zone===zone));if(points.length)leafletMap.fitBounds(points.map(s=>[s.lat,s.lon]),{padding:[18,18],maxZoom:12})}
-window.addEventListener("resize",()=>requestAnimationFrame(fitMap));
+function fitMap(){if(!leafletMap||!state)return;leafletMap.invalidateSize({pan:false});const points=state.stations.filter(s=>!s.responder_area&&s.dispo===state.setup.dispo&&(!zone||s.zone===zone));if(points.length)leafletMap.fitBounds(points.map(s=>[s.lat,s.lon]),{padding:[18,18],maxZoom:12,animate:false})}
+window.addEventListener("resize",()=>requestAnimationFrame(()=>leafletMap?.invalidateSize({pan:false})));
 
 function renderRadio(){
  const calls=(state.radio_calls||[]).filter(c=>c.state!=='closed');
