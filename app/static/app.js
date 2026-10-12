@@ -37,9 +37,14 @@ function render(){
  $('jobs').innerHTML=jobs.map(j=>`<button class="job ${j.kind} ${selected===j.id?'chosen':''}" data-job="${j.id}"><div class="job-top"><span class="job-kind">${j.kind==='emergency'?'144 · NOTRUF':'KT · TRANSPORTAUFTRAG'}</span><span class="dim">${stages[j.status]}</span></div><b>${esc(j.accepted?j.title:'Eingehender Anruf')}</b>${state.session.mode==='multi'?`<span class="owner-chip ${j.owner===state.session.me?'own':''}">${j.owner?'Betreuung: '+esc(ownerName(j)):'Noch nicht übernommen'}</span>`:''}${j.reserved?'<span class="owner-chip">Vordisponiert: '+esc(state.vehicles.find(v=>v.id===j.reserved)?.callsign)+'</span>':''}<small>${esc(j.accepted?j.address:'Anruf annehmen, um Details zu erfahren')} · ${j.kind==='transport'?'<strong class="pickup-time '+(j.due-state.clock<=1800?'urgent':'')+'">Abholung '+time(j.due).slice(0,5)+(j.due<state.clock?' · überfällig':'')+'</strong>':time(j.created).slice(0,5)}</small></button>`).join('')||'<div class="empty">Keine offenen Aufträge.<br>Simulation starten oder ein Ereignis auslösen.</div>';
  document.querySelectorAll('[data-job]').forEach(el=>el.onclick=()=>{openDispatch(el.dataset.job)});
  document.querySelectorAll('[data-status]').forEach(b=>b.onclick=()=>statusDialog(b.dataset.status));renderMap(vehicles,open);renderDetail();renderRadio();renderAdmin();
- const incoming=state.jobs.find(j=>j.kind==='emergency'&&!j.accepted&&(!j.owner||j.owner===state.session.me)&&!noticedCalls.has(j.id));if(incoming&&![...document.querySelectorAll('dialog')].some(d=>d.open)){noticedCalls.add(incoming.id);focusIncidentMap(incoming.id);openDispatch(incoming.id)}
+ showIncomingCall();
  const logs=state.logs.filter(l=>!$('log-channel').value||l.channel===$('log-channel').value);const logString=JSON.stringify(logs);if(logString!==lastLog){lastLog=logString;$('logs').innerHTML=logs.map(l=>`<div class="log"><time>${time(l.time)}</time><span class="log-channel">${esc(l.channel)}</span><span>${esc(l.text)}</span></div>`).join('')||'<div class="empty">Kommunikation erscheint während der Übung.</div>'}
 }
+function showIncomingCall(){
+ if(!state)return;const incoming=state.jobs.find(j=>j.kind==='emergency'&&!j.accepted&&(!j.owner||j.owner===state.session.me)&&!noticedCalls.has(j.id));
+ if(incoming&&![...document.querySelectorAll('dialog')].some(d=>d.open)){noticedCalls.add(incoming.id);focusIncidentMap(incoming.id);openDispatch(incoming.id)}
+}
+document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('close',()=>requestAnimationFrame(showIncomingCall)));
 let detailPointerDown=false,callBusy=false;
 $('detail').addEventListener('pointerdown',()=>{detailPointerDown=true});
 window.addEventListener('pointerup',()=>setTimeout(()=>{detailPointerDown=false;if(state)renderDetail()},0));
