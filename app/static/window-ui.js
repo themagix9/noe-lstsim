@@ -2,8 +2,8 @@
 const dispatchWindow=document.getElementById('dispatch-dialog');
 const dispatchTitle=dispatchWindow.querySelector('.panel-head');let windowDrag=null,windowPositioned=false;
 function clampDispatchWindow(){
- const r=dispatchWindow.getBoundingClientRect();if(!dispatchWindow.open)return;
- if(!windowPositioned){const top=Math.min(document.getElementById('team-bar').getBoundingClientRect().bottom+8,innerHeight*.4);dispatchWindow.style.top=top+'px';dispatchWindow.style.maxHeight=Math.max(220,innerHeight-top-16)+'px';windowPositioned=true}
+ let r=dispatchWindow.getBoundingClientRect();if(!dispatchWindow.open)return;
+ if(!windowPositioned){const top=Math.min(document.getElementById('team-bar').getBoundingClientRect().bottom+8,innerHeight*.4);dispatchWindow.style.top=top+'px';dispatchWindow.style.maxHeight=Math.max(220,innerHeight-top-16)+'px';windowPositioned=true;r=dispatchWindow.getBoundingClientRect()}
  dispatchWindow.style.left=Math.max(8,Math.min(r.left,innerWidth-r.width-8))+'px';
  dispatchWindow.style.top=Math.max(8,Math.min(r.top,innerHeight-80))+'px';
 }
