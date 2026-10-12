@@ -36,7 +36,9 @@ with tempfile.TemporaryDirectory() as data:
                 assert not p.evaluate("document.getElementById('dispatch-dialog').matches(':modal')")
                 expect(p.locator('#pause')).to_be_enabled();p.locator('#pause').click();expect(p.locator('#running')).to_have_text('SIMULATION LÄUFT')
                 p.locator('#accept').tap();expect(p.locator('.call-dialogue')).to_contain_text('Rettungsleitstelle Niederösterreich, wo genau ist der Notfallort?');expect(p.locator('#dispatch')).to_be_disabled()
-                for _ in range(6):p.locator('#call-next').tap()
+                for _ in range(6):
+                    with p.expect_response(lambda r:r.url.endswith('/api/call_question')) as answer:p.locator('#call-next').tap()
+                    assert answer.value.ok,answer.value.text()
                 expect(p.locator('#call-finish')).to_be_visible();p.locator('#call-finish').tap();expect(p.locator('.call-dialogue')).to_contain_text('Telefonat beendet');expect(p.locator('.call-dialogue')).to_contain_text('Wir schicken jemanden zu Ihnen.')
                 p.locator('#job-search').fill('RD-17B1');p.locator('#job-code').select_option('RD-17B1');p.locator('[data-filter="RTW"]').tap()
                 row=p.locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('km Straße',timeout=15000);row.locator('b').tap();expect(row.locator('input')).to_be_checked();p.wait_for_timeout(1500);expect(row.locator('input')).to_be_checked()

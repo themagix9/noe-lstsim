@@ -40,7 +40,7 @@ function render(){
  const incoming=state.jobs.find(j=>j.kind==='emergency'&&!j.accepted&&(!j.owner||j.owner===state.session.me)&&!noticedCalls.has(j.id));if(incoming&&![...document.querySelectorAll('dialog')].some(d=>d.open)){noticedCalls.add(incoming.id);focusIncidentMap(incoming.id);openDispatch(incoming.id)}
  const logs=state.logs.filter(l=>!$('log-channel').value||l.channel===$('log-channel').value);const logString=JSON.stringify(logs);if(logString!==lastLog){lastLog=logString;$('logs').innerHTML=logs.map(l=>`<div class="log"><time>${time(l.time)}</time><span class="log-channel">${esc(l.channel)}</span><span>${esc(l.text)}</span></div>`).join('')||'<div class="empty">Kommunikation erscheint während der Übung.</div>'}
 }
-let detailPointerDown=false;
+let detailPointerDown=false,callBusy=false;
 $('detail').addEventListener('pointerdown',()=>{detailPointerDown=true});
 window.addEventListener('pointerup',()=>setTimeout(()=>{detailPointerDown=false;if(state)renderDetail()},0));
 window.addEventListener('pointercancel',()=>{detailPointerDown=false});
@@ -70,7 +70,7 @@ function renderDetail(){
  const j=state.jobs.find(j=>j.id===selected);
  const pool=j?state.vehicles.filter(v=>sendable(v,j)&&v.type!=='BEL'&&(j.kind==='transport'?['KTW','KTW-B','BKTW','RTW','RTW-C'].includes(v.type):['KTW','RTW','RTW-C','NEF','NAH','FR'].includes(v.type))):[];
  const reservable=state.vehicles.filter(v=>['KTW','KTW-B','BKTW','RTW','RTW-C'].includes(v.type)&&(!v.reservation||v.reservation===j?.id));
- const signature=JSON.stringify([j,resourceFilter,resourceSort,resourceDirection,Math.floor(state.clock/30),pool.map(v=>[v.id,v.callsign,v.type,v.status]),reservable.map(v=>[v.id,v.status,v.reservation]),state.session.players,zone]);
+ const signature=JSON.stringify([j,resourceFilter,resourceSort,resourceDirection,callBusy,Math.floor(state.clock/30),pool.map(v=>[v.id,v.callsign,v.type,v.status]),reservable.map(v=>[v.id,v.status,v.reservation]),state.session.players,zone]);
  // Keep native selects mounted while open/focused; polling must not destroy their popup.
 
  if(detailSignature===signature)return;detailSignature=signature;
@@ -116,7 +116,7 @@ function renderDetail(){
  if($('resource-direction'))$('resource-direction').onchange=()=>{detailPointerDown=false;resourceDirection=$('resource-direction').value;detailSignature='';renderDetail()};
 
  if($('ask'))$('ask').onclick=()=>command('ask',{id:j.id});
- if($('call-next'))$('call-next').onclick=()=>command('call_question',{job:j.id,question:nextQuestion.key});
+ if($('call-next')){$('call-next').disabled=!!other||callBusy;$('call-next').onclick=async()=>{if(callBusy)return;callBusy=true;detailSignature='';renderDetail();try{await command('call_question',{job:j.id,question:nextQuestion.key})}finally{callBusy=false;detailSignature='';renderDetail()}}}
  if($('call-finish'))$('call-finish').onclick=()=>command('call_finish',{job:j.id});
  if($('dispatch'))$('dispatch').onclick=async()=>{const vehicles=[...resourceSelection].filter(id=>pool.some(v=>v.id===id)),standby=!!$('use-standby')?.checked;if($('save-job')&&!await command('edit_job',{job:j.id,code:$('job-code').value,additional:$('job-additional').value,signal:$('job-signal').checked,fire:$('job-fire').checked,police:$('job-police').checked,secondary_unavailable:$('job-secondary').checked}))return;if(await command('dispatch',{job:j.id,vehicles,standby}))$('dispatch-dialog').close()};
  if($('reserve'))$('reserve').onclick=()=>command('reserve',{job:j.id,vehicle:$('reserve-vehicle').value});
