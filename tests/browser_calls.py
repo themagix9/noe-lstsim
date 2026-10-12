@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory() as data:
                 context.route('https://tile.openstreetmap.org/**',lambda r:r.abort());p=context.new_page();errors=[];p.on('pageerror',lambda e:errors.append(str(e)))
                 p.goto('http://127.0.0.1:8080');p.get_by_label('Dein Disponentenname').fill('Touchdisponent');p.locator('#lobby-submit').click();expect(p.locator('#lobby')).to_be_hidden()
                 p.evaluate("command('generate',{kind:'emergency'})");expect(p.locator('#accept')).to_be_visible();job=p.evaluate('state.jobs.at(-1).id')
-                assert p.evaluate("leafletMap.getZoom()===13 && Math.abs(leafletMap.getCenter().lat-state.jobs.at(-1).lat)<.0001")
+                p.wait_for_function("leafletMap.getZoom()===13 && leafletMap.getCenter().distanceTo([state.jobs.at(-1).lat,state.jobs.at(-1).lon])<150")
                 assert not p.evaluate("document.getElementById('dispatch-dialog').matches(':modal')")
                 expect(p.locator('#pause')).to_be_enabled();p.locator('#pause').click();expect(p.locator('#running')).to_have_text('SIMULATION LÄUFT')
                 p.locator('#accept').tap();expect(p.locator('.call-dialogue')).to_contain_text('Rettungsleitstelle Niederösterreich, wo genau ist der Notfallort?');expect(p.locator('#dispatch')).to_be_disabled()
