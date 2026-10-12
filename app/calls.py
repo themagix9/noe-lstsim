@@ -1,0 +1,41 @@
+"""Fictional button-driven caller dialogue, not an AMPDS interrogation protocol."""
+import random
+
+class Calls:
+    def prepare_call(self,j):
+        if j['kind']!='emergency' or j.get('call'):return
+        name=random.choice(['Anna Berger','Thomas Winter','Sabine Leitner','Markus Huber','Eva Wagner'])
+        event=j.get('event_title',j['title']);unconscious=event=='Bewusstlose Person';dyspnea=event=='Atemnot';fall=event=='Sturz in Wohnung'
+        questions=[
+            ('location','Adresse bestätigen','Zur Sicherheit: Wo genau sind Sie? Welche Hausnummer, welcher Stock und welche Tür?',f'Ja, {j["address"]}. '+('Erster Stock, Tür 3.' if fall or dyspnea else 'Ich stehe direkt davor, draußen.')),
+            ('event','Was ist passiert?','Was ist passiert? Erzählen Sie mir kurz, was Sie sehen.',j['caller']),
+            ('patient','Wer ist betroffen?','Wer braucht Hilfe und wie alt ist die Person ungefähr?','Mein Vater, er ist 68.' if dyspnea else 'Meine Mutter, sie ist 79 Jahre alt.' if fall else 'Ich kenne die Person nicht, erwachsen jedenfalls.' if unconscious else 'Ein Autofahrer, vielleicht Mitte vierzig. Es ist eine verletzte Person.'),
+            ('consciousness','Ist die Person ansprechbar?','Ist die Person wach und reagiert sie, wenn Sie sie ansprechen?','Nein, ich spreche ihn an, aber da kommt gar nichts.' if unconscious else 'Ja, sie antwortet mir.' if fall else 'Ja, er ist wach und antwortet, aber er wirkt sehr beunruhigt.'),
+            ('breathing','Wie atmet die Person?','Atmet die Person? Was fällt Ihnen an der Atmung auf?','Ich weiß es nicht genau, ich kann das gerade nicht sicher erkennen.' if unconscious else 'Er atmet, aber ganz schwer. Er kann kaum einen ganzen Satz sagen.' if dyspnea else 'Ja, die Atmung sieht für mich normal aus.'),
+            ('access','Zugang und Rückruf klären','Wie finden unsere Kräfte Sie? Gibt es beim Zugang etwas zu beachten, und bleiben Sie unter dieser Nummer erreichbar?','Ich bin unter dieser Nummer erreichbar. '+('Ich öffne unten die Haustür, die Klingel ist beschriftet.' if dyspnea or fall else 'Ich mache mich am Straßenrand bemerkbar.')),
+        ]
+        j['call']={'state':'ringing','caller_name':name,'questions':[{'key':key,'label':label,'question':question,'answer':answer} for key,label,question,answer in questions],'answered':[],'transcript':[],'model':'Fiktiver Anrufdialog; kein originales AMPDS-Abfrageprotokoll'}
+
+    def phone_line(self,j,speaker,text):
+        call=j['call'];call['transcript'].append({'speaker':speaker,'text':text,'time':self.state['clock']})
+        self.log(speaker+': '+text,'Telefon')
+
+    def accept_call(self,j):
+        self.prepare_call(j);j['accepted']=True;j['call']['state']='connected'
+        self.phone_line(j,'LEO','Rettungsleitstelle Niederösterreich, wo genau ist der Notfallort?')
+        self.phone_line(j,'Anrufer',f'Hallo, {j["call"]["caller_name"]} mein Name. Ich bin in {j["address"]}. Bitte schicken Sie jemanden, hier braucht jemand Hilfe!')
+
+    def question_call(self,data):
+        j=self.get('jobs',data['job']);self.prepare_call(j);call=j.get('call')
+        if not j['accepted'] or not call or call['state'] not in ('connected','ready'):raise ValueError('Zuerst den Notruf annehmen; Gespräch muss offen sein.')
+        unanswered=[q for q in call['questions'] if q['key'] not in call['answered']]
+        if not unanswered or data.get('question')!=unanswered[0]['key']:raise ValueError('Die nächste offene Abfrage auswählen.')
+        q=unanswered[0];self.phone_line(j,'LEO',q['question']);self.phone_line(j,'Anrufer',q['answer']);call['answered'].append(q['key'])
+        if len(call['answered'])==len(call['questions']):call['state']='ready';j['asked']=True;j['asked_at']=self.state['clock']
+
+    def finish_call(self,data):
+        j=self.get('jobs',data['job']);self.prepare_call(j);call=j.get('call')
+        if not call or call['state']!='ready':raise ValueError('Notruf zuerst vollständig abfragen.')
+        self.phone_line(j,'LEO','Wir schicken jemanden zu Ihnen.')
+        self.phone_line(j,'Anrufer','Okay, danke! Bitte kommen Sie bald.')
+        call['state']='ended';call['ended_at']=self.state['clock'];self.log('Telefonat beendet.','Telefon')

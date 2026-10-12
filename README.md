@@ -1,4 +1,4 @@
-# NÖ Dispo – Docker-Leitstellensimulator v0.6
+# NÖ Dispo – Docker-Leitstellensimulator v0.7
 
 Eigenständiger, spielbarer Prototyp für Niederösterreich, zunächst Raum Bruck/Leitha, Schwechat und Hainburg. Keine Kopie des LstSim-Quellcodes; keine Anbindung an echte Leitstellen.
 
@@ -241,3 +241,13 @@ Die manuelle Code-Auswahl startet leer und muss bestätigt werden; ein bereits v
 Einsatzmeldungen werden zur selben Simulationszeit über SDS und ESApp gespeichert und in den jeweiligen Kommunikationskanälen gezeigt, nicht als Funkansage. Nummerierte Statusmeldungen und Alarmierungs-/Quittierungszustände stehen im Kanal **Status**. Funk bleibt Mannschaftsgespräch, Rückmeldung und Nachforderung. Eine spätere Alarmansicht kann anhand des angekündigten Nutzer-Screenshots angepasst werden.
 
 Jeder Patient besitzt einen gespeicherten fiktiven Stabilitäts-Spielwert zwischen 0 und 100. Er wird erst mit der Mannschaftsmeldung angezeigt. Die frei gewählte Spielschwelle von 45 löst im Szenario eine Notarztnachforderung aus; sie ist **kein medizinischer Score, keine Abfragerichtlinie und keine Versorgungsentscheidung**. Während der Versorgung am Berufungsort können sich Werte alle fünf Simulationsminuten ändern; während des Transports wird kein weiteres Verschlechterungs-/Rendezvousmodell vorgetäuscht. `PATIENT_EVOLUTION=0` deaktiviert diese zufällige Entwicklung; `REINFORCEMENTS_AUTO=0` unterdrückt automatische Nachforderungen für Tests. Laufende Transporte verwenden Krankenhauskoordinaten als Routenziel; verlorene Routen älterer gespeicherter Transporte werden rekonstruiert. Bei unerreichbarem Routenserver bleibt die Ressource mit sichtbarem Routinghinweis stehen.
+
+## v0.7: Touch-Auswahl, Anrufdialog und verschiebbares Einsatzfenster
+
+Fahrzeugzeilen behandeln Klicks und Berührungen explizit, ohne automatische Label-Weiterleitung; Kästchen, ganze Zeile sowie Leertaste/Enter unterstützen manuelle Auswahl. Die Auswahl bleibt während laufender ETA-/Status-Updates bestehen. Browserprüfungen verwenden Chromium und WebKit (Safari-Engine) mit Touch-Eingabe und laufendem Routing.
+
+Das Einsatzfenster wird nichtmodal geöffnet, ohne verdunkelten oder unscharfen Hintergrund. Die Titelzeile lässt sich per Maus oder Touch ziehen; am Desktop unterstützt der Fensterrahmen Größenänderung. Andere Bereiche bleiben bedienbar. Neue eingehende Notrufe zentrieren die Karte mit Zoomstufe 13 auf den **simulierten** Anrufort. Echte AML-/GPS-Ortung wird nicht angebunden oder behauptet.
+
+Automatische 144-Anrufe beginnen mit „Rettungsleitstelle Niederösterreich, wo genau ist der Notfallort?“ und einem fiktiven Anrufer mit Namen und Adresse. Per Button folgen Adresse, Ereignis, Person/Alter, Ansprechbarkeit, Atmung und Zugang/Rückruf. Antworten passen zu den vorhandenen Übungsszenarien. Der Verlauf wird sitzungsbezogen gespeichert und im Telefonkanal protokolliert. Dies ist keine originale AMPDS-Abfragesoftware und enthält keine medizinischen Handlungsanweisungen. Nach vollständiger Abfrage kann das Gespräch beendet werden; spätestens vor erfolgreicher Alarmierung sagt LEO „Wir schicken jemanden zu Ihnen“. Das Einsatzfenster schließt nach erfolgreichem Erstellen/Alarmieren; bei Fehlern bleibt es offen.
+
+Neue Transportaufträge haben Abholzeiten nur auf :00 oder :30. Das Formular und die Einsatzbearbeitung erlauben diese Halbstundenschritte, der Server prüft sie ebenfalls. Im Auftragseingang und Einsatzfenster wird die Abholzeit rot, sobald höchstens 30 Simulationsminuten verbleiben; überfällige Aufträge bleiben rot. Bereits vorhandene Aufträge werden nicht ungefragt umterminiert.

@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish')
 
 class Operations:
     def migrate_operations(self):
@@ -102,6 +102,8 @@ class Operations:
         for v in selected:
             if not self.sendable(v,j):raise ValueError(f'{v["callsign"]} kann den Auftrag noch nicht erhalten (Status 1, 5 oder 6 erforderlich).')
             if v['status']=='hospital' and j['kind']!='transport':raise ValueError('Während der Übergabe nur Transportaufträge senden.')
+        if j.get('call',{}).get('state')=='connected':raise ValueError('Notruf zuerst vollständig abfragen.')
+        if j.get('call',{}).get('state')=='ready':self.finish_call({'job':j['id']})
         if j['kind']=='transport' and j.get('reserved'):
             self.unreserve({'job':j['id']})
         if j.get('code')=='RD-9E1' and any(v['type']=='NAH' for v in selected) and j['status'] in ('transport','hospital'):raise ValueError('eCPR-Flug vor Beginn des Patiententransports abstimmen.')
@@ -298,6 +300,10 @@ class Operations:
         if not rule:raise ValueError('Passendes Übungsstichwort wählen.')
         additional=str(data.get('additional',j.get('additional',''))).strip()
         if len(additional)>500:raise ValueError('Zusatztext maximal 500 Zeichen.')
+        if j['kind']=='transport' and 'due' in data:
+            due=float(data['due'])
+            if not __import__('math').isfinite(due) or due<0 or due%1800:raise ValueError('Abholzeit muss auf :00 oder :30 liegen.')
+            j['due']=due
         j.update(code=rule['code'],title=rule['title'],priority=rule['priority'],needs=rule['needs'][:],category=rule.get('category'),signal=bool(data.get('signal',rule['signal'])),additional=additional,fire=bool(data.get('fire',False)),police=bool(data.get('police',False)),secondary_unavailable=bool(data.get('secondary_unavailable',False)))
         j['code_confirmed']=True
         if j['code']=='RD-9E1':j.update(needs=['RTW-C','NEF'],police=True)
@@ -308,7 +314,8 @@ class Operations:
     def create_job(self,data):
         kind=data.get('kind','emergency');code=data.get('code','')
         if not self.rule(code) or self.rule(code)['kind']!=kind:raise ValueError('Ungültiges Übungsstichwort.')
-        address=str(data.get('address','')).strip();lat=float(data.get('lat',0));lon=float(data.get('lon',0));due=float(data.get('due',self.state['clock']))
+        address=str(data.get('address','')).strip();lat=float(data.get('lat',0));lon=float(data.get('lon',0));due=float(data.get('due',__import__('math').ceil(self.state['clock']/1800)*1800 if kind=='transport' else self.state['clock']))
+        if kind=='transport' and (not __import__('math').isfinite(due) or due<0 or due%1800):raise ValueError('Abholzeit muss auf :00 oder :30 liegen.')
         from locations import ADDRESSES
         address_point=next((a for a in ADDRESSES if a['address'].casefold()==address.casefold()),None)
         if address_point:lat,lon=address_point['lat'],address_point['lon']

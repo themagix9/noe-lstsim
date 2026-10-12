@@ -29,17 +29,20 @@ jobs:
         run: |
           node --check app/static/app.js
           node --check app/static/live-ui.js
+          node --check app/static/window-ui.js
           node tests/test_live_ui.js
       - name: Install browser test dependencies
         run: |
           pip install playwright==1.58.0
-          python -m playwright install --with-deps chromium
+          python -m playwright install --with-deps chromium webkit
       - name: Test multiplayer in two browser sessions
         run: python tests/browser_smoke.py
       - name: Test road routing, ETA and map icons
         run: python tests/browser_routing.py
       - name: Test live editing, empty code choices, resource filters and sorting
         run: python tests/browser_live.py
+      - name: Test touch selection, movable window and emergency caller dialogue
+        run: python tests/browser_calls.py
       - name: Upload internal UI previews
         if: always()
         uses: actions/upload-artifact@v4

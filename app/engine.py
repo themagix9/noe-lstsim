@@ -16,6 +16,7 @@ from air_ops import AirOps
 from routing import router_for
 from radio import Radio
 from patients import Patients
+from calls import Calls
 from locations import ADDRESSES,ADDRESS_CITIES,upgrade_locations
 
 GRAPHICS = [
@@ -55,7 +56,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':HOSPITALS,'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients):
+class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -149,6 +150,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients):
         elif kind=='transport':
             job.update({'title':random.choice(['Entlassung','Ambulanztermin','Dialysefahrt']), 'caller':'Elektronischer Transportauftrag', 'detail':random.choice(['Liegend, zwei Sanitäter erforderlich; keine akute Verschlechterung gemeldet.','Sitzend, Unterstützung beim Umsetzen erforderlich; keine akute Verschlechterung gemeldet.']), 'priority':'geplant','needs':['KTW'],'scene':'Patient übernommen; Transport gemäß Auftrag.','due':clock+random.choice([900,1800,2700]),'accepted':True,'asked':True})
             self.log(f'Neuer Transportauftrag: {job["title"]}, {place}.','Aufträge')
+            job['due']=math.ceil(job['due']/1800)*1800
         else:
             raise ValueError('Unbekannte Auftragsart.')
         code={'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1','Entlassung':random.choice(['KTR-95K2','KTR-95K3']),'Ambulanztermin':random.choice(['KTR-90K2','KTR-90K3']),'Dialysefahrt':random.choice(['KTR-93Y1','KTR-93Y2'])}.get(job['title'],'SIM-KT')
@@ -157,6 +159,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients):
         job['event_title']=job['title']
         if rule:job.update(title=rule['title'],needs=rule['needs'][:],priority=rule['priority'])
         self.ensure_patient_condition(job)
+        if kind=='emergency' and not manual:self.prepare_call(job)
         self.ensure_alarm_identity(job)
         self.state['jobs'].append(job)
         return job
@@ -237,7 +240,9 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients):
             elif action=='accept':
                 j=self.get('jobs',data['id'])
                 if j['accepted']: raise ValueError('Anruf bereits angenommen.')
-                j['accepted']=True; self.log('144 Notruf, wo genau ist der Notfall? '+j['caller'],'Telefon')
+                self.accept_call(j)
+            elif action=='call_question':self.question_call(data)
+            elif action=='call_finish':self.finish_call(data)
             elif action=='ask':
                 j=self.get('jobs',data['id'])
                 if not j['accepted']: raise ValueError('Anruf zuerst annehmen.')

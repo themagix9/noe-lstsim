@@ -24,7 +24,9 @@ class EngineTests(unittest.TestCase):
         v=next(v for v in self.e.state['vehicles'] if v['type']=='RTW')
         payload={'job':j['id'],'vehicles':[v['id']]}
         with self.assertRaises(ValueError): self.e.command('dispatch',payload)
-        self.e.command('accept',{'id':j['id']}); self.e.command('dispatch',payload)
+        self.e.command('accept',{'id':j['id']})
+        for q in j['call']['questions']:self.e.command('call_question',{'job':j['id'],'question':q['key']})
+        self.e.command('dispatch',payload)
         with self.assertRaises(ValueError): self.e.command('dispatch',payload)
         self.assertEqual(j['vehicles'],[v['id']])
     def test_dispatch_is_atomic(self):

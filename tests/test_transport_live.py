@@ -41,3 +41,13 @@ class TransportLiveTests(unittest.TestCase):
     def test_numeric_status_reports_use_status_channel(self):
         v=self.vehicle('77/002');self.e.vehicle_status({'vehicle':v['id'],'status':'6'})
         self.assertEqual(self.e.state['logs'][0]['channel'],'Status')
+    def test_generated_pickups_are_half_hour_slots(self):
+        self.e.state['clock']=8*3600+123
+        for _ in range(20):
+            j=self.e.new_job('transport');self.assertEqual(j['due']%1800,0);self.assertGreater(j['due'],self.e.state['clock'])
+    def test_manual_pickup_rejects_quarter_hour_and_can_be_edited(self):
+        payload={'kind':'transport','code':'KTR-90K3','address':'Test','lat':48,'lon':16,'destination':'kh-moedling'}
+        with self.assertRaises(ValueError):self.e.create_job({**payload,'due':8*3600+900})
+        j=self.e.create_job({**payload,'due':9*3600})
+        self.e.edit_job({'job':j['id'],'due':9*3600+1800});self.assertEqual(j['due'],9*3600+1800)
+        with self.assertRaises(ValueError):self.e.edit_job({'job':j['id'],'due':9*3600+100})
