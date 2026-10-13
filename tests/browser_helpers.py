@@ -1,6 +1,7 @@
 def on_tab(page, key):
     tab = page.locator('[data-detail-tab="'+key+'"]')
-    if tab.count() and tab.get_attribute('aria-selected') != 'true':
+    tab.wait_for(state='visible')
+    if tab.get_attribute('aria-selected') != 'true':
         tab.click()
     return page
 
