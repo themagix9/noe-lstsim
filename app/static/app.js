@@ -152,6 +152,7 @@ function renderDetail(){
  if($('bed-request'))$('bed-request').onclick=()=>command('bed_request',{job:j.id,hospital:$('bed-hospital').value});
  if($('choose-carrier'))$('choose-carrier').onclick=()=>command('carrier',{job:j.id,vehicle:$('carrier-vehicle').value});
  if($('ask-cpr'))$('ask-cpr').onclick=()=>command('ask_cpr',{job:j.id});
+ renderRadio();
  if($('send-sds'))$('send-sds').onclick=()=>command('send_case',{job:j.id,channel:'SDS'});
  if($('send-esapp'))$('send-esapp').onclick=()=>command('send_case',{job:j.id,channel:'ESApp'});
  if($('handoff-job'))$('handoff-job').onclick=async()=>{const note=$('handoff-note').value;if($('job-code')?.value&&!await command('edit_job',{job:j.id,code:$('job-code').value,additional:$('job-additional').value,signal:$('job-signal').checked,fire:$('job-fire').checked,police:$('job-police').checked,secondary_unavailable:$('job-secondary').checked}))return;if(await command('handoff',{job:j.id,note}))$('dispatch-dialog').close()};
