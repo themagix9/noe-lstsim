@@ -270,7 +270,14 @@ $('leave-room').onclick=async()=>{try{await fetch('/api/leave',{method:'POST',he
 $('copy-code').onclick=async()=>{try{await navigator.clipboard.writeText(state.session.code);toast('Sitzungscode kopiert: '+state.session.code)}catch{toast('Sitzungscode: '+state.session.code)}};
 $('chat-form').onsubmit=async e=>{e.preventDefault();if(await command('chat',{text:$('chat-input').value}))$('chat-input').value=''};
 $('upload-graphic').onclick=()=>$('graphic-dialog').showModal();$('close-graphic').onclick=()=>$('graphic-dialog').close();
-$('graphic-form').onsubmit=async e=>{e.preventDefault();const values=Object.fromEntries(new FormData(e.target)),file=values.file;if(file.size>512*1024){toast('PNG-Datei maximal 512 KiB.');return}const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file)});delete values.file;if(await command('upload_graphic',{...values,data})){$('graphic-dialog').close();e.target.reset();toast('Grafik gespeichert. Jetzt beim Fahrzeug auswählen.')}};
+$('graphic-form').onsubmit=async e=>{
+ e.preventDefault();const form=e.target,button=form.querySelector('[type="submit"]');button.disabled=true;
+ try{
+  const values=Object.fromEntries(new FormData(form)),file=await window.GraphicUpload.optimize(values.file);
+  const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('Bild kann nicht gelesen werden.'));reader.readAsDataURL(file)});
+  delete values.file;if(await command('upload_graphic',{...values,data})){$('graphic-dialog').close();form.reset();toast('Grafik verkleinert und gespeichert. Jetzt beim Fahrzeug auswählen.')}
+ }catch(err){toast(err.message)}finally{button.disabled=false}
+};
 let liveController=null,liveRetry=null,clockAnchor={clock:0,received:0,speed:1,paused:true},latestSync=0;
 function applyState(snapshot,draw=true){if(snapshot.sync_time&&snapshot.sync_time<latestSync)return;latestSync=snapshot.sync_time||latestSync;state=snapshot;clockAnchor={clock:state.clock,received:performance.now(),speed:state.speed,paused:state.paused};if(draw)render()}
 function renderClock(){if(!state)return;const elapsed=clockAnchor.paused?0:Math.min(3,(performance.now()-clockAnchor.received)/1000);$('clock').textContent=time(clockAnchor.clock+elapsed*clockAnchor.speed)}

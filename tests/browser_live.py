@@ -78,6 +78,19 @@ with tempfile.TemporaryDirectory() as data:
             p.wait_for_timeout(1500);expect(p.locator('#icon-graphic')).to_have_value('box')
             p.locator('#save-resource-icon').click();p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/004').graphic==='box'")
             assert p.evaluate("state.vehicles.find(v=>v.callsign==='77/004').status==='duty'")
+            # Oversized source images are optimized before upload, keeping alpha.
+            optimized=p.evaluate("""async()=>{
+             const canvas=document.createElement('canvas');canvas.width=1600;canvas.height=1000;
+             const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(1600,1000);
+             for(let offset=0;offset<pixels.data.length;offset+=65536)crypto.getRandomValues(pixels.data.subarray(offset,Math.min(offset+65536,pixels.data.length)));
+             for(let y=0;y<1000;y++)for(let x=0;x<20;x++)pixels.data[(y*1600+x)*4+3]=0;
+             ctx.putImageData(pixels,0,0);const source=await new Promise(r=>canvas.toBlob(r,'image/png'));
+             const result=await GraphicUpload.optimize(source),image=await createImageBitmap(result);
+             canvas.width=image.width;canvas.height=image.height;ctx.drawImage(image,0,0);
+             const value={original:source.size,size:result.size,width:image.width,height:image.height,alpha:ctx.getImageData(0,0,1,1).data[3]};image.close();return value
+            }""")
+            assert optimized['original']>512*1024 and optimized['size']<=512*1024,optimized
+            assert optimized['width']<=512 and optimized['height']<=256 and optimized['alpha']==0,optimized
             assert not any(u.endswith('/api/state') for u in requests),requests;assert not errors,errors
             Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);p.screenshot(path='/tmp/noe-ui-qa/live-filter-sort.png');browser.close();print('Live editing, empty code, clock, filter, sort and preserved selection browser tests passed.')
     finally:proc.terminate();proc.wait(timeout=5)

@@ -32,6 +32,7 @@ jobs:
           node --check app/static/window-ui.js
           node --check app/static/dispatch-layout.js
           node --check app/static/resource-icons.js
+          node --check app/static/graphic-upload.js
           node --check app/static/workspace-ui.js
           node tests/test_live_ui.js
           node --check app/static/transport-reminders.js

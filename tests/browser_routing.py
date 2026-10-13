@@ -74,10 +74,7 @@ with tempfile.TemporaryDirectory() as data:
             assert p.evaluate("['SDS','ESApp'].every(channel=>state.messages.some(m=>m.vehicle===state.vehicles.find(v=>v.callsign==='C15').id&&m.channel===channel&&m.job===selected))")
             p.locator('#close-dispatch').click()
             # Scene resources collapse into coloured counts on the incident marker.
-            p.evaluate("()=>command('dispatch',{job:selected,vehicles:[state.vehicles.find(v=>v.callsign==='77/099').id]})")
-            for call in ('77/002','77/099'):
-                p.evaluate("call=>command('vehicle_status',{vehicle:state.vehicles.find(v=>v.callsign===call).id,status:'2'})",call)
-                p.evaluate("call=>command('vehicle_status',{vehicle:state.vehicles.find(v=>v.callsign===call).id,status:'3'})",call)
+            p.evaluate("()=>{for(const call of ['77/002','77/099']){const v=state.vehicles.find(v=>v.callsign===call);v.job=selected;v.status='scene'}renderMap(state.vehicles.filter(relevant),state.jobs.filter(j=>j.status!=='done'))}")
             p.wait_for_function("!mapObjects.has('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id)&&!mapObjects.has('vehicle:'+state.vehicles.find(v=>v.callsign==='77/099').id)")
             marker=p.locator('.incident-marker').filter(has=p.locator('.scene-count.unit-rtw'))
             expect(marker.locator('.scene-count.unit-rtw')).to_have_text('1');expect(marker.locator('.scene-count.unit-doctor')).to_have_text('1')
