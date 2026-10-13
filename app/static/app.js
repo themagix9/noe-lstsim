@@ -181,9 +181,9 @@ function renderMap(vehicles,jobs){
  }
  if(mapRoom!==room){mapLayers.clearLayers();mapObjects.clear()}mapSeen=new Set();
  state.stations.filter(s=>!s.responder_area&&s.dispo===state.setup.dispo&&(!zone||s.zone===zone)).forEach(s=>{
-  const parked=vehicles.filter(v=>v.station===s.id&&v.status==='ready'),staffed=state.vehicles.some(v=>v.station===s.id&&v.in_shift&&!['FR','BEL'].includes(v.type));
+  const parked=state.vehicles.filter(v=>v.station===s.id&&v.status==='ready'&&available(v)&&v.staffed&&!v.job&&!['FR','BEL'].includes(v.type)),staffed=parked.length>0;
   const icon=L.divIcon({className:'station-marker '+(staffed?'staffed':'unstaffed'),html:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M3 18 20 4 37 18v3h-4v15H7V21H3z" fill="currentColor" stroke="white" stroke-width="2"/><path d="M17 16h6v6h6v6h-6v6h-6v-6h-6v-6h6z" fill="white"/></svg>${parked.length?'<span>'+parked.length+'</span>':''}`,iconSize:[38,40],iconAnchor:[19,36]});
-  mapMarker('station:'+s.id,()=>L.marker([s.lat,s.lon]),[s.lat,s.lon],icon,`<b>${esc(s.name)}</b><br>${esc(s.address||'Adresse noch prüfen')}<br>${staffed?'Besetzt':'Unbesetzt'}<br>${parked.length?parked.map(v=>esc(resourceName(v))+' · '+esc(v.type)+' · Frei auf Wache').join('<br>'):'Keine freien Ressourcen auf Wache'}`,esc(s.name)+' · '+(staffed?'besetzt':'unbesetzt'));
+  mapMarker('station:'+s.id,()=>L.marker([s.lat,s.lon]),[s.lat,s.lon],icon,`<b>${esc(s.name)}</b><br>${esc(s.address||'Adresse noch prüfen')}<br>${staffed?parked.length+' freie Fahrzeuge auf Wache':'Keine verfügbaren Fahrzeuge auf Wache'}${parked.length?'<br>'+parked.map(v=>esc(resourceName(v))+' · '+esc(v.type)+' · Frei auf Wache').join('<br>'):''}`,esc(s.name)+' · '+(staffed?parked.length+' freie Fahrzeuge auf Wache':'Keine verfügbaren Fahrzeuge auf Wache'));
  });
  state.hospitals.filter(h=>Number.isFinite(h.lat)&&Number.isFinite(h.lon)).forEach(h=>{
   const icon=L.divIcon({className:'hospital-marker',html:'<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="5" y="5" width="30" height="33" rx="4" fill="currentColor" stroke="white" stroke-width="2"/><path d="M12 12h5v7h6v-7h5v18h-5v-7h-6v7h-5z" fill="white"/></svg>',iconSize:[36,38],iconAnchor:[18,34]});
