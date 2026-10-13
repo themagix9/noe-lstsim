@@ -9,7 +9,7 @@ def choose_code(page, code):
     on_tab(page, 'disposition')
     from pathlib import Path
     Path('/tmp/noe-ui-qa').mkdir(exist_ok=True)
-    print('AMPDS visibility:',page.evaluate("()=>{const e=document.getElementById('job-search');return {tab:detailTab,ancestors:e?[e,e.parentElement,e.parentElement.parentElement,e.closest('[role=tabpanel]')].map(n=>({tag:n.tagName,id:n.id,hidden:n.hidden,classes:n.className,display:getComputedStyle(n).display,height:n.getBoundingClientRect().height})):[]}}"))
+    assert page.evaluate('detailTab')=='disposition'
     page.screenshot(path='/tmp/noe-ui-qa/ampds-disposition.png')
     page.locator('#job-search').fill(code)
     page.locator('[data-code-choice="'+code+'"]').click()
