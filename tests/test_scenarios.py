@@ -69,3 +69,8 @@ class ScenarioTests(unittest.TestCase):
         with patch('patients.random.randint',return_value=-8):self.e.update_patients(self.e.state['clock'])
         self.assertEqual(j['patient_condition']['percent'],before-8)
         self.assertTrue(j['patient_condition']['notarzt_required'])
+
+    def test_wrong_cpr_code_does_not_create_cardiac_arrest(self):
+        j=self.incident('fall-underestimated');self.e.edit_job({'job':j['id'],'code':'RD-9E1'})
+        self.assertEqual(j['patient_condition']['percent'],40)
+        self.e.ecpr_precall(j);self.assertFalse(j['exercise_cpr'])

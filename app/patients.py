@@ -54,7 +54,7 @@ class Patients:
         c.update(reported=True,last_report=self.state['clock'],next_change=self.state['clock']+300)
         present=any(self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('NEF','NAH') for id in j['vehicles'])
         if c['notarzt_required'] and not present:
-            reason='Laufende Reanimation.' if j.get('code')=='RD-9E1' else 'Patientenzustand verschlechtert, Notarzt zur weiteren Versorgung erforderlich.'
+            reason='Laufende Reanimation.' if c['percent']==0 else 'Patientenzustand verschlechtert, Notarzt zur weiteren Versorgung erforderlich.'
             if os.environ.get('REINFORCEMENTS_AUTO','1')!='0':self.raise_radio(j,v,'NEF',reason,reason_initial=True)
         else:self.log(f'Hier {self.radio_name(v)}, '+('Notarztversorgung erforderlich, Notarztmittel bereits disponiert.' if c['notarzt_required'] else 'Patient aktuell stabil, kein Notarztmittel nachgefordert.')+' Kommen.','Funk')
 
@@ -69,6 +69,6 @@ class Patients:
             if not carrier:continue
             doctor=any(v['type'] in ('NEF','NAH') and v['status']=='scene' for v in units)
             previous=c['notarzt_required'];delta=random.randint(1,6) if doctor else random.randint(*j.get('_scenario',{}).get('trend',[-12,4]))
-            if j.get('code')!='RD-9E1':c['percent']=max(0,min(100,c['percent']+delta))
+            if j.get('code')!='RD-9E1' or j.get('_scenario',{}).get('initial_percent',0)>0:c['percent']=max(0,min(100,c['percent']+delta))
             c['notarzt_required']=c['percent']<45;c['next_change']=now+300
             if previous!=c['notarzt_required'] and carrier['status']=='scene':self.patient_report(j,carrier,force=True)

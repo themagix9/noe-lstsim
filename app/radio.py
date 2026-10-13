@@ -37,7 +37,7 @@ class Radio:
         if any(self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('NEF','NAH') for id in j['vehicles']):return
         needed=j.get('patient_condition',{}).get('notarzt_required',False) or j.get('exercise_reinforcement')
         if needed:
-            reason='Laufende Reanimation.' if j.get('code')=='RD-9E1' or j.get('exercise_reinforcement')=='reanimation' else random.choice(['Patientenzustand verschlechtert, deutlich eingeschränktes Bewusstsein.','Zunehmende Atemnot, bitte Notarzt zur weiteren Versorgung.'])
+            reason='Laufende Reanimation.' if (j.get('patient_condition') or {}).get('percent')==0 or j.get('exercise_reinforcement')=='reanimation' else random.choice(['Patientenzustand verschlechtert, deutlich eingeschränktes Bewusstsein.','Zunehmende Atemnot, bitte Notarzt zur weiteren Versorgung.'])
             self.raise_radio(j,v,'NEF',reason,reason_initial=random.random()<.35)
 
     def radio_action(self,data):

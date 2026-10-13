@@ -17,7 +17,7 @@ class AirOps:
     def ecpr_precall(self,j):
         if j.get('code')!='RD-9E1' or j.get('ecpr_state','none')!='none':return
         j.update(ecpr_state='prealerted',cpr_confirmed=None,cpr_due=None)
-        j.setdefault('exercise_cpr',__import__('random').random()<.65)
+        j.setdefault('exercise_cpr',j['_scenario']['initial_percent']==0 if j.get('_scenario') else __import__('random').random()<.65)
         self.log(f'eCPR Wien: Voranmeldung für Einsatz {j["id"]}; Team bleibt im Krankenhaus, keine Anfahrt zum Einsatzort.','eCPR')
 
     def ask_cpr(self,data):
