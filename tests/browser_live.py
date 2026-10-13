@@ -55,8 +55,8 @@ with tempfile.TemporaryDirectory() as data:
             p.evaluate("()=>command('dispatch',{job:state.jobs.find(j=>j.kind==='emergency').id,vehicles:[state.vehicles.find(v=>v.callsign==='77/002').id]})")
             p.evaluate("()=>openDispatch(state.jobs.find(j=>j.kind==='emergency').id)")
             on_tab(p,'disposition').locator('[data-call-resource]').click()
-            on_tab(p,'kommunikation').locator('[data-cancel][data-step="answer"]').click()
-            on_tab(p,'kommunikation').locator('[data-cancel][data-step="cancel"]').click()
+            on_tab(p,'kommunikation').locator('#radio-detail [data-cancel][data-step="answer"]').click()
+            on_tab(p,'kommunikation').locator('#radio-detail [data-cancel][data-step="cancel"]').click()
             p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/002').job===null")
             assert p.evaluate("new Set(state.messages.filter(m=>m.text.startsWith('EINSATZSTORNO')).map(m=>m.channel)).size===2")
             assert not any(u.endswith('/api/state') for u in requests),requests;assert not errors,errors
