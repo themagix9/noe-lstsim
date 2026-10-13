@@ -50,7 +50,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/addresses':return self.json_response({'addresses':ADDRESSES,'source':'© OpenStreetMap contributors · ODbL 1.0'})
         if path=='/api/codes':return self.json_response({'date':SOURCE['date'],'rules':[code_rule(r['code']) for r in SOURCE['entries']]+TRANSPORT_RULES})
         if path=='/api/catalog':return self.json_response({'centres':CENTRES,'zones':ZONES,'rules':RULES})
-        if path=='/api/health':return self.json_response({'ok':True,'version':'0.10'})
+        if path=='/api/health':return self.json_response({'ok':True,'version':'0.11'})
         if path in ('/api/state','/api/config'):
             try:
                 s=sessions.snapshot(self.member())

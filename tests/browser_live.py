@@ -27,6 +27,9 @@ with tempfile.TemporaryDirectory() as data:
             on_tab(p, 'einsatz').locator('#job-additional').press_sequentially('Text bleibt erhalten',delay=200)
             assert p.evaluate("stableText===document.getElementById('job-additional')&&document.activeElement===stableText")
             expect(on_tab(p, 'einsatz').locator('#job-additional')).to_have_value('Text bleibt erhalten')
+            assert p.locator('.detail-tabs [role="tab"]').all_text_contents()[:3]==['Kommunikation','Disposition','Einsatzdaten']
+            on_tab(p,'disposition');expect(p.locator('#job-search')).to_be_visible()
+            expect(p.locator('#detail-tab-nachforderung')).to_be_visible();expect(p.locator('#detail-tab-support')).to_be_visible()
             on_tab(p, 'disposition').locator('[data-filter="RTW"]').click();assert p.evaluate("[...document.querySelectorAll('.resource-row')].every(e=>['RTW','RTW-C'].includes(state.vehicles.find(v=>v.id===e.dataset.resourceId).type))")
             row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('RTW 77/002');row.locator('input').check();on_tab(p, 'einsatz');expect(p.locator('#detail-panel-disposition')).to_be_hidden();expect(p.locator('#job-additional')).to_have_value('Text bleibt erhalten');on_tab(p, 'disposition');expect(row.locator('input')).to_be_checked()
             # Compact laptop window: only the resource list scrolls, checked rows green.

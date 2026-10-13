@@ -30,7 +30,8 @@ def recommend(engine,j):
     result={'vehicles':[],'missing':[],'rule':j.get('code'),'category':j.get('category','Übungsregel'),'description':'Simulationsvorschlag · geschätzte Eintreffzeit aus Luftlinie + Ausrückzeit','warnings':[],'source':REFERENCE,'code_date':SOURCE['date']}
     if engine.router.enabled:
         ready=all(v['type']=='NAH' or (engine.router.cached_eta(v,j) or {}).get('status')=='ready' for v in candidates)
-        result['description']='Straßenrouting + Ausrückzeit; NAH Flugzeit' if ready else 'Vorläufiger Vorschlag: Straßenrouten werden berechnet, derzeit Entfernungsschätzung'
+        failed=any((engine.router.cached_eta(v,j) or {}).get('status')=='error' for v in candidates if v['type']!='NAH')
+        result['description']='Straßenrouting + Ausrückzeit; NAH Flugzeit' if ready else 'Routendienst nicht verfügbar; AAO mit Entfernungsschätzung' if failed else 'Vorläufiger Vorschlag: Straßenrouten werden berechnet, derzeit Entfernungsschätzung'
     category=j.get('category');eta=lambda v:estimated_seconds(engine,v,j)
     transport_types=('KTW','KTW-B','BKTW','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C')
     transporters=[v for v in candidates if v['type'] in transport_types];nefs=[v for v in candidates if v['type']=='NEF']

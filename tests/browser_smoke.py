@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory() as data:
                 with c.expect_response(lambda r:r.url.endswith('/api/call_question')) as answer:c.locator('#call-next').click()
                 assert answer.value.ok,answer.value.text()
             expect(c.locator('#call-finish')).to_be_visible()
-            on_tab(c, 'einsatz').locator('#job-search').fill('RD-31D3');choose_code(c, 'RD-31D3');on_tab(c, 'einsatz').locator('#job-code').focus();c.evaluate("window.stableSelect=document.getElementById('job-code')");c.wait_for_timeout(4200);assert c.evaluate("window.stableSelect===document.getElementById('job-code')"),'Polling replaced focused AMPDS selector';expect(c.locator('#detail')).to_contain_text('Einsatznummer');expect(c.locator('#detail')).to_contain_text('Verrechnungsnummer');expect(on_tab(c, 'einsatz').locator('#job-code')).to_have_value('RD-31D3');
+            on_tab(c, 'disposition').locator('#job-search').fill('RD-31D3');choose_code(c, 'RD-31D3');on_tab(c, 'disposition').locator('#job-code').focus();c.evaluate("window.stableSelect=document.getElementById('job-code')");c.wait_for_timeout(4200);assert c.evaluate("window.stableSelect===document.getElementById('job-code')"),'Polling replaced focused AMPDS selector';expect(c.locator('#detail')).to_contain_text('Einsatznummer');expect(c.locator('#detail')).to_contain_text('Verrechnungsnummer');expect(on_tab(c, 'disposition').locator('#job-code')).to_have_value('RD-31D3');
             with c.expect_response(lambda response:response.url.endswith('/api/edit_job')) as edited:
                 c.locator('#save-job').click()
             assert edited.value.ok,edited.value.text()

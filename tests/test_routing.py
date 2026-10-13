@@ -11,6 +11,24 @@ class RouteTests(unittest.TestCase):
     tearDown=helpers.FleetTests.tearDown
     vehicle=helpers.FleetTests.vehicle
     job=helpers.FleetTests.job
+    def test_eta_pending_has_deadline_even_when_queue_is_full(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            router=Router(Path(directory)/'cache.db',enabled=False);router.enabled=True
+            router.pending={str(i) for i in range(200)}
+            a={'id':'a','lat':48,'lon':16};target={'lat':48.01,'lon':16.01}
+            with patch('routing.time.time',return_value=100):self.assertEqual(router.estimates([a],target)['a']['status'],'pending')
+            with patch('routing.time.time',return_value=113):self.assertEqual(router.estimates([a],target)['a']['status'],'error')
+            self.assertEqual(len(router.tasks.queue),0);router.db.close()
+    def test_pending_and_failed_routes_have_immediate_approximate_eta(self):
+        j=self.job();self.e.router.enabled=True
+        for status in ('pending','error'):
+            from unittest.mock import patch
+            with patch.object(self.e.router,'estimates',return_value={v['id']:{'status':status} for v in self.e.state['vehicles']}):
+                result=next(x for x in self.e.snapshot()['jobs'] if x['id']==j['id'])
+            eta=result['resource_eta'][self.vehicle('77/001')['id']]
+            self.assertTrue(eta['approximate']);self.assertGreaterEqual(eta['seconds'],60);self.assertGreaterEqual(eta['arrival'],self.e.state['clock']+60)
+            self.assertNotIn('distance_m',eta)
     def test_geometry_follows_corner_and_persists(self):
         j=self.job();v=self.vehicle('77/001');a={'lat':48,'lon':16};b={'lat':48.1,'lon':16.1};geometry=[[48,16],[48.1,16],[48.1,16.1]]
         class Fake:

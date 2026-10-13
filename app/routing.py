@@ -88,11 +88,15 @@ class Router:
     def estimates(self,origins,target):
         if not self.enabled:return {v['id']:{'status':'disabled'} for v in origins}
         unique={self.cachekey(v,target):v.copy() for v in origins}
-        missing=[];result={}
+        missing=[];result={};now=time.time()
         with self.lock:
             for k,v in unique.items():
-                record=self.items.get('eta|'+k)
-                if not record or record.get('retry_at',0)<=time.time() and record['status']=='error':missing.append(v)
+                cache='eta|'+k;record=self.items.get(cache)
+                if record and record['status']=='pending' and now-record.get('started_at',now)>12:
+                    record={'status':'error','retry_at':now+60,'error':'Routenberechnung dauert zu lange'};self.items[cache]=record
+                if not record or record['status']=='pending' or record['status']=='error' and record.get('retry_at',0)<=now:
+                    if not record or record['status']=='error':self.items[cache]={'status':'pending','started_at':now}
+                    missing.append(v)
             for v in origins:result[v['id']]=copy.deepcopy(self.items.get('eta|'+self.cachekey(v,target),{'status':'pending'}))
         for start in range(0,len(missing),60):
             batch=missing[start:start+60];k='matrix|'+self.url+'|'+json.dumps([point(v) for v in batch]+[point(target)])

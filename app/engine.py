@@ -111,7 +111,10 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                     for v in self.state['vehicles']:
                         if v['type']=='NAH' and self.sendable(v,j):estimates[v['id']]={'status':'ready','seconds':distance(v,j)/v.get('flight_speed',220)*3600,'distance_m':distance(v,j)*1000,'source':'Flugzeit · Luftlinie'}
                         eta=estimates.get(v['id'])
-                        if eta and eta['status']=='ready':
+                        if eta and eta['status'] in ('pending','error'):
+                            # Show an immediate, explicitly approximate ETA while road data is fetched.
+                            eta.update(seconds=distance(v,j)*1.25/45*3600,approximate=True)
+                        if eta and 'seconds' in eta:
                             eta['base_travel_seconds']=eta['seconds'];eta['time_factor']=self.response_factor(v,j);eta['seconds']*=eta['time_factor']
                             eta['seconds']+=float(v.get('turnout',60))+max(0,(v.get('phase_due') or 0)-self.state['clock'] if v['status']=='hospital' else 0)
                             eta['arrival']=self.state['clock']+eta['seconds']

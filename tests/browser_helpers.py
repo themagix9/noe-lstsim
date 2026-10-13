@@ -6,7 +6,7 @@ def on_tab(page, key):
     return page
 
 def choose_code(page, code):
-    on_tab(page, 'einsatz')
+    on_tab(page, 'disposition')
     page.locator('#job-search').fill(code)
     page.locator('[data-code-choice="'+code+'"]').click()
 
