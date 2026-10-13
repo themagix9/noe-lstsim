@@ -106,6 +106,13 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
                             eta['seconds']+=float(v.get('turnout',60))+max(0,(v.get('phase_due') or 0)-self.state['clock'] if v['status']=='hospital' else 0)
                             eta['arrival']=self.state['clock']+eta['seconds']
                     j['resource_eta']=estimates;j['aao']=self.recommendation(j)
+            for j in result['jobs']:
+                j.pop('_scenario',None);j.pop('suggested_code',None)
+                if not j.get('scene_report'):
+                    j.pop('scene',None);j.pop('scenario_id',None)
+                    j['patient']=None
+                    if j.get('patient_condition'):j['patient_condition']={'reported':False}
+                elif j.get('no_patient'):j['patient']=None
             for v in result['vehicles']:
                 v['eta_seconds']=max(0,v['phase_due']-self.state['clock']) if v.get('leg') and v.get('phase_due') else None
             result['routing']={'enabled':self.router.enabled,'source':'OSRM · OpenStreetMap','mode':'external' if self.router.url.startswith('https://') else 'self-hosted'}
@@ -138,14 +145,15 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
         a,b=[int(x[:2])*60+int(x[3:]) for x in (v['start'],v['end'])]
         return v['staffed'] and (a==b or (a<=minute<b if a<b else minute>=a or minute<b))
 
-    def new_job(self, kind, manual=False):
+    def new_job(self, kind, manual=False, scenario=None):
         city=random.choice(ADDRESS_CITIES)
         address_point=random.choice([a for a in ADDRESSES if a['city']==city])
         place,lat,lon=address_point['city'],address_point['lat'],address_point['lon']
         clock=self.state['clock']
         job={'id':uid(),'kind':kind,'place':place,'lat':lat,'lon':lon,'address':address_point['address'],'address_point':address_point.copy(),'address_source':'OpenStreetMap','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ'])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
         if kind=='emergency':
-            scenario=copy.deepcopy(random.choice(SCENARIOS)); job.update(scenario)
+            from scenarios import EXTRA_SCENARIOS
+            scenario=copy.deepcopy(scenario if scenario is not None else random.choice(SCENARIOS if manual else SCENARIOS+EXTRA_SCENARIOS)); job.update(scenario)
             job['due']=clock
             if not manual:self.log('Neuer 144-Anruf wartet auf Annahme.','Telefon')
         elif kind=='transport':
@@ -154,9 +162,9 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
             job['due']=math.ceil(job['due']/1800)*1800
         else:
             raise ValueError('Unbekannte Auftragsart.')
-        code={'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1','Entlassung':random.choice(['KTR-95K2','KTR-95K3']),'Ambulanztermin':random.choice(['KTR-90K2','KTR-90K3']),'Dialysefahrt':random.choice(['KTR-93Y1','KTR-93Y2'])}.get(job['title'],'SIM-KT')
+        code=job.get('suggested_code') or {'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1','Entlassung':random.choice(['KTR-95K2','KTR-95K3']),'Ambulanztermin':random.choice(['KTR-90K2','KTR-90K3']),'Dialysefahrt':random.choice(['KTR-93Y1','KTR-93Y2'])}.get(job['title'],'SIM-KT')
         rule=self.rule(code)
-        job.update(code=code,category=rule.get('category') if rule else None,signal=rule['signal'] if rule else False,additional='',fire=False,police=False,organization='RK')
+        job.update(code=code,category=rule.get('category') if rule else None,signal=rule['signal'] if rule else False,additional='',fire=job.get('fire',False),police=job.get('police',False),organization='RK')
         job['event_title']=job['title']
         if rule:job.update(title=rule['title'],needs=rule['needs'][:],priority=rule['priority'])
         self.ensure_patient_condition(job)

@@ -14,6 +14,8 @@ class Calls:
             ('breathing','Wie atmet die Person?','Atmet die Person? Was fällt Ihnen an der Atmung auf?','Ich weiß es nicht genau, ich kann das gerade nicht sicher erkennen.' if unconscious else 'Er atmet, aber ganz schwer. Er kann kaum einen ganzen Satz sagen.' if dyspnea else 'Ja, die Atmung sieht für mich normal aus.'),
             ('access','Zugang und Rückruf klären','Wie finden unsere Kräfte Sie? Gibt es beim Zugang etwas zu beachten, und bleiben Sie unter dieser Nummer erreichbar?','Ich bin unter dieser Nummer erreichbar. '+('Ich öffne unten die Haustür, die Klingel ist beschriftet.' if dyspnea or fall else 'Ich mache mich am Straßenrand bemerkbar.')),
         ]
+        answers=j.get('_scenario',{}).get('answers',{})
+        questions=[(key,label,question,answers.get(key,answer)) for key,label,question,answer in questions]
         j['call']={'state':'ringing','caller_name':name,'questions':[{'key':key,'label':label,'question':question,'answer':answer} for key,label,question,answer in questions],'answered':[],'transcript':[],'model':'Fiktiver Anrufdialog; kein originales AMPDS-Abfrageprotokoll'}
 
     def phone_line(self,j,speaker,text):
@@ -23,6 +25,8 @@ class Calls:
     def accept_call(self,j):
         self.prepare_call(j);j['accepted']=True;j['call']['state']='connected'
         self.phone_line(j,'LEO','Rettungsleitstelle Niederösterreich, wo genau ist der Notfallort?')
+        if j.get('fire') and j.get('_scenario',{}).get('no_patient'):
+            self.phone_line(j,'Anrufer',f'Feuerwehr-Einsatzleitung hier, Einsatzadresse {j["address"]}. '+j['caller']);return
         self.phone_line(j,'Anrufer',f'Hallo, {j["call"]["caller_name"]} mein Name. Ich bin in {j["address"]}. Bitte schicken Sie jemanden, hier braucht jemand Hilfe!')
 
     def question_call(self,data):

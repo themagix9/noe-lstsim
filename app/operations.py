@@ -13,6 +13,7 @@ class Operations:
         if not any(h['id']=='kh-akh-ecpr' for h in self.state['hospitals']):self.state['hospitals'].append({'id':'kh-akh-ecpr','name':'AKH Wien · eCPR (Übungsziel)','region':'Wien','lat':48.220,'lon':16.347,'helipad':True,'ecpr':True,'source':'eCPR-Zentrum MedUni Wien; Annahme/Verfügbarkeit simuliert'})
         from catalog import RULES
         self.state.setdefault('rules',__import__('copy').deepcopy(RULES))
+        if not any(r['code']=='SIM-BEIST' for r in self.state['rules']):self.state['rules'].append(__import__('copy').deepcopy(next(r for r in RULES if r['code']=='SIM-BEIST')))
         self.state.setdefault('setup',{'centre':'Mödling','dispo':'05'})
         self.state['setup'].setdefault('blue_light_factor',0.85)
         self.state['setup'].setdefault('helicopter_speed_factor',1.15)
@@ -42,6 +43,7 @@ class Operations:
             year=str(self.state.get('start_date','2026'))[:4]
             j['incident_number']=year+f'{serial:07d}'
             j['billing_number']=f'SIM-{serial:07d}'
+        if j.get('no_patient'):j['patient']=None
         j.setdefault('patient',{'name':'Übungspatient '+j['incident_number'][-7:],'fictitious':True})
         j.setdefault('event_title',j['title'])
 
@@ -154,6 +156,7 @@ class Operations:
 
     def crew_destination(self,v):
         j=self.get('jobs',v['job'])
+        if j.get('no_patient'):self.finish_without_patient(j);return
         waiting=j.get('reinforcement_waiting')
         if waiting and not j.get('reinforcement_arrived'):
             unit=self.get('vehicles',waiting)
@@ -184,7 +187,9 @@ class Operations:
             self.start_transport(v)
 
     def start_transport(self,v):
-        j=self.get('jobs',v['job']);h=self.get('hospitals',j['destination'])
+        j=self.get('jobs',v['job'])
+        if j.get('no_patient') or j.get('_scenario',{}).get('no_patient'):raise ValueError('Keine transportpflichtige Person in diesem Szenario.')
+        h=self.get('hospitals',j['destination'])
         if v['type']=='NAH' and not h.get('helipad'):raise ValueError('Hubschrauberziel benötigt einen Landeplatz.')
         if j.get('cpr_confirmed') and (v['type']!='NAH' or not h.get('ecpr') or j.get('ecpr_state')!='confirmed'):raise ValueError('eCPR-Flug erst nach Mannschaftsrückmeldung und Zielbestätigung.')
         for id in j['vehicles']:
@@ -256,6 +261,7 @@ class Operations:
             elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
             elif j['status'] not in ('transport','hospital'):j['status']='scene'
             self.log(f'{v["callsign"]}, Status 3: am Berufungsort.','Status');return
+        if status=='scene' and self.get('jobs',v['job']).get('no_patient'):self.finish_without_patient(self.get('jobs',v['job']));return
         if status=='scene' and any(c['vehicle']==v['id'] and c['state']!='closed' for c in self.state['radio_calls']):v['phase_due']=None;return
         if status=='scene':
             if v['type'] in ('NEF','FR'):self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')

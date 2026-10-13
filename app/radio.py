@@ -20,6 +20,7 @@ class Radio:
         self.log(f'LEO von {self.radio_name(v)}, kommen.','Funk');return call
 
     def maybe_reinforcement(self,j,v):
+        if j.get('no_patient') or j.get('_scenario',{}).get('no_patient'):return
         if os.environ.get('REINFORCEMENTS_AUTO','1')=='0' and not j.get('exercise_reinforcement'):return
         if v['type'] in ('NEF','NAH','FR') or j['kind']!='emergency' or j.get('reinforcement_checked'):return
         j['reinforcement_checked']=True
