@@ -13,6 +13,7 @@ def choose_code(page, code):
     page.screenshot(path='/tmp/noe-ui-qa/ampds-disposition.png')
     page.locator('#job-search').fill(code)
     page.locator('[data-code-choice="'+code+'"]').click()
+    page.wait_for_function("code=>state.jobs.find(j=>j.id===selected)?.code===code&&state.jobs.find(j=>j.id===selected)?.code_confirmed",arg=code)
 
 def start_session(page):
     from playwright.sync_api import expect
@@ -26,4 +27,3 @@ def start_session(page):
     page.evaluate("command('control',{paused:true})")
     expect(page.locator('#playback-title')).to_have_text('Spiel pausiert')
     if not (previews/'pause-screen.png').exists():page.screenshot(path=str(previews/'pause-screen.png'))
-    page.wait_for_function("code=>state.jobs.find(j=>j.id===selected)?.code===code&&state.jobs.find(j=>j.id===selected)?.code_confirmed",arg=code)

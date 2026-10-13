@@ -44,6 +44,8 @@ with tempfile.TemporaryDirectory() as data:
             if p.locator('#dispatch-dialog').is_visible():p.locator('#close-dispatch').click()
             assert p.evaluate("mapLayers.getLayers().some(l=>l instanceof L.Polyline&&!(l instanceof L.CircleMarker)&&l.getLatLngs().length===3)")
             expect(p.locator('.station-marker.staffed').first).to_be_visible();expect(p.locator('.hospital-marker').first).to_be_visible()
+            assert p.evaluate("state.hospitals.every(h=>mapObjects.has('hospital:'+h.id)===hospitalMapVisible(h))")
+            assert p.evaluate("['kh-hainburg','kh-moedling','kh-donaustadt'].every(id=>mapObjects.has('hospital:'+id))")
             # Availability is local to the station, not merely a staffed shift.
             p.evaluate("()=>{window.stationTest=mapObjects.get('station:goetzendorf').layer;stationTest.openPopup()}")
             assert p.evaluate("stationTest.getElement().classList.contains('staffed')")
