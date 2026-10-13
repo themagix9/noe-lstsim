@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel')
 
 class Operations:
     def migrate_operations(self):
@@ -53,11 +53,12 @@ class Operations:
 
     def sendable(self,v,j):
         # Hospital handover can finish while the next transport is transmitted.
-        return self.in_shift(v) and v['status'] in (('ready','radio','hospital','fr_ready') if j['kind']=='transport' else ('ready','radio','fr_ready')) and self.eligible(v,j) and (not v.get('reservation') or v['reservation']==j['id'])
+        return (not self.support_required(v) or v.get('support_job')==j['id']) and not v.get('support_request') and self.in_shift(v) and v['status'] in (('ready','radio','hospital','fr_ready') if j['kind']=='transport' else ('ready','radio','fr_ready')) and self.eligible(v,j) and (not v.get('reservation') or v['reservation']==j['id'])
 
     def reserve(self,data):
         j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])
         if j['kind']!='transport' or j['vehicles'] or j['status']=='done':raise ValueError('Nur offene Transportaufträge können vordisponiert werden.')
+        if self.support_required(v):raise ValueError('Externe Ressourcen über Unterstützung anfordern.')
         if not self.eligible(v,j):raise ValueError('Eine transportierende Ressource wählen.')
         if v.get('reservation') and v['reservation']!=j['id']:raise ValueError('Ressource bereits für einen anderen Auftrag reserviert.')
         old=j.get('reserved')

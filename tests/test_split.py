@@ -24,6 +24,17 @@ class SplitTests(unittest.TestCase):
         with self.assertRaises(PermissionError):self.s.command(self.ct,'dispatch',{'job':self.j['id'],'vehicles':[]})
         self.s.command(self.ct,'accept',{'id':self.j['id']})
         with self.assertRaises(ValueError):self.s.command(self.ct,'handoff',{'job':self.j['id']})
+    def test_support_is_dispatcher_only_after_handoff(self):
+        v=next(v for v in self.e.state['vehicles'] if v['callsign']=='C15')
+        data={'job':self.j['id'],'vehicle':v['id']}
+        with self.assertRaises(PermissionError):self.s.command(self.ct,'support_request',data)
+        with self.assertRaises(PermissionError):self.s.command(self.dispo,'support_request',data)
+        self.ask()
+        self.s.command(self.ct,'edit_job',{'job':self.j['id'],'code':'RD-17B1'})
+        self.s.command(self.ct,'handoff',{'job':self.j['id']})
+        self.s.command(self.dispo,'support_request',data)
+        self.assertEqual(self.j['support_requests'][0]['state'],'pending')
+        with self.assertRaises(PermissionError):self.s.command(self.ct,'support_cancel',{'job':self.j['id'],'request':self.j['support_requests'][0]['id']})
     def test_live_transcript_handoff_and_dispatch(self):
         self.ask();self.assertEqual(len(self.s.snapshot(self.dispo)['jobs'][-1]['call']['transcript']),14)
         self.s.command(self.ct,'handoff',{'job':self.j['id'],'note':'Zugang über Hintereingang.'})

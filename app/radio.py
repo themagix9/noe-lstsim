@@ -5,7 +5,7 @@ import uuid
 
 class Radio:
     def radio_name(self,v):
-        if v['type']=='NAH':return {'C3':'Christophorus 3','C9':'Christophorus 9'}.get(v['callsign'],v['callsign'])
+        if v['type']=='NAH':return {'C3':'Christophorus 3','C9':'Christophorus 9','C15':'Christophorus 15','C16':'Christophorus 16'}.get(v['callsign'],v['callsign'])
         if v['type']=='NEF':return 'NEF '+self.station(v['station'])['name'].removeprefix('RK ').removeprefix('NEF ').split(' · ')[0]
         return v['callsign']
     def raise_radio(self,j,v,kind='NEF',reason=None,reason_initial=False):

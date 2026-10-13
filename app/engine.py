@@ -20,6 +20,7 @@ from fuel import Fuel
 from cancellations import Cancellations
 from multiple_patients import MultiplePatients
 from calls import Calls
+from support import Support
 from locations import ADDRESSES,ADDRESS_CITIES,upgrade_locations
 
 GRAPHICS = [
@@ -52,14 +53,14 @@ def distance(a, b):
 
 def seed():
     stations = [{'id':'bruck','name':'RK Bruck/Leitha','zone':'Bruck/Leitha','lat':48.023,'lon':16.779}, {'id':'hainburg','name':'RK Hainburg','zone':'Bruck/Leitha','lat':48.147,'lon':16.945}, {'id':'schwechat','name':'RK Schwechat','zone':'Bruck/Leitha','lat':48.141,'lon':16.478}]
-    rows = [('53/002','RTW-C','bruck'),('53/022','BEL','bruck'),('53/601','RTW-C','hainburg'),('53/602','RTW','hainburg'),('53/699','NEF','hainburg'),('77/001','RTW-C','schwechat'),('77/002','RTW','schwechat'),('77/004','RTW','schwechat'),('77/006','RTW','schwechat'),('77/015','KTW','schwechat'),('77/030','RTW-C','schwechat'),('77/060','RTW','schwechat'),('77/099','NEF','schwechat'),('77/900','BEL','schwechat')]
+    rows = [('53/002','RTW-C','bruck'),('53/601','RTW-C','hainburg'),('53/602','RTW','hainburg'),('53/699','NEF','hainburg'),('77/001','RTW-C','schwechat'),('77/002','RTW','schwechat'),('77/004','RTW','schwechat'),('77/006','RTW','schwechat'),('77/015','KTW','schwechat'),('77/030','RTW-C','schwechat'),('77/060','RTW','schwechat'),('77/099','NEF','schwechat')]
     vehicles=[]
     for call, typ, station in rows:
         s=next(x for x in stations if x['id']==station)
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':copy.deepcopy(HOSPITALS),'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
+class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -84,6 +85,7 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
             if not any(item['id']==g['id'] for item in self.state['graphics']):self.state['graphics'].append(copy.deepcopy(g))
         upgrade(self)
         self.upgrade_staffing()
+        self.upgrade_support()
         upgrade_locations(self)
         from hospitals import upgrade_hospitals
         upgrade_hospitals(self)
@@ -96,6 +98,7 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
     def snapshot(self):
         with self.lock:
             result=copy.deepcopy(self.state)
+            result['support_catalog']=self.support_catalog()
             for v in result['vehicles']:
                 v['in_shift']=self.in_shift(v);v['crew_shift']='Tagmannschaft 06–18' if 21600<=self.state['clock']%86400<64800 else 'Nachtmannschaft 18–06';v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
                 if v.get('daylight'):v['duty_window']=list(self.daylight_window(v))
@@ -145,7 +148,7 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
         if v['type']=='FR':return v['staffed']
         if v.get('duty_managed') and not v.get('daylight'):return self.managed_shift(v)
         if v.get('daylight'):
-            a,b=self.daylight_window(v);return v['staffed'] and a<=self.state['clock']//60%1440<b
+            a,b=self.daylight_window(v);return v['staffed'] and max(a,v.get('daylight_start',0))<=self.state['clock']//60%1440<b
         minute=int(self.state['clock']//60)%1440
         a,b=[int(x[:2])*60+int(x[3:]) for x in (v['start'],v['end'])]
         return v['staffed'] and (a==b or (a<=minute<b if a<b else minute>=a or minute<b))
@@ -194,6 +197,7 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
             self.update_operations(now)
             self.update_air(now)
             self.update_fuel(now)
+            self.update_support(now)
             self.update_assessments(now)
             self.update_patients(now)
             for v in self.state['vehicles']:
@@ -255,6 +259,8 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
                 from hospitals import edit_hospital
                 edit_hospital(self,data)
             elif action=='resource_call':self.contact_resource(data)
+            elif action=='support_request':self.request_support(data)
+            elif action=='support_cancel':self.cancel_support(data)
             elif action=='cancel_radio':self.cancellation_action(data)
             elif action=='fuel_radio':self.fuel_action(data)
             elif action=='fuel_request':self.request_fuel(self.get('vehicles',data['vehicle']))
@@ -309,10 +315,10 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
             elif action=='station': self.edit_station(data)
             elif action=='delete_vehicle':
                 v=self.get('vehicles',data['id'])
-                if v['job'] or v.get('reservation'): raise ValueError('Fahrzeug ist im Einsatz oder vordisponiert.')
+                if v['job'] or v.get('reservation') or v.get('support_request') or v.get('support_job'): raise ValueError('Fahrzeug ist im Einsatz oder vordisponiert.')
                 self.state['vehicles'].remove(v)
             elif action=='import':
-                if any(v['job'] or v.get('reservation') for v in self.state['vehicles']): raise ValueError('Import erst nach Abschluss aller Einsätze möglich.')
+                if any(v['job'] or v.get('reservation') or v.get('support_request') or v.get('support_job') for v in self.state['vehicles']): raise ValueError('Import erst nach Abschluss aller Einsätze möglich.')
                 config=data.get('config',{})
                 if not isinstance(config.get('stations'),list) or not isinstance(config.get('vehicles'),list): raise ValueError('Import benötigt stations und vehicles.')
                 for collection in ('stations','vehicles'):
@@ -332,7 +338,9 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
                 self.state=seed();self.state.update(incident_counter=incident_counter,location_version=location_version,start_date=start_date,fleet_version=fleet_version,staffing_version=staffing_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations;self.state['hospitals']=hospitals; self.state['vehicles']=vehicles
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
+                for v in vehicles:v.pop('support_job',None);v.pop('support_request',None)
                 self.migrate_operations()
+                self.upgrade_support()
             else: raise ValueError('Unbekannte Aktion.')
             if actor and action in JOB_ACTIONS and action!='handoff': j['owner']=actor['id']
             self.save()
@@ -346,8 +354,9 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
         record_id=existing['id'] if existing else str(d.get('id') or uid())
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}',record_id): raise ValueError('Ungültige Dienststellen-ID.')
         dispo=str(d.get('dispo',existing.get('dispo','05') if existing else '05'))
-        if dispo not in ('01','02','03','04','05','06'):raise ValueError('Dispozone 01–06 wählen.')
+        if dispo not in ('01','02','03','04','05','06','W','BG','OÖ','ST','K','S','T','V'):raise ValueError('Dispozone oder Bundeslandkürzel wählen.')
         s={'id':record_id,'name':name,'zone':zone,'dispo':dispo,'lat':lat,'lon':lon,'external':bool(d.get('external',existing.get('external',False) if existing else False)),'address':str(d.get('address',existing.get('address','') if existing else ''))[:250],'source':str(d.get('source',existing.get('source','Manuell gepflegt') if existing else 'Manuell gepflegt'))[:500]}
+        s.update(region=str(d.get('region',existing.get('region','Niederösterreich') if existing else 'Niederösterreich'))[:80],support_only=bool(d.get('support_only',existing.get('support_only',False) if existing else False)))
         if existing: existing.update(s)
         else: self.state['stations'].append(s)
         for v in self.state['vehicles']:
@@ -358,7 +367,7 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
         if not call or len(call)>40 or typ not in TYPES: raise ValueError('Kennung und Fahrzeugtyp prüfen.')
         home=self.station(station)
         existing=next((v for v in self.state['vehicles'] if v['id']==d.get('id')),None)
-        if existing and (existing['job'] or existing.get('reservation')): raise ValueError('Fahrzeug im Einsatz kann nicht bearbeitet werden.')
+        if existing and (existing['job'] or existing.get('reservation') or existing.get('support_request') or existing.get('support_job')): raise ValueError('Fahrzeug im Einsatz kann nicht bearbeitet werden.')
         if any(v['callsign']==call and v is not existing for v in self.state['vehicles']): raise ValueError('Kennung bereits vorhanden.')
         start=d.get('start','00:00'); end=d.get('end','00:00')
         for time in (start,end):
@@ -376,7 +385,7 @@ class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, Ai
         if typ=='RTW-C' and (not v['rtwc_capable'] or not v['nfs']):raise ValueError('RTW-C braucht Fahrzeugfähigkeit und bestätigte NFS-Besetzung.')
         if typ=='RTW-C' and any(u['station']==station and u['type']=='RTW-C' and u is not existing for u in self.state['vehicles']):raise ValueError('Pro Dienststelle ist nur ein RTW-C erlaubt. RTW-C-Besetzung wechseln verwenden.')
         if v['rtwc_fixed'] and (typ!='RTW-C' or station!='goetzendorf' or call!='77/030'):raise ValueError('77/030 bleibt RTW-C in Götzendorf.')
-        for key in ('duty_managed','home_lat','home_lon','home_address'):
+        for key in ('duty_managed','home_lat','home_lon','home_address','daylight_start'):
             if key in d:v[key]=d[key]
             elif existing and key in existing:v[key]=existing[key]
         v['status']=self.idle_status(v)
