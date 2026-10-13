@@ -11,10 +11,18 @@ window.DispatchLayout=(()=>{
   const key=(document.getElementById('detail').dataset.job||'')+':'+panel.id;
   panel.querySelectorAll('.dispatch-page-hidden').forEach(e=>e.classList.remove('dispatch-page-hidden'));
   let nav=panel.querySelector(':scope > .dispatch-page-nav');nav?.remove();
-  const units=[...panel.children].flatMap(e=>e.matches('.job-fields,.alarm-document,[data-key="support-card"]')?[...e.children]:[e]).filter(e=>!e.hidden&&e.getBoundingClientRect().height>0);
+  const capacity=Math.max(80,panel.clientHeight-40);
+  function items(e){
+   if(e.hidden||!e.getBoundingClientRect().height)return [];
+   const children=[...e.children];
+   const structural=e.matches('.job-fields,.alarm-document,[data-key="support-card"]');
+   const oversized=e.getBoundingClientRect().height>capacity&&children.length>1&&!e.matches('label,button,p,input,select,textarea');
+   return structural||oversized?children.flatMap(items):[e];
+  }
+  const units=[...panel.children].flatMap(items);
   const groups=[];
   for(const e of units){const rect=e.getBoundingClientRect(),last=groups.at(-1);if(last&&Math.abs(last.top-rect.top)<3){last.elements.push(e);last.bottom=Math.max(last.bottom,rect.bottom)}else groups.push({top:rect.top,bottom:rect.bottom,elements:[e]})}
-  const capacity=panel.clientHeight-40;let used=0;const chunks=[[]];
+  let used=0;const chunks=[[]];
   for(const group of groups){const height=group.bottom-group.top+8;if(used+height>capacity&&chunks.at(-1).length){chunks.push([]);used=0}chunks.at(-1).push(...group.elements);used+=height}
   if(chunks.length<=1){pages.set(key,0);return}
   let current=Math.min(pages.get(key)||0,chunks.length-1);

@@ -73,6 +73,15 @@ with tempfile.TemporaryDirectory() as data:
             assert p.evaluate("state.vehicles.find(v=>v.callsign==='C15').job===selected")
             assert p.evaluate("['SDS','ESApp'].every(channel=>state.messages.some(m=>m.vehicle===state.vehicles.find(v=>v.callsign==='C15').id&&m.channel===channel&&m.job===selected))")
             p.locator('#close-dispatch').click()
+            # Scene resources collapse into coloured counts on the incident marker.
+            p.evaluate("()=>command('dispatch',{job:selected,vehicles:[state.vehicles.find(v=>v.callsign==='77/099').id]})")
+            for call in ('77/002','77/099'):
+                p.evaluate("call=>command('vehicle_status',{vehicle:state.vehicles.find(v=>v.callsign===call).id,status:'2'})",call)
+                p.evaluate("call=>command('vehicle_status',{vehicle:state.vehicles.find(v=>v.callsign===call).id,status:'3'})",call)
+            p.wait_for_function("!mapObjects.has('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id)&&!mapObjects.has('vehicle:'+state.vehicles.find(v=>v.callsign==='77/099').id)")
+            marker=p.locator('.incident-marker').filter(has=p.locator('.scene-count.unit-rtw'))
+            expect(marker.locator('.scene-count.unit-rtw')).to_have_text('1');expect(marker.locator('.scene-count.unit-doctor')).to_have_text('1')
+            assert p.evaluate("getComputedStyle(document.querySelector('.scene-count.unit-rtw')).color==='rgb(36, 99, 189)'&&getComputedStyle(document.querySelector('.scene-count.unit-doctor')).color==='rgb(180, 35, 45)'")
             assert p.evaluate('document.documentElement.scrollHeight<=innerHeight+1')
             Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);p.screenshot(path='/tmp/noe-ui-qa/road-routing.png');assert not errors,errors
             print('Road routing browser test passed: address coordinates, street ETA, polyline, station and hospital icons.');browser.close()

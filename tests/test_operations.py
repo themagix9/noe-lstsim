@@ -14,6 +14,15 @@ class OperationsTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.path=str(Path(self.temp.name)/'db');self.e=Engine(self.path)
         self.v=next(v for v in self.e.state['vehicles'] if v['type']=='KTW')
     def tearDown(self):self.e.db.close();self.temp.cleanup()
+    def test_graphic_change_preserves_busy_vehicle_and_persists(self):
+        before=copy.deepcopy(self.v);before.update(status='duty',job='active',phase_due=9876,lat=48.11,lon=16.45)
+        self.v.update(before);self.e.command('vehicle_graphic',{'vehicle':self.v['id'],'graphic':'box'})
+        self.assertEqual(self.v,{**before,'graphic':'box'})
+        self.e.db.close();self.e=Engine(self.path);self.assertEqual(self.e.get('vehicles',self.v['id'])['graphic'],'box')
+    def test_unknown_graphic_does_not_change_vehicle(self):
+        before=copy.deepcopy(self.v)
+        with self.assertRaises(ValueError):self.e.command('vehicle_graphic',{'vehicle':self.v['id'],'graphic':'missing'})
+        self.assertEqual(self.v,before)
     def job(self,kind='transport'):
         j=self.e.new_job(kind,manual=kind=='transport',scenario=SCENARIOS[1] if kind=='emergency' else None)
         if kind=='emergency':j['accepted']=True

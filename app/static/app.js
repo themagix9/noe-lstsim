@@ -30,7 +30,7 @@ function station(id){return state.stations.find(x=>x.id===id)}
 function unitClass(v){return 'unit-'+({NEF:'doctor',NAH:'doctor',KTW:'ktw','KTW-B':'ktw',BKTW:'ktw',RTW:'rtw','RTW-C':'rtwc'}[v?.type]||'other')}
 function resourceName(v){return v.type==='NAH'?({c3:'99/003 Christophorus 3',c9:'99/009 Christophorus 9',c15:'99/015 Christophorus 15',c16:'99/016 Christophorus 16'}[v.station]||v.callsign):v.callsign.replace(/^FR-SCH-/,'FR-SW-').replace(/^FR-FIS-/,'FR-FS-')}
 function homeLabel(v){return ({schwechat:'SW','fr-fischamend':'FS'}[v.station]||station(v.station)?.name?.replace(/^RK\s+/, '')||'Unbekannt')}
-function mapVisible(v){return v.status!=='ready'&&!(v.type==='FR'&&!v.job&&['fr_ready','standby','radio','out'].includes(v.status))}
+function mapVisible(v){return !['ready','scene'].includes(v.status)&&!(v.type==='FR'&&!v.job&&['fr_ready','standby','radio','out'].includes(v.status))}
 function externalSupport(v){const home=station(v.station);return !!(home?.support_only||home?.dispo!==state.setup.dispo)}
 function relevant(v){const home=station(v.station);if(externalSupport(v))return !!v.support_job;return home?.dispo===state.setup.dispo&&(!zone||home?.zone===zone)&&(!home.external||v.job||shift(v)&&['ready','radio','fr_ready'].includes(v.status))}
 function km(v,j){const latitude=(v.lat+j.lat)/2*Math.PI/180;return Math.hypot((v.lat-j.lat)*111.2,(v.lon-j.lon)*111.2*Math.cos(latitude))}
@@ -197,7 +197,15 @@ function renderMap(vehicles,jobs){
   const icon=L.divIcon({className:'hospital-marker',html:'<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="5" y="5" width="30" height="33" rx="4" fill="currentColor" stroke="white" stroke-width="2"/><path d="M12 12h5v7h6v-7h5v18h-5v-7h-6v7h-5z" fill="white"/></svg>',iconSize:[22,24],iconAnchor:[11,22]});
   mapMarker('hospital:'+h.id,()=>L.marker([h.lat,h.lon]),[h.lat,h.lon],icon,`<b>${esc(h.name)}</b><br>${esc(h.address||'Adresse noch prüfen')}`,esc(h.name));
  });
- jobs.forEach(j=>mapMarker('job:'+j.id,()=>L.circleMarker([j.lat,j.lon],{radius:6,color:j.kind==='emergency'?'#d64854':'#2563eb',fillOpacity:.8}).on('click',()=>openDispatch(j.id)),[j.lat,j.lon],null,esc(j.accepted?j.title:'144-Anruf')+' · '+esc(j.address)));
+ jobs.forEach(j=>{
+  const present=state.vehicles.filter(v=>v.job===j.id&&v.status==='scene');
+  const counts=new Map();present.forEach(v=>{const key=unitClass(v);counts.set(key,(counts.get(key)||0)+1)});
+  const labels={'unit-ktw':'KTW / BKTW','unit-rtw':'RTW','unit-rtwc':'RTW-C','unit-doctor':'NEF / NAH','unit-other':'weitere Kräfte'};
+  const counters=['unit-ktw','unit-rtw','unit-rtwc','unit-doctor','unit-other'].filter(k=>counts.has(k)).map(k=>`<span class="scene-count ${k}" data-scene-type="${k}" title="${esc(labels[k])}" aria-label="${counts.get(k)} ${esc(labels[k])} am Berufungsort">${counts.get(k)}</span>`).join('');
+  const icon=L.divIcon({className:'incident-marker '+j.kind,html:`<span class="incident-dot"></span>${counters?`<span class="scene-counts">${counters}</span>`:''}`,iconSize:[18,18],iconAnchor:[9,9]});
+  const popup=esc(j.accepted?j.title:'144-Anruf')+' · '+esc(j.address)+(present.length?'<br><b>Am Berufungsort</b><br>'+present.map(v=>esc(v.type+' '+resourceName(v))).join('<br>'):'');
+  mapMarker('job:'+j.id,()=>L.marker([j.lat,j.lon]).on('click',()=>openDispatch(j.id)),[j.lat,j.lon],icon,popup);
+ });
  const overlaps={};vehicles.filter(mapVisible).forEach(v=>{
   const key=v.lat.toFixed(5)+','+v.lon.toFixed(5),n=overlaps[key]||0;overlaps[key]=n+1;
   const response=state.jobs.find(j=>j.id===v.job),blue=!!response?.signal&&['enroute','scene','transport'].includes(v.status)&&!['FR','NAH'].includes(v.type);
@@ -224,7 +232,7 @@ function renderHospitalCatalog(){
 }
 $('hospital-search').oninput=()=>{if(state)renderHospitalCatalog()};
 function editHospital(h){editing=h;editKind='hospital';$('editor-title').textContent=h.name;$('delete-vehicle').classList.add('hidden');$('fields').innerHTML=field('Breitengrad','lat',h.lat??'','number')+field('Längengrad','lon',h.lon??'','number')+`<label>Notfallziel<select name="emergency"><option value="false">Kein automatisches Notfallziel</option><option value="true" ${h.emergency?'selected':''}>Akutklinik</option></select></label><label>Hubschrauberlandeplatz<select name="helipad"><option value="false">Nicht bestätigt</option><option value="true" ${h.helipad?'selected':''}>Bestätigt</option></select></label><p class="hint">${esc(h.address)} · ${esc(h.coordinate_status||'Position prüfen')}</p>`;$('editor').showModal()}
-function renderAdmin(){renderHospitalCatalog();
+function renderAdmin(){renderHospitalCatalog();window.ResourceIcons?.render();
  const flight=String(state.setup.helicopter_speed_factor??1.15);if($('helicopter-speed-factor').dataset.factor!==flight&&document.activeElement!==$('helicopter-speed-factor')){$('helicopter-speed-factor').value=flight;$('helicopter-speed-factor').dataset.factor=flight}$('helicopter-speed-factor').disabled=!state.session.host;const factor=String(state.setup.blue_light_factor);if($('travel-settings').dataset.factor!==factor&&document.activeElement!==$('blue-light-factor')){$('blue-light-factor').value=factor;$('travel-settings').dataset.factor=factor}$('save-travel-settings').disabled=!state.session.host;$('blue-light-factor').disabled=!state.session.host;
  ['add-vehicle','add-station','upload-graphic','reset','import','edit-aao'].forEach(id=>$(id).disabled=!state.session.host);
  $('graphic-list').innerHTML=state.graphics.map(g=>`<section class="panel graphic-card"><img src="${esc(g.url)}" alt="${esc(g.name)}"><b>${esc(g.name)}</b><p>${esc(g.author)} · ${esc(g.license)}<br>${esc(g.source)}</p></section>`).join('');

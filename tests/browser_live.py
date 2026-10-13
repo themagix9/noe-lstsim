@@ -72,6 +72,12 @@ with tempfile.TemporaryDirectory() as data:
             on_tab(p,'kommunikation').locator('#radio-detail [data-cancel][data-step="cancel"]').click()
             p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/002').job===null")
             assert p.evaluate("new Set(state.messages.filter(m=>m.text.startsWith('EINSATZSTORNO')).map(m=>m.channel)).size===2")
+            p.locator('#close-dispatch').click();p.locator('#desk-menu summary').click();p.locator('[data-view="settings"]').click()
+            p.locator('#icon-resource-search').fill('77/004');expect(p.locator('#icon-resource option')).to_have_count(1)
+            p.locator('#icon-graphic').select_option('box');expect(p.locator('#resource-icon-preview')).to_have_attribute('src','/graphics/box.svg')
+            p.wait_for_timeout(1500);expect(p.locator('#icon-graphic')).to_have_value('box')
+            p.locator('#save-resource-icon').click();p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/004').graphic==='box'")
+            assert p.evaluate("state.vehicles.find(v=>v.callsign==='77/004').status==='duty'")
             assert not any(u.endswith('/api/state') for u in requests),requests;assert not errors,errors
             Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);p.screenshot(path='/tmp/noe-ui-qa/live-filter-sort.png');browser.close();print('Live editing, empty code, clock, filter, sort and preserved selection browser tests passed.')
     finally:proc.terminate();proc.wait(timeout=5)

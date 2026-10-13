@@ -134,3 +134,9 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 .unit-doctor,.resource-marker span.unit-doctor{color:#b4232d!important}.unit-ktw,.resource-marker span.unit-ktw{color:#16703c!important}.unit-rtw,.resource-marker span.unit-rtw{color:#2463bd!important}.unit-rtwc,.resource-marker span.unit-rtwc{color:#163d79!important}.unit-doctor,.unit-rtwc{font-weight:700}
 .hospital-catalog{max-height:350px;overflow:auto;margin-top:12px}.hospital-catalog>div{display:grid;gap:5px;border-bottom:1px solid var(--line);padding:12px 0}.hospital-catalog small{color:var(--muted)}
 .fleet-verification{display:block;max-width:280px;font-size:11px;line-height:1.35;color:#886329;margin-top:4px}
+
+#dispatch-dialog .dispatch-options .resource-row{grid-template-columns:20px 152px 50px 1fr 105px 140px 110px;min-width:850px}
+
+.resource-icon-preview{display:flex;align-items:center;gap:12px;min-height:90px;margin:10px 0}.resource-icon-preview img{width:140px;height:75px;object-fit:contain}.resource-icon-preview p{font-size:12px}.settings-card label:has(#icon-resource),.settings-card label:has(#icon-graphic){display:flex;flex-direction:column;gap:5px;margin-top:10px}
+
+.incident-marker .incident-dot{display:block;width:16px;height:16px;border:2px solid white;border-radius:50%;background:#d64854;box-shadow:0 1px 4px #0006}.incident-marker.transport .incident-dot{background:#2563eb}.scene-counts{position:absolute;display:flex;gap:3px;left:19px;top:-3px;width:max-content}.scene-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:23px;padding:0 4px;background:white;border:1px solid currentColor;border-radius:5px;font-size:14px;font-weight:800;box-shadow:0 1px 3px #0003}.scene-count.unit-other{color:#706080}

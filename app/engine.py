@@ -313,6 +313,10 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                 created=self.create_job(data)
                 if actor:created['owner']=actor['id']
             elif action=='rules': self.edit_rules(data)
+            elif action=='vehicle_graphic':
+                v=self.get('vehicles',data['vehicle']);graphic=data.get('graphic')
+                if graphic not in {g['id'] for g in self.state['graphics']}:raise ValueError('Unbekannte Fahrzeuggrafik.')
+                v['graphic']=graphic
             elif action=='vehicle': self.edit_vehicle(data)
             elif action=='station': self.edit_station(data)
             elif action=='delete_vehicle':
