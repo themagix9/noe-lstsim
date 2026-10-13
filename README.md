@@ -1,4 +1,4 @@
-# NÖ Dispo – Docker-Leitstellensimulator v0.7
+# NÖ Dispo – Docker-Leitstellensimulator v0.10
 
 Eigenständiger, spielbarer Prototyp für Niederösterreich, zunächst Raum Bruck/Leitha, Schwechat und Hainburg. Keine Kopie des LstSim-Quellcodes; keine Anbindung an echte Leitstellen.
 
@@ -253,3 +253,11 @@ Automatische 144-Anrufe beginnen mit „Rettungsleitstelle Niederösterreich, wo
 Neue Transportaufträge haben Abholzeiten nur auf :00 oder :30. Das Formular und die Einsatzbearbeitung erlauben diese Halbstundenschritte, der Server prüft sie ebenfalls. Im Auftragseingang und Einsatzfenster wird die Abholzeit rot, sobald höchstens 30 Simulationsminuten verbleiben; überfällige Aufträge bleiben rot. Bereits vorhandene Aufträge werden nicht ungefragt umterminiert.
 
 Kartenmarker und Routen werden nach stabilen IDs abgeglichen. Bestehende Marker bleiben dieselben Leaflet-Objekte; nur Position, Icon oder Popup-Inhalt ändern sich bei Bedarf. Live-Stände löschen nicht mehr alle Kartenlayer. Offene Popups sowie vom Spieler gewählte Zoomstufe und Kartenausschnitt bleiben erhalten. Ein automatischer Wechsel erfolgt nur bei neuer Sitzung/Zonenwahl oder beim ausdrücklich gewünschten Fokus auf einen neuen Notruf. Die Nutzerreferenz wurde hinsichtlich Initialisierung und Positionsänderung bestehender Marker gelesen; die Leaflet-Umsetzung ist eigenständig.
+
+## v0.10: Einsatzlagen, Klinikverzeichnis und Mannschaftsfunk
+
+62 eigenständig geschriebene Einsatzlagen verwenden reale OSM-Adresspunkte des hinterlegten Bereichs und fiktive Personen. Zwei Patienten werden nach Erkundung getrennten Transportmitteln zugeordnet; ein fehlendes Fahrzeug kann per Funk nachgefordert werden. Tankwünsche im Status 6 benötigen eine Freigabe (simulierte Tankpause: fünf Minuten). Im Einsatzfenster können einzelne Ressourcen angefunkt und vor Patiententransport per Funk sowie SDS/ESApp storniert werden.
+
+Das österreichweite Krankenhausverzeichnis enthält 304 Standorte von 254 Krankenanstalten aus dem amtlichen Verzeichnis vom 18.09.2026. Quelle: https://www.sozialministerium.gv.at/Themen/Gesundheit/Gesundheitssystem/Krankenanstalten/Krankenanstalten-und-selbststaendige-Ambulatorien-in-Oesterreich/Krankenanstalten-in-Oesterreich.html . Koordinaten stammen aus OpenStreetMap/Photon (© OpenStreetMap contributors, ODbL-1.0) oder den bereits hinterlegten Betreiberreferenzen. Gebäudezugänge und reale Annahmemöglichkeiten sind nicht bestätigt. Nicht eindeutig zuordenbare Kartenpositionen bleiben offen und lassen sich vom Sitzungsleiter in Konfiguration → Krankenhäuser bestätigen; diese Standorte werden bis dahin nicht geroutet. Automatische Notfallziele sind nahe Akutkliniken, nicht zufällige österreichweite Ziele. Geplante Transporte können zwischen Wien und NÖ sowie vom Wiener Krankenhaus zur realen Wohnadresse in NÖ führen.
+
+Funkhinweise und Transport-Gong sind eigene synthetische Audiosignale. Eine eigene kurze Audiodatei (bis 1 MB) lässt sich browserlokal wählen; sie wird nicht auf den Server hochgeladen oder ins Repository übernommen. Der Zedge/Motorola-Ton ist nicht Bestandteil dieses Projekts.

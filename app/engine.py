@@ -16,6 +16,9 @@ from air_ops import AirOps
 from routing import router_for
 from radio import Radio
 from patients import Patients
+from fuel import Fuel
+from cancellations import Cancellations
+from multiple_patients import MultiplePatients
 from calls import Calls
 from locations import ADDRESSES,ADDRESS_CITIES,upgrade_locations
 
@@ -54,9 +57,9 @@ def seed():
     for call, typ, station in rows:
         s=next(x for x in stations if x['id']==station)
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
-    return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':HOSPITALS,'next_emergency':8*3600+180,'next_transport':8*3600+60}
+    return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':copy.deepcopy(HOSPITALS),'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
+class Engine(Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -82,6 +85,8 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
         upgrade(self)
         self.upgrade_staffing()
         upgrade_locations(self)
+        from hospitals import upgrade_hospitals
+        upgrade_hospitals(self)
         self.save()
 
     def save(self):
@@ -150,10 +155,11 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
         address_point=random.choice([a for a in ADDRESSES if a['city']==city])
         place,lat,lon=address_point['city'],address_point['lat'],address_point['lon']
         clock=self.state['clock']
-        job={'id':uid(),'kind':kind,'place':place,'lat':lat,'lon':lon,'address':address_point['address'],'address_point':address_point.copy(),'address_source':'OpenStreetMap','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ'])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
+        job={'id':uid(),'kind':kind,'place':place,'lat':lat,'lon':lon,'address':address_point['address'],'address_point':address_point.copy(),'address_source':'OpenStreetMap','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ' and isinstance(h.get('lat'),(int,float)) and isinstance(h.get('lon'),(int,float))])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
         if kind=='emergency':
             from scenarios import EXTRA_SCENARIOS
-            scenario=copy.deepcopy(scenario if scenario is not None else random.choice(SCENARIOS if manual else SCENARIOS+EXTRA_SCENARIOS)); job.update(scenario)
+            from scenario_catalog import CATALOG
+            scenario=copy.deepcopy(scenario if scenario is not None else random.choice(SCENARIOS if manual else SCENARIOS+EXTRA_SCENARIOS+CATALOG)); job.update(scenario)
             job['due']=clock
             if not manual:self.log('Neuer 144-Anruf wartet auf Annahme.','Telefon')
         elif kind=='transport':
@@ -162,6 +168,9 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
             job['due']=math.ceil(job['due']/1800)*1800
         else:
             raise ValueError('Unbekannte Auftragsart.')
+        if kind=='transport' and not manual:
+            from hospitals import plan_transport
+            plan_transport(self,job)
         code=job.get('suggested_code') or {'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1','Entlassung':random.choice(['KTR-95K2','KTR-95K3']),'Ambulanztermin':random.choice(['KTR-90K2','KTR-90K3']),'Dialysefahrt':random.choice(['KTR-93Y1','KTR-93Y2'])}.get(job['title'],'SIM-KT')
         rule=self.rule(code)
         job.update(code=code,category=rule.get('category') if rule else None,signal=rule['signal'] if rule else False,additional='',fire=job.get('fire',False),police=job.get('police',False),organization='RK')
@@ -184,6 +193,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
             self.upgrade_staffing()
             self.update_operations(now)
             self.update_air(now)
+            self.update_fuel(now)
             self.update_assessments(now)
             self.update_patients(now)
             for v in self.state['vehicles']:
@@ -241,6 +251,13 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
                 except (TypeError,ValueError):raise ValueError('Hubschrauberfaktor zwischen 1,00 und 1,50 eingeben.')
                 if not math.isfinite(flight) or not 1<=flight<=1.5:raise ValueError('Hubschrauberfaktor zwischen 1,00 und 1,50 eingeben.')
                 self.state['setup'].update(blue_light_factor=factor,helicopter_speed_factor=flight)
+            elif action=='hospital':
+                from hospitals import edit_hospital
+                edit_hospital(self,data)
+            elif action=='resource_call':self.contact_resource(data)
+            elif action=='cancel_radio':self.cancellation_action(data)
+            elif action=='fuel_radio':self.fuel_action(data)
+            elif action=='fuel_request':self.request_fuel(self.get('vehicles',data['vehicle']))
             elif action=='radio':self.radio_action(data)
             elif action=='handoff':
                 if self.state['setup'].get('workflow')!='split':raise ValueError('Übergabe gehört zum getrennten Mehrspielermodus.')

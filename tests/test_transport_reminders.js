@@ -17,3 +17,10 @@ state.jobs.push({id:'e',kind:'transport',status:'new',vehicles:[],due:3700},{id:
 reminders.check(state);assert.deepEqual(events.at(-1),['e','f'],'New urgent or reserved jobs gong once as a batch');
 state.session.me='room-b';reminders.check(state);assert.equal(events.length,4,'Rooms track reminders separately');
 console.log('Transport reminder threshold, persistence, batching and pause tests passed.');
+const {createRadioReminders}=require('../app/static/transport-reminders.js');
+let radioCount=0;const radio=createRadioReminders(()=>radioCount++);
+const radioState={session:{me:'a'},logs:[{time:1,channel:'Funk',text:'Hier 77/001, bestehende Meldung.'}]};
+radio.check(radioState);assert.equal(radioCount,0);
+radioState.logs.unshift({time:2,channel:'Funk',text:'LEO von 77/002, kommen.'});radio.check(radioState);assert.equal(radioCount,1);
+radio.check(radioState);assert.equal(radioCount,1);
+radioState.logs.unshift({time:3,channel:'Status',text:'77/001, Status 2.'});radio.check(radioState);assert.equal(radioCount,1);

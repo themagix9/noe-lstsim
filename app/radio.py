@@ -22,6 +22,8 @@ class Radio:
     def maybe_reinforcement(self,j,v):
         if j.get('no_patient') or j.get('_scenario',{}).get('no_patient'):return
         if os.environ.get('REINFORCEMENTS_AUTO','1')=='0' and not j.get('exercise_reinforcement'):return
+        if self.missing_carriers(j) and v['type'] not in ('NEF','NAH','FR'):
+            self.raise_radio(j,v,'RTW','Zwei Patienten am Berufungsort, bitte ein zweites transportierendes Rettungsmittel.',reason_initial=True);return
         if v['type'] in ('NEF','NAH','FR') or j['kind']!='emergency' or j.get('reinforcement_checked'):return
         j['reinforcement_checked']=True
         protocol=str(j.get('code','')).removeprefix('RD-').split('-')[0]
@@ -62,7 +64,7 @@ class Radio:
             if kind in ('Polizei','Feuerwehr'):
                 j['police' if kind=='Polizei' else 'fire']=True;answer=kind+' ist verständigt und kommt zum Berufungsort.'
             else:
-                unit=next((self.get('vehicles',id) for id in reversed(j['vehicles']) if self.get('vehicles',id)['type']==kind and self.get('vehicles',id)['job']==j['id'] and id!=v['id']),None)
+                unit=next((self.get('vehicles',id) for id in reversed(j['vehicles']) if (self.get('vehicles',id)['type']==kind or kind=='RTW' and self.get('vehicles',id)['type'] in ('RTW-C','KTW')) and self.get('vehicles',id)['job']==j['id'] and id!=v['id']),None)
                 if not unit:raise ValueError('Benötigtes Rettungsmittel zuerst zum bestehenden Einsatz dazubuchen.')
                 call['assigned']=unit['id'];j['reinforcement_waiting']=unit['id'];j['reinforcement_arrived']=unit['status']=='scene';place=self.station(unit['station'])['name'].removeprefix('RK ').split(' · ')[0]
                 answer=f'{kind} {place} kommt '+('ab Wache.' if unit.get('alarm_from')=='ready' else 'über Funk zum Berufungsort.')

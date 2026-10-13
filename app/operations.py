@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio')
 
 class Operations:
     def migrate_operations(self):
@@ -73,7 +73,8 @@ class Operations:
     def detach(self,v):
         if not v['job']:return
         old=self.get('jobs',v['job'])
-        if v['status']=='hospital' and v['type'] not in ('NEF','FR'):old['patient_delivered']=True
+        if v['status']=='hospital' and v['type'] not in ('NEF','FR'):self.delivered_patient(old,v)
+        self.release_patient_carrier(old,v)
         v['job']=None
         if all(self.get('vehicles',id)['job']!=old['id'] for id in old['vehicles']):
             old['status']='done' if old.get('patient_delivered') else 'assigned'
@@ -161,8 +162,11 @@ class Operations:
         if waiting and not j.get('reinforcement_arrived'):
             unit=self.get('vehicles',waiting)
             if unit['job']==j['id'] and unit['status']!='scene':v['phase_due']=self.state['clock']+30;return
+        self.assign_patients(j)
+        multi=j.get('patient_count',1)>1
+        if multi and v.get('patient_index') is None:self.detach(v);self.drive(v,self.home(v),'radio');return
         carrier=self.patient_carrier(j)
-        if carrier and v['id']!=carrier['id']:
+        if not multi and carrier and v['id']!=carrier['id']:
             if carrier['status'] in ('transport','hospital') or j.get('patient_delivered'):self.detach(v);self.drive(v,self.home(v),'radio')
             else:v['phase_due']=None
             return
@@ -177,7 +181,9 @@ class Operations:
                 self.start_transport(v)
             else:v['phase_due']=None
             return
-        h=self.get('hospitals',j['crew_target']) if j.get('crew_target') else random.choice([h for h in self.state['hospitals'] if not h.get('ecpr') and (v['type']!='NAH' or h.get('helipad'))]);j['requested_destination']=h['id']
+        from hospitals import nearby
+        if multi and not j.get('crew_target'):j['crew_target']=nearby(self,j,'NÖ',True)[0]['id']
+        h=self.get('hospitals',j['crew_target']) if j.get('crew_target') else random.choice([h for h in nearby(self,j,emergency=True) if v['type']!='NAH' or h.get('helipad')][:5]);j['requested_destination']=h['id']
         if h['region']=='Wien':
             j['destination']=None;j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None
             self.log(f'{v["callsign"]} an Leitstelle: Patient transportbereit, benötigen ein Ziel in Wien, Wunsch {h["name"]}. Bitte Bettenmann verständigen.')
@@ -189,12 +195,13 @@ class Operations:
     def start_transport(self,v):
         j=self.get('jobs',v['job'])
         if j.get('no_patient') or j.get('_scenario',{}).get('no_patient'):raise ValueError('Keine transportpflichtige Person in diesem Szenario.')
-        h=self.get('hospitals',j['destination'])
+        h=__import__('hospitals').destination(self,j)
+        if not __import__('hospitals').located(h):raise ValueError('Kartenposition des Transportziels zuerst in den Einstellungen bestätigen.')
         if v['type']=='NAH' and not h.get('helipad'):raise ValueError('Hubschrauberziel benötigt einen Landeplatz.')
         if j.get('cpr_confirmed') and (v['type']!='NAH' or not h.get('ecpr') or j.get('ecpr_state')!='confirmed'):raise ValueError('eCPR-Flug erst nach Mannschaftsrückmeldung und Zielbestätigung.')
         for id in j['vehicles']:
             other=self.get('vehicles',id)
-            if other['id']!=v['id'] and other['job']==j['id'] and other['status']=='scene':self.detach(other);self.drive(other,self.home(other),'radio')
+            if other['id']!=v['id'] and other['job']==j['id'] and other['status']=='scene' and other.get('patient_index') is None:self.detach(other);self.drive(other,self.home(other),'radio')
         self.drive(v,h,'transport',180);j['status']='transport'
         self.log(f'{v["callsign"]}, Status 4: Patient übernommen, zum Zielort {h["name"]}.')
 
@@ -212,7 +219,7 @@ class Operations:
         if channel not in ('SDS','ESApp'):raise ValueError('SDS oder ESApp wählen.')
         carrier=self.patient_carrier(j);targets=[carrier] if carrier else []
         if not targets or any(v['status']!='scene' for v in targets):raise ValueError('Keine wartende Mannschaft am Berufungsort.')
-        h=self.get('hospitals',j['destination']);j['bed_state']='sent';j['case_channel']=channel
+        h=__import__('hospitals').destination(self,j);j['bed_state']='sent';j['case_channel']=channel
         for v in targets:
             text=f'Ziel {h["name"]}; Kasusnummer {j["case_number"]}. Bei der Aufnahme angeben.'
             self.state['messages'].append({'job':j['id'],'vehicle':v['id'],'channel':channel,'text':text,'time':self.state['clock']})
@@ -230,7 +237,7 @@ class Operations:
             leg=v.get('leg')
             if v['status']=='transport' and v.get('job') and not leg:
                 # Recover older persisted transports which lost their active route.
-                j=self.get('jobs',v['job']);h=self.get('hospitals',j['destination'])
+                j=self.get('jobs',v['job']);h=__import__('hospitals').destination(self,j)
                 from engine import distance
                 if distance(v,h)>.02:self.drive(v,h,'transport',180);leg=v.get('leg')
             if leg and self.router.enabled and v['type']!='NAH' and not leg.get('geometry') and not leg.get('waiting'):
@@ -255,6 +262,7 @@ class Operations:
         if status=='acknowledged':self.depart(v);return
         if status=='enroute':
             j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])
+            self.assign_patients(j)
             if j.get('reinforcement_waiting')==v['id']:j['reinforcement_arrived']=True
             v['assessment_due']=now+random.randint(60,120)
             if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
@@ -268,7 +276,7 @@ class Operations:
             else:self.crew_destination(v)
             return
         if status=='transport':
-            j=self.get('jobs',v['job']);h=self.get('hospitals',j['destination']);v.update(status='hospital',phase_due=now+600,lat=h['lat'],lon=h['lon']);j['status']='hospital'
+            j=self.get('jobs',v['job']);h=__import__('hospitals').destination(self,j);v.update(status='hospital',phase_due=now+600,lat=h['lat'],lon=h['lon']);j['status']='hospital'
             self.log(f'{v["callsign"]}, Status 5: am Zielort, Patientenübergabe.'+(f' Aufnahme mit Kasusnummer {j["case_number"]}.' if j.get('case_number') else ''));return
         if status=='hospital':
             self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Übergabe abgeschlossen, Status 6: frei über Funk.');return
@@ -336,7 +344,9 @@ class Operations:
         additional=str(data.get('additional','')).strip()
         if len(additional)>500:raise ValueError('Zusatztext maximal 500 Zeichen.')
         destination=data.get('destination')
-        if kind=='transport':self.get('hospitals',destination)
+        if kind=='transport':
+            h=self.get('hospitals',destination)
+            if not __import__('hospitals').located(h):raise ValueError('Kartenposition des Transportziels zuerst in den Einstellungen bestätigen.')
         elif destination:raise ValueError('Notfallziel wird durch die Mannschaft gemeldet.')
         place=address.split(',')[-1].strip();place=__import__('re').sub(r'^\d{4}\s+','',place)
         j=self.new_job(kind,manual=True);j.update(address=address,place=place,lat=lat,lon=lon,due=due,caller='Vom Disponenten erstellter Auftrag',accepted=True,asked=True)

@@ -76,3 +76,6 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 .job-code{display:block;color:var(--blue);font-weight:750;margin:5px 0;font-size:13px}.job-resources{display:grid;gap:5px;margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}.job-resource{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px;font-size:13px}.job-resource>.badge{font-size:12px;white-space:normal;text-align:left}
 
 .resource-marker span{width:max-content;position:relative;left:30px;transform:translateX(-50%);padding:2px 5px;line-height:1.2}.resource-marker span small{display:block;font-size:11px;color:#526780}
+
+.unit-doctor,.resource-marker span.unit-doctor{color:#b4232d!important}.unit-ktw,.resource-marker span.unit-ktw{color:#16703c!important}.unit-rtw,.resource-marker span.unit-rtw{color:#2463bd!important}.unit-rtwc,.resource-marker span.unit-rtwc{color:#163d79!important}.unit-doctor,.unit-rtwc{font-weight:700}
+.hospital-catalog{max-height:350px;overflow:auto;margin-top:12px}.hospital-catalog>div{display:grid;gap:5px;border-bottom:1px solid var(--line);padding:12px 0}.hospital-catalog small{color:var(--muted)}

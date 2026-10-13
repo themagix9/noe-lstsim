@@ -14,7 +14,7 @@ class FleetTests(unittest.TestCase):
     def tearDown(self):self.e.db.close();self.tmp.cleanup()
     def vehicle(self,call):return next(v for v in self.e.state['vehicles'] if v['callsign']==call)
     def job(self,kind='emergency'):
-        j=self.e.new_job(kind,scenario=SCENARIOS[1] if kind=='emergency' else None);j['accepted']=True;return j
+        j=self.e.new_job(kind,manual=kind=='transport',scenario=SCENARIOS[1] if kind=='emergency' else None);j['accepted']=True;return j
     def test_confirmed_station_bindings(self):
         expected={'77/006':'goetzendorf','77/030':'goetzendorf','77/060':'leopoldsdorf','77/050':'himberg'}
         for call,station in expected.items():self.assertEqual(self.vehicle(call)['station'],station)

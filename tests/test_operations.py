@@ -15,7 +15,7 @@ class OperationsTests(unittest.TestCase):
         self.v=next(v for v in self.e.state['vehicles'] if v['type']=='KTW')
     def tearDown(self):self.e.db.close();self.temp.cleanup()
     def job(self,kind='transport'):
-        j=self.e.new_job(kind,scenario=SCENARIOS[1] if kind=='emergency' else None)
+        j=self.e.new_job(kind,manual=kind=='transport',scenario=SCENARIOS[1] if kind=='emergency' else None)
         if kind=='emergency':j['accepted']=True
         return j
     def dispatch(self,j,v=None,**extra):return self.e.command('dispatch',{'job':j['id'],'vehicles':[(v or self.v)['id']],**extra})

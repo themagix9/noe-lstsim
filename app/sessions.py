@@ -110,12 +110,12 @@ class Sessions:
 
     def command(self,member,action,data):
         with self.lock:
-            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc','travel_settings') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
+            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc','travel_settings','hospital') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
             engine=self.engine(member['room_id'])
             split=engine.state['setup'].get('workflow')=='split';role=member.get('role','both')
             if split:
                 if action in ('accept','ask','call_question','call_finish','handoff') and role!='calltaker':raise PermissionError('Die Anrufabfrage übernimmt der Calltaker.')
-                if action in ('dispatch','reserve','unreserve','bed_request','send_case','carrier','ask_cpr','radio','radio_generate','vehicle_status') and role!='dispatcher':raise PermissionError('Die Einsatzdisposition übernimmt der Disponent.')
+                if action in ('dispatch','reserve','unreserve','bed_request','send_case','carrier','ask_cpr','radio','radio_generate','vehicle_status','fuel_radio','fuel_request','resource_call','cancel_radio') and role!='dispatcher':raise PermissionError('Die Einsatzdisposition übernimmt der Disponent.')
                 if action in ('claim','edit_job','dispatch','reserve','unreserve'):
                     job=engine.get('jobs',data.get('id') if action=='claim' else data.get('job'))
                     if job.get('call') and ((role=='dispatcher' and not job.get('handoff')) or (role=='calltaker' and job.get('handoff'))):raise PermissionError('Die Abfrage muss zuerst an die Disposition übergeben werden.' if role=='dispatcher' else 'Der Auftrag wurde bereits an die Disposition übergeben.')

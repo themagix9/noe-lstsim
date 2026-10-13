@@ -4,7 +4,7 @@ import random
 class Calls:
     def prepare_call(self,j):
         if j['kind']!='emergency' or j.get('call'):return
-        name=random.choice(['Anna Berger','Thomas Winter','Sabine Leitner','Markus Huber','Eva Wagner'])
+        name=random.choice(['Anna Berger','Thomas Winter','Sabine Leitner','Markus Huber','Eva Wagner','Florian Gruber','Petra Bauer','Miriam Steiner','Lukas Hofer','Elisabeth Mayer','Daniel Fischer','Johanna Leitner','Michael Schwarz','Nora Huber','Andreas König','Claudia Reiter','Felix Schuster','Maria Winkler','Leon Auer','Theresa Pichler','Paul Brandl','Katharina Moser','Simon Eder','Verena Fuchs','Stefan Haider','Lisa Koller','Robert Brunner','Sarah Graf','Martin Schmid','Julia Reisinger'])
         event=j.get('event_title',j['title']);unconscious=event=='Bewusstlose Person';dyspnea=event=='Atemnot';fall=event=='Sturz in Wohnung'
         questions=[
             ('location','Adresse bestätigen','Zur Sicherheit: Wo genau sind Sie? Welche Hausnummer, welcher Stock und welche Tür?',f'Ja, {j["address"]}. '+('Erster Stock, Tür 3.' if fall or dyspnea else 'Ich stehe direkt davor, draußen.')),

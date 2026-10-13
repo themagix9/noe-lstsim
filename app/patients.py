@@ -19,6 +19,7 @@ class Patients:
         truth=j.get('_scenario',{})
         j['scene_report']={'text':truth.get('report',j.get('scene','Lage vor Ort erhoben.')),'time':self.state['clock']}
         self.log(f'Hier {self.radio_name(v)}, '+j['scene_report']['text']+' Kommen.','Funk')
+        self.discover_patients(j)
         if truth.get('no_patient'):
             j.update(no_patient=True,patient=None,patient_condition=None,destination=None)
             for id in j['vehicles']:
@@ -42,7 +43,7 @@ class Patients:
             j['patient_condition']=None;return
         if j.get('patient_condition') and not replace:return
         score=0 if j.get('code')=='RD-9E1' else random.randint(15,40) if 'NEF' in j.get('needs',[]) else random.randint(85,100) if j['kind']=='transport' else random.randint(55,90)
-        if j.get('_scenario') and j.get('code')!='RD-9E1':score=j['_scenario']['initial_percent']
+        if j.get('_scenario'):score=j['_scenario']['initial_percent']
         j['patient_condition']={'percent':score,'reported':False,'notarzt_required':score<45,'last_report':None,'next_change':self.state['clock']+300,'model':'Fiktiver Spielwert – keine medizinische Bewertung'}
 
     def patient_report(self,j,v,force=False):
