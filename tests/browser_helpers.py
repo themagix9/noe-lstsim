@@ -7,6 +7,10 @@ def on_tab(page, key):
 
 def choose_code(page, code):
     on_tab(page, 'disposition')
+    from pathlib import Path
+    Path('/tmp/noe-ui-qa').mkdir(exist_ok=True)
+    print('AMPDS visibility:',page.evaluate("()=>{const e=document.getElementById('job-search');return {tab:detailTab,ancestors:e?[e,e.parentElement,e.parentElement.parentElement,e.closest('[role=tabpanel]')].map(n=>({tag:n.tagName,id:n.id,hidden:n.hidden,classes:n.className,display:getComputedStyle(n).display,height:n.getBoundingClientRect().height})):[]}}"))
+    page.screenshot(path='/tmp/noe-ui-qa/ampds-disposition.png')
     page.locator('#job-search').fill(code)
     page.locator('[data-code-choice="'+code+'"]').click()
 
@@ -22,3 +26,4 @@ def start_session(page):
     page.evaluate("command('control',{paused:true})")
     expect(page.locator('#playback-title')).to_have_text('Spiel pausiert')
     if not (previews/'pause-screen.png').exists():page.screenshot(path=str(previews/'pause-screen.png'))
+    page.wait_for_function("code=>state.jobs.find(j=>j.id===selected)?.code===code&&state.jobs.find(j=>j.id===selected)?.code_confirmed",arg=code)
