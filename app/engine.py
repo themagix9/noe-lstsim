@@ -102,6 +102,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
                         if v['type']=='NAH' and self.sendable(v,j):estimates[v['id']]={'status':'ready','seconds':distance(v,j)/v.get('flight_speed',220)*3600,'distance_m':distance(v,j)*1000,'source':'Flugzeit · Luftlinie'}
                         eta=estimates.get(v['id'])
                         if eta and eta['status']=='ready':
+                            eta['base_travel_seconds']=eta['seconds'];eta['time_factor']=self.response_factor(v,j);eta['seconds']*=eta['time_factor']
                             eta['seconds']+=float(v.get('turnout',60))+max(0,(v.get('phase_due') or 0)-self.state['clock'] if v['status']=='hospital' else 0)
                             eta['arrival']=self.state['clock']+eta['seconds']
                     j['resource_eta']=estimates;j['aao']=self.recommendation(j)
@@ -224,6 +225,11 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
                 speed=data.get('speed',self.state['speed'])
                 if speed not in (1,5,15,60): raise ValueError('Ungültige Geschwindigkeit.')
                 self.state['speed']=speed; self.state['paused']=bool(data.get('paused',self.state['paused']))
+            elif action=='travel_settings':
+                try:factor=float(data['blue_light_factor'])
+                except (KeyError,TypeError,ValueError):raise ValueError('Fahrzeitfaktor zwischen 0,50 und 1,00 eingeben.')
+                if not math.isfinite(factor) or not .5<=factor<=1:raise ValueError('Fahrzeitfaktor zwischen 0,50 und 1,00 eingeben.')
+                self.state['setup']['blue_light_factor']=factor
             elif action=='radio':self.radio_action(data)
             elif action=='radio_generate':
                 j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])

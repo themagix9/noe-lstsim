@@ -21,8 +21,8 @@ def code_rule(code):
 def estimated_seconds(engine,v,j):
     from engine import distance
     estimate=engine.router.cached_eta(v,j) if v['type']!='NAH' else None
-    if estimate and estimate['status']=='ready':return estimate['seconds']+float(v.get('turnout',60))+max(0,(v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
-    return distance(v,j)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600+float(v.get('turnout',60))+max(0,(v.get('handover_due') or v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
+    if estimate and estimate['status']=='ready':return estimate['seconds']*engine.response_factor(v,j)+float(v.get('turnout',60))+max(0,(v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
+    return distance(v,j)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600*engine.response_factor(v,j)+float(v.get('turnout',60))+max(0,(v.get('handover_due') or v.get('phase_due') or 0)-engine.state['clock'] if v['status']=='hospital' else 0)
 
 def recommend(engine,j):
     candidates=[v for v in engine.state['vehicles'] if engine.sendable(v,j)]

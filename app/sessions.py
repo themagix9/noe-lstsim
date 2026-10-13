@@ -102,7 +102,7 @@ class Sessions:
 
     def command(self,member,action,data):
         with self.lock:
-            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
+            if action in ('vehicle','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc','travel_settings') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
             engine=self.engine(member['room_id'])
             if action=='leave':
                 mode=self.db.execute('SELECT mode FROM rooms WHERE id=?',(member['room_id'],)).fetchone()[0]
