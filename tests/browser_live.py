@@ -29,11 +29,24 @@ with tempfile.TemporaryDirectory() as data:
             expect(on_tab(p, 'einsatz').locator('#job-additional')).to_have_value('Text bleibt erhalten')
             on_tab(p, 'disposition').locator('[data-filter="RTW"]').click();assert p.evaluate("[...document.querySelectorAll('.resource-row')].every(e=>['RTW','RTW-C'].includes(state.vehicles.find(v=>v.id===e.dataset.resourceId).type))")
             row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('RTW 77/002');row.locator('input').check();on_tab(p, 'einsatz');expect(p.locator('#detail-panel-disposition')).to_be_hidden();expect(p.locator('#job-additional')).to_have_value('Text bleibt erhalten');on_tab(p, 'disposition');expect(row.locator('input')).to_be_checked()
+            # Compact laptop window: only the resource list scrolls, checked rows green.
+            p.set_viewport_size({'width':1366,'height':768});p.wait_for_timeout(250)
+            expect(row).to_have_attribute('aria-checked','true')
+            assert p.evaluate("getComputedStyle(document.querySelector('.resource-row[aria-checked=true]')).backgroundColor==='rgb(216, 241, 223)'")
+            assert p.evaluate("(()=>{const d=document.getElementById('dispatch-dialog'),a=document.getElementById('detail'),b=document.getElementById('detail-panel-disposition');return d.scrollHeight<=d.clientHeight+1&&a.scrollHeight<=a.clientHeight+1&&b.scrollHeight<=b.clientHeight+1})()")
+            p.evaluate("document.querySelector('.resource-list').scrollTop=500")
+            on_tab(p,'einsatz');on_tab(p,'disposition');assert p.evaluate("document.querySelector('.resource-list').scrollTop") == 0
+            Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);p.screenshot(path='/tmp/noe-ui-qa/compact-disposition.png')
+            p.set_viewport_size({'width':1440,'height':1100})
             on_tab(p, 'disposition').locator('[data-filter="NA"]').click();expect(on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002')).to_have_count(0)
             on_tab(p, 'disposition').locator('[data-filter="RTW"]').click();expect(on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002').locator('input')).to_be_checked()
             on_tab(p, 'disposition').locator('#resource-sort').select_option('callsign');on_tab(p, 'disposition').locator('#resource-direction').select_option('desc')
             assert p.evaluate("(()=>{const rows=[...document.querySelectorAll('.resource-row')].map(e=>state.vehicles.find(v=>v.id===e.dataset.resourceId));return rows.every((v,i)=>!i||rows[i-1].callsign.localeCompare(v.callsign,'de',{numeric:true})>=0)})()")
             expect(on_tab(p, 'einsatz').locator('#job-additional')).to_have_value('Text bleibt erhalten');p.locator('#close-dispatch').click()
+            p.evaluate("()=>openDispatch(selected)");on_tab(p,'disposition')
+            expect(p.locator('#resource-sort')).to_have_value('distance');expect(p.locator('#resource-direction')).to_have_value('asc')
+            assert p.evaluate("document.querySelector('.resource-list').scrollTop") == 0
+            p.locator('#close-dispatch').click()
             # UI clock interpolates without fetching /api/state every two seconds.
             start=p.locator('#clock').inner_text();p.wait_for_timeout(1200);assert p.locator('#clock').inner_text()!=start
             p.locator('#pause').click();expect(p.locator('#running')).to_have_text('SIMULATION PAUSIERT');start=p.locator('#clock').inner_text();p.wait_for_timeout(1300);expect(p.locator('#clock')).to_have_text(start)
@@ -54,7 +67,7 @@ with tempfile.TemporaryDirectory() as data:
             p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/004').status==='duty'")
             p.evaluate("()=>command('dispatch',{job:state.jobs.find(j=>j.kind==='emergency').id,vehicles:[state.vehicles.find(v=>v.callsign==='77/002').id]})")
             p.evaluate("()=>openDispatch(state.jobs.find(j=>j.kind==='emergency').id)")
-            on_tab(p,'disposition').locator('[data-call-resource]').click()
+            on_tab(p,'gebucht').locator('[data-call-resource]').click()
             on_tab(p,'kommunikation').locator('#radio-detail [data-cancel][data-step="answer"]').click()
             on_tab(p,'kommunikation').locator('#radio-detail [data-cancel][data-step="cancel"]').click()
             p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/002').job===null")

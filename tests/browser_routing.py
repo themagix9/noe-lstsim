@@ -63,7 +63,7 @@ with tempfile.TemporaryDirectory() as data:
             on_tab(p,'disposition')
             expect(p.locator('.resource-row').filter(has_text='Christophorus 15')).to_have_count(0)
             support_id=p.evaluate("state.vehicles.find(v=>v.callsign==='C15').id")
-            p.locator('#support-vehicle').select_option(support_id)
+            on_tab(p,'support');p.locator('#support-vehicle').select_option(support_id)
             p.locator('#support-reason').fill('Keine lokalen Notarztmittel verfügbar')
             p.locator('#support-request').click()
             p.wait_for_function("state.jobs.some(j=>j.support_requests?.some(r=>r.state==='pending'))")

@@ -1,6 +1,6 @@
 """Public setup catalog; zone boundaries/fleet outside 05 are not verified."""
 CENTRES=['Mödling','St. Pölten','Stockerau','Zwettl']
-ZONES=[{'id':f'{n:02}','name':f'Dispozone {n:02}'+(' · Bruck/Leitha (Startbestand)' if n==5 else ' · Bestand noch zu ergänzen')} for n in range(1,7)]
+ZONES=[{'id':f'{n:02}','name':f'Dispozone {n:02}'+(' · Baden / Mödling / Bruck-Leitha' if n==5 else ' · Bestand noch zu ergänzen')} for n in range(1,7)]
 RULES=[
  {'code':'SIM-BEIST','title':'Beistellung / Absicherung (Übung)','kind':'emergency','priority':'mittel','needs':['RTW'],'signal':False},
  {'code':'SIM-ATEM','title':'Atemnot','kind':'emergency','priority':'hoch','needs':['RTW','NEF'],'signal':True},

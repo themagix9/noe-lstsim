@@ -86,6 +86,8 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
         upgrade(self)
         self.upgrade_staffing()
         self.upgrade_support()
+        from fleet_zone5 import upgrade as upgrade_zone5
+        upgrade_zone5(self)
         upgrade_locations(self)
         from hospitals import upgrade_hospitals
         upgrade_hospitals(self)
@@ -334,8 +336,8 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                     self.state=old; raise ValueError('Ungültiger Import; bisherige Konfiguration bleibt erhalten.')
                 self.log('Dienststellen- und Fahrzeugkonfiguration importiert.','System')
             elif action=='reset':
-                incident_counter=self.state.get('incident_counter',0);location_version=self.state.get('location_version');vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; hospitals=self.state['hospitals'];graphics=self.state['graphics']; staffing_version=self.state.get('staffing_version');start_date=self.state['start_date'];fleet_version=self.state.get('fleet_version',0); rules=self.state['rules']; setup=self.state['setup']
-                self.state=seed();self.state.update(incident_counter=incident_counter,location_version=location_version,start_date=start_date,fleet_version=fleet_version,staffing_version=staffing_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations;self.state['hospitals']=hospitals; self.state['vehicles']=vehicles
+                incident_counter=self.state.get('incident_counter',0);location_version=self.state.get('location_version');vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; hospitals=self.state['hospitals'];graphics=self.state['graphics']; zone5_fleet_version=self.state.get('zone5_fleet_version');staffing_version=self.state.get('staffing_version');start_date=self.state['start_date'];fleet_version=self.state.get('fleet_version',0); rules=self.state['rules']; setup=self.state['setup']
+                self.state=seed();self.state.update(incident_counter=incident_counter,location_version=location_version,start_date=start_date,fleet_version=fleet_version,staffing_version=staffing_version,zone5_fleet_version=zone5_fleet_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations;self.state['hospitals']=hospitals; self.state['vehicles']=vehicles
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
                 for v in vehicles:v.pop('support_job',None);v.pop('support_request',None)

@@ -13,7 +13,7 @@ class Staffing:
                 group=[v for v in self.state['vehicles'] if v['station']==station['id'] and v.get('duty_managed') and v['staffed'] and v['type'] not in ('FR','NAH','BEL')]
                 always=[v for v in group if v['type'] in ('NEF','RTW-C')];optional=[v for v in group if v not in always];rng.shuffle(optional)
                 selected=always[:]
-                if station['id']=='schwechat':selected+=optional[:max(0,3-len(always))]
+                if station.get('night_minimum') or station['id']=='schwechat':selected+=optional[:max(0,station.get('night_minimum',3)-len(always))]
                 elif station['id'] not in ('himberg','leopoldsdorf'):selected += optional[:1] if optional else []
                 elif optional and rng.random()<.4:selected+=optional[:1]
                 for v in optional:

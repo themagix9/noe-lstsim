@@ -27,7 +27,7 @@ class HTTPTests(unittest.TestCase):
         if token:headers['Authorization']='Bearer '+token
         return urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8080'+path,data=json.dumps(data).encode() if data is not None else None,headers=headers),timeout=3)
     def test_serves_ui_and_state(self):
-        self.assertIn(b'app.js',self.req('/').read());self.assertEqual(len(json.load(self.req('/api/state'))['vehicles']),55);self.assertTrue({'c15','c16'}<={s['id']for s in json.load(self.req('/api/config'))['stations']})
+        self.assertIn(b'app.js',self.req('/').read());self.assertTrue({'52/351','52/601','64/332','64/401'}<={v['callsign'] for v in json.load(self.req('/api/state'))['vehicles']});self.assertTrue({'c15','c16'}<={s['id']for s in json.load(self.req('/api/config'))['stations']})
     def test_generate_and_bad_request(self):
         state=json.load(self.req('/api/generate',{'kind':'transport'}));self.assertEqual(state['jobs'][-1]['kind'],'transport')
         with self.assertRaises(urllib.error.HTTPError) as err:self.req('/api/control',{'speed':999})
