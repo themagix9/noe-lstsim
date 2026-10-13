@@ -97,5 +97,5 @@ def run_clock():
 
 if __name__=='__main__':
     threading.Thread(target=run_clock,daemon=True).start()
-    print('NÖ Dispo v0.8 läuft auf Port 8080',flush=True)
+    print('NÖ Dispo v0.9 läuft auf Port 8080',flush=True)
     ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
