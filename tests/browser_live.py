@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory() as data:
             expect(p.locator('#detail')).to_contain_text('Abholzeit');assert on_tab(p, 'einsatz').locator('#job-pickup').get_attribute('step')=='1800';expect(p.locator('.job.transport .pickup-time.urgent')).to_be_visible();on_tab(p, 'disposition').locator('[data-filter="KTW"]').click();assert p.evaluate("[...document.querySelectorAll('.resource-row')].every(e=>['KTW','KTW-B','BKTW'].includes(state.vehicles.find(v=>v.id===e.dataset.resourceId).type))")
             on_tab(p, 'disposition').locator('#resource-sort').select_option('status');on_tab(p, 'disposition').locator('#resource-direction').select_option('asc');p.wait_for_timeout(1500);expect(on_tab(p, 'disposition').locator('#resource-sort')).to_have_value('status');expect(p.locator('#manual-dialog')).not_to_be_visible()
             # Actual browser audio graph: three bell partials, once despite live updates.
-            p.evaluate("window.gongTones=0;const original=AudioContext.prototype.createOscillator;AudioContext.prototype.createOscillator=function(){window.gongTones++;return original.call(this)}")
+            p.evaluate("()=>{window.gongTones=0;const original=AudioContext.prototype.createOscillator;AudioContext.prototype.createOscillator=function(){window.gongTones++;return original.call(this)}}")
             p.locator('#close-dispatch').click();p.locator('#pause').click();p.wait_for_function('window.gongTones===3');p.wait_for_timeout(1200);assert p.evaluate('window.gongTones')==3
             p.locator('#pause').click()
             assert not any(u.endswith('/api/state') for u in requests),requests;assert not errors,errors
