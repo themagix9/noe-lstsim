@@ -175,6 +175,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
             self.upgrade_staffing()
             self.update_operations(now)
             self.update_air(now)
+            self.update_assessments(now)
             self.update_patients(now)
             for v in self.state['vehicles']:
                 if v['phase_due'] is not None and now>=v['phase_due']: self.advance(v)

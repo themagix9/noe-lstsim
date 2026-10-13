@@ -7,7 +7,7 @@ class RadioTests(unittest.TestCase):
     vehicle=helpers.FleetTests.vehicle
     job=helpers.FleetTests.job
     def scene(self):
-        j=self.job();v=self.vehicle('77/001');self.e.dispatch({'job':j['id'],'vehicles':[v['id']]});self.e.depart(v);self.e.advance(v);return j,v
+        j=self.job();v=self.vehicle('77/001');self.e.dispatch({'job':j['id'],'vehicles':[v['id']]});self.e.depart(v);self.e.advance(v);self.e.state['clock']=v['assessment_due'];self.e.update_assessments(self.e.state['clock']);return j,v
     def test_dialogue_requires_reason_and_actual_booking(self):
         j,v=self.scene();c=self.e.raise_radio(j,v,'NEF','Laufende Reanimation.')
         action=lambda step:self.e.command('radio',{'job':j['id'],'call':c['id'],'step':step})
@@ -32,6 +32,16 @@ class RadioTests(unittest.TestCase):
         j,v=self.scene();c=self.e.raise_radio(j,v);j['owner']='owner'
         with self.assertRaises(ValueError):self.e.command('radio',{'job':j['id'],'call':c['id'],'step':'listen','_actor':{'id':'other','name':'Anderer'}})
         self.assertEqual(c['state'],'calling')
+    def test_repeat_and_wait_keep_conversation_open(self):
+        j,v=self.scene();c=self.e.raise_radio(j,v,'NEF','Zunehmende Atemnot.')
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'})
+        for step in ('repeat','wait'):self.e.radio_action({'job':j['id'],'call':c['id'],'step':step})
+        self.assertEqual(c['state'],'reason_needed')
+        text=' '.join(l['text'] for l in self.e.state['logs'])
+        self.assertIn('ich wiederhole',text);self.assertIn('von LEO, warten',text)
+    def test_notarzt_resources_use_official_radio_names(self):
+        self.assertEqual(self.e.radio_name(self.vehicle('77/099')),'NEF Schwechat')
+        self.assertEqual(self.e.radio_name(self.vehicle('C3')),'Christophorus 3')
     def test_traffic_incident_can_request_technical_rescue(self):
         from unittest.mock import patch
         j,v=self.scene();j.update(code='RD-29D1',reinforcement_checked=False)

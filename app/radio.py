@@ -4,15 +4,20 @@ import random
 import uuid
 
 class Radio:
+    def radio_name(self,v):
+        if v['type']=='NAH':return {'C3':'Christophorus 3','C9':'Christophorus 9'}.get(v['callsign'],v['callsign'])
+        if v['type']=='NEF':return 'NEF '+self.station(v['station'])['name'].removeprefix('RK ').removeprefix('NEF ').split(' · ')[0]
+        return v['callsign']
     def raise_radio(self,j,v,kind='NEF',reason=None,reason_initial=False):
         if any(c['job']==j['id'] and c['kind']==kind and c['state']!='closed' for c in self.state['radio_calls']):return
         if v['job']!=j['id'] or v['status']!='scene':raise ValueError('Mannschaft muss am Berufungsort sein.')
+        if v.get('assessment_due',0)>self.state['clock']:raise ValueError('Mannschaft verschafft sich noch einen Überblick am Berufungsort.')
         if kind not in ('NEF','RTW-C','RTW','Polizei','Feuerwehr'):raise ValueError('Unbekannte Nachforderung.')
         if reason is not None and (not isinstance(reason,str) or len(reason)>300):raise ValueError('Nachforderungsgrund maximal 300 Zeichen.')
         reason=reason or {'NEF':'Patientenzustand verschlechtert, Notarzt erforderlich.','RTW-C':'Notfallsanitäter zur weiteren Versorgung erforderlich.','RTW':'Weiterer Patient am Berufungsort.','Polizei':'Unterstützung zur Absicherung erforderlich.','Feuerwehr':'Technische Unterstützung beim Patiententransport erforderlich.'}[kind]
         call={'id':uuid.uuid4().hex[:12],'job':j['id'],'vehicle':v['id'],'kind':kind,'reason':reason,'reason_initial':reason_initial,'state':'calling','created':self.state['clock'],'assigned':None}
         self.state['radio_calls'].append(call);self.state['radio_calls']=self.state['radio_calls'][-100:]
-        self.log(f'LEO von {v["callsign"]}, kommen.','Funk');return call
+        self.log(f'LEO von {self.radio_name(v)}, kommen.','Funk');return call
 
     def maybe_reinforcement(self,j,v):
         if os.environ.get('REINFORCEMENTS_AUTO','1')=='0' and not j.get('exercise_reinforcement'):return
@@ -38,6 +43,12 @@ class Radio:
         v=self.get('vehicles',call['vehicle']);step=data.get('step');kind=call['kind']
         if call['state']=='closed':raise ValueError('Funkgespräch bereits beendet.')
         if not v['job']==j['id'] or v['status']!='scene':raise ValueError('Anfordernde Mannschaft nicht mehr am Berufungsort.')
+        if step=='wait' and call['state'] in ('reason_needed','awaiting_dispatch'):
+            self.log(f'{self.radio_name(v)} von LEO, warten.','Funk');return
+        if step=='repeat' and call['state'] in ('reason_needed','awaiting_dispatch'):
+            self.log(f'{self.radio_name(v)} von LEO, wiederholen, kommen.','Funk')
+            request=('ein NEF' if kind=='NEF' else 'einen RTW-C' if kind=='RTW-C' else 'einen weiteren RTW' if kind=='RTW' else 'die '+kind)
+            self.log(f'Hier {self.radio_name(v)}, ich wiederhole: Bitte {request} zum Berufungsort. '+(call['reason']+' ' if call['state']=='awaiting_dispatch' else '')+'Kommen.','Funk');return
         if step=='listen' and call['state']=='calling':
             self.log('LEO hört.','Funk')
             self.log(f'Hier {v["callsign"]}, bitte '+('ein NEF' if kind=='NEF' else 'einen RTW-C' if kind=='RTW-C' else 'einen weiteren RTW' if kind=='RTW' else 'die '+kind)+f' zum Berufungsort. '+(call['reason']+' ' if call['reason_initial'] else '')+'Kommen.','Funk')

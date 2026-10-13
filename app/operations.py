@@ -243,8 +243,7 @@ class Operations:
         if status=='enroute':
             j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])
             if j.get('reinforcement_waiting')==v['id']:j['reinforcement_arrived']=True
-            if v['type'] not in ('NEF','NAH','FR'):self.patient_report(j,v)
-            self.maybe_reinforcement(j,v)
+            v['assessment_due']=now+random.randint(60,120)
             if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
             elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
             elif j['status'] not in ('transport','hospital'):j['status']='scene'
