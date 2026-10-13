@@ -176,7 +176,8 @@ function renderMap(vehicles,jobs){
  jobs.forEach(j=>mapMarker('job:'+j.id,()=>L.circleMarker([j.lat,j.lon],{radius:6,color:j.kind==='emergency'?'#d64854':'#2563eb',fillOpacity:.8}).on('click',()=>openDispatch(j.id)),[j.lat,j.lon],null,esc(j.accepted?j.title:'144-Anruf')+' · '+esc(j.address)));
  const overlaps={};vehicles.filter(v=>v.status!=='ready').forEach(v=>{
   const key=v.lat.toFixed(5)+','+v.lon.toFixed(5),n=overlaps[key]||0;overlaps[key]=n+1;
-  const icon=L.divIcon({className:'resource-marker',html:`<img src="${esc(graphic(v).url)}" alt=""><span>${esc(v.callsign)}</span>`,iconSize:[60,35],iconAnchor:[30-n*8,20-n*5]});
+  const response=state.jobs.find(j=>j.id===v.job),blue=!!response?.signal&&['enroute','scene','transport'].includes(v.status)&&!['FR','NAH'].includes(v.type);
+  const icon=L.divIcon({className:'resource-marker'+(blue?' blue-response':''),html:`<img src="${esc(graphic(v).url)}" alt=""><span>${esc(v.callsign)}</span>`,iconSize:[60,35],iconAnchor:[30-n*8,20-n*5]});
   mapMarker('vehicle:'+v.id,()=>L.marker([v.lat,v.lon]),[v.lat,v.lon],icon,`<b>${esc(v.type)} ${esc(v.callsign)}</b><br>${esc(statusName(v))}<br>ETA: ${esc(unitEta(v))}${v.reservation?'<br>Vordisponiert':''}`);
   if(v.leg&&!v.leg.waiting){const geometry=v.leg.geometry||[[v.lat,v.lon],[v.leg.target_lat,v.leg.target_lon]],item=mapObject('route:'+v.id,()=>L.polyline(geometry,{color:v.type==='NAH'?'#7c5abc':'#2563eb',weight:3,dashArray:v.type==='NAH'?'5 6':null})),signature=JSON.stringify(geometry);if(item.geometry!==signature){item.layer.setLatLngs(geometry);item.geometry=signature}}
  });
