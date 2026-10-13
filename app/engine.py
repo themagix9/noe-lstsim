@@ -185,9 +185,9 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
                 elif not self.in_shift(v) and not v.get('leg') and v['status'] in ('ready','radio','fr_ready'): v['status']='out'
             auto_enabled=any(s.get('dispo')==self.state['setup']['dispo'] for s in self.state['stations']) and self.state['setup']['dispo']=='05'
             if auto_enabled and now>=self.state['next_transport']:
-                self.new_job('transport'); self.state['next_transport']=now+random.randint(600,1500)
+                self.new_job('transport'); self.state['next_transport']=now+random.randint(600,1500)*(2/3 if self.state['setup'].get('workflow')=='split' else 1)
             if auto_enabled and now>=self.state['next_emergency']:
-                self.new_job('emergency'); self.state['next_emergency']=now+random.randint(900,1800)
+                self.new_job('emergency'); self.state['next_emergency']=now+random.randint(900,1800)*(.5 if self.state['setup'].get('workflow')=='split' else 1)
             if len(self.state['jobs'])>150:
                 completed=[j for j in self.state['jobs'] if j['status']=='done']
                 for j in completed[:len(self.state['jobs'])-150]: self.state['jobs'].remove(j)
@@ -231,6 +231,17 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
                 if not math.isfinite(factor) or not .5<=factor<=1:raise ValueError('Fahrzeitfaktor zwischen 0,50 und 1,00 eingeben.')
                 self.state['setup']['blue_light_factor']=factor
             elif action=='radio':self.radio_action(data)
+            elif action=='handoff':
+                if self.state['setup'].get('workflow')!='split':raise ValueError('Übergabe gehört zum getrennten Mehrspielermodus.')
+                j=self.get('jobs',data['job'])
+                if not j['accepted'] or j.get('handoff') or j['status']!='new':raise ValueError('Offenen, angenommenen Auftrag übergeben.')
+                call=j.get('call')
+                if call and call['state'] not in ('ready','ended'):raise ValueError('Zuerst die Anrufabfrage abschließen.')
+                note=str(data.get('note','')).strip()
+                if len(note)>500:raise ValueError('Übergabenotiz maximal 500 Zeichen.')
+                if call and call['state']=='ready':self.finish_call({'job':j['id']})
+                j['handoff']={'time':self.state['clock'],'player':actor['id'] if actor else None,'name':actor['name'] if actor else 'Calltaker','note':note};j['owner']=None
+                self.log(f'Einsatz {j["incident_number"]}: Calltaker hat den Auftrag zur Disposition übergeben. '+note,'Aufträge')
             elif action=='radio_generate':
                 j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])
                 self.raise_radio(j,v,data.get('kind','NEF'),data.get('reason'),bool(data.get('reason_initial')))
@@ -295,7 +306,7 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
                 self.migrate_operations()
             else: raise ValueError('Unbekannte Aktion.')
-            if actor and action in JOB_ACTIONS: j['owner']=actor['id']
+            if actor and action in JOB_ACTIONS and action!='handoff': j['owner']=actor['id']
             self.save()
             return self.snapshot()
 

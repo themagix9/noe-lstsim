@@ -2,7 +2,7 @@
 window.WorkspaceUI=(()=>{
  const stage=document.getElementById('desk'),ids=['window-map','window-resources','window-jobs','window-communication','chat-panel'];
  let lastSize='',gesture=null,front=10;
- const small=()=>stage.clientWidth<800,key=()=>`noe-window-layout-v1-${small()?'small':'large'}`;
+ const small=()=>stage.clientWidth<800,key=()=>`noe-window-layout-v1-${small()?'small':'large'}-${document.getElementById('chat-panel').classList.contains('hidden')?'single':'multi'}`;
  const visible=()=>ids.filter(id=>!document.getElementById(id).classList.contains('hidden'));
  function defaults(){
   if(small())return {'window-map':[0,0,1,.47],'window-resources':[0,.48,.49,.25],'window-jobs':[.5,.48,.5,.25],'window-communication':visible().includes('chat-panel')?[.5,.74,.5,.26]:[0,.74,1,.26],'chat-panel':[0,.74,.49,.26]};
