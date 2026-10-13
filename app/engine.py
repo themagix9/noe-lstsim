@@ -229,7 +229,10 @@ class Engine(Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
                 try:factor=float(data['blue_light_factor'])
                 except (KeyError,TypeError,ValueError):raise ValueError('Fahrzeitfaktor zwischen 0,50 und 1,00 eingeben.')
                 if not math.isfinite(factor) or not .5<=factor<=1:raise ValueError('Fahrzeitfaktor zwischen 0,50 und 1,00 eingeben.')
-                self.state['setup']['blue_light_factor']=factor
+                try:flight=float(data.get('helicopter_speed_factor',self.state['setup'].get('helicopter_speed_factor',1.15)))
+                except (TypeError,ValueError):raise ValueError('Hubschrauberfaktor zwischen 1,00 und 1,50 eingeben.')
+                if not math.isfinite(flight) or not 1<=flight<=1.5:raise ValueError('Hubschrauberfaktor zwischen 1,00 und 1,50 eingeben.')
+                self.state['setup'].update(blue_light_factor=factor,helicopter_speed_factor=flight)
             elif action=='radio':self.radio_action(data)
             elif action=='handoff':
                 if self.state['setup'].get('workflow')!='split':raise ValueError('Übergabe gehört zum getrennten Mehrspielermodus.')

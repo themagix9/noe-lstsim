@@ -15,6 +15,7 @@ class Operations:
         self.state.setdefault('rules',__import__('copy').deepcopy(RULES))
         self.state.setdefault('setup',{'centre':'Mödling','dispo':'05'})
         self.state['setup'].setdefault('blue_light_factor',0.85)
+        self.state['setup'].setdefault('helicopter_speed_factor',1.15)
         for station in self.state['stations']:station.setdefault('dispo','05' if station['zone']=='Bruck/Leitha' else '')
         self.state.setdefault('messages',[])
         self.state.setdefault('radio_calls',[])
@@ -76,13 +77,14 @@ class Operations:
             old['status']='done' if old.get('patient_delivered') else 'assigned'
 
     def response_factor(self,v,j):
+        if v['type']=='NAH':return 1/float(self.state['setup'].get('helicopter_speed_factor',1.15))
         return float(self.state['setup'].get('blue_light_factor',0.85)) if j and j.get('signal') and v['type'] not in ('NAH','FR') else 1.0
 
     def drive(self,v,target,status,minimum=120):
         from engine import distance
         now=self.state['clock']
         j=next((j for j in self.state['jobs'] if j['id']==v.get('job')),None)
-        factor=self.response_factor(v,j) if status in ('enroute','transport') else 1.0
+        factor=self.response_factor(v,j) if status in ('enroute','transport') else self.response_factor(v,j) if v['type']=='NAH' else 1.0
         if v['type']=='NAH' or not self.router.enabled:
             duration=max(60 if v['type']=='NAH' else minimum,distance(v,target)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600*factor)
             v.update(status=status,route_state='flight' if v['type']=='NAH' else 'disabled',phase_due=now+duration,leg={'start':now,'end':now+duration,'lat':v['lat'],'lon':v['lon'],'target_lat':target['lat'],'target_lon':target['lon']})

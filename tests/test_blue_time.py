@@ -39,7 +39,33 @@ class BlueTimeTests(unittest.TestCase):
         from engine import Engine
         self.e=Engine(self.path);self.assertEqual(self.e.state['setup']['blue_light_factor'],.75)
 
-    def test_helicopters_and_first_responders_have_no_blue_speed_bonus(self):
+    def test_first_responders_have_no_blue_speed_bonus(self):
         j,v=self.prepare();j['signal']=True
-        for kind in ('NAH','FR'):
+        for kind in ('FR',):
             v['type']=kind;self.assertEqual(self.e.response_factor(v,j),1)
+
+    def test_helicopter_direct_flight_eta_and_factor(self):
+        from engine import distance
+        j,v=self.prepare();v['type']='NAH';v['flight_speed']=220;v['turnout']=180
+        j.update(lat=v['lat']+.4,lon=v['lon']+.4)
+        baseline=distance(v,j)/220*3600
+        now=self.e.state['clock']
+        self.e.drive(v,j,'enroute')
+        self.assertEqual(v['route_state'],'flight')
+        self.assertNotIn('geometry',v['leg'])
+        self.assertAlmostEqual(v['phase_due']-now,baseline/1.15)
+        self.assertAlmostEqual(estimated_seconds(self.e,v,j),baseline/1.15+180)
+        due=v['phase_due']
+        self.e.command('travel_settings',{'blue_light_factor':.85,'helicopter_speed_factor':1.25})
+        self.assertEqual(v['phase_due'],due)
+        self.e.drive(v,j,'transport')
+        self.assertAlmostEqual(v['phase_due']-now,baseline/1.25)
+        self.e.drive(v,j,'radio')
+        self.assertAlmostEqual(v['phase_due']-now,baseline/1.25)
+        for invalid in (0,1.6,'bad',float('nan')):
+            with self.assertRaises(ValueError):
+                self.e.command('travel_settings',{'blue_light_factor':.85,'helicopter_speed_factor':invalid})
+        self.e.save();self.e.db.close()
+        from engine import Engine
+        self.e=Engine(self.path)
+        self.assertEqual(self.e.state['setup']['helicopter_speed_factor'],1.25)
