@@ -79,6 +79,6 @@ if(typeof window!=='undefined'){
  window.TransportReminders=createTransportReminders(sessionStorage,jobs=>{
   gong();if(typeof toast==='function')toast(jobs.length===1?'Transport abholbereit: '+jobs[0].address+' · Abholung '+time(jobs[0].due).slice(0,5):jobs.length+' Transportaufträge erreichen die 30-Minuten-Marke.');
  });
- window.RadioNotifications=createRadioReminders(radioTone);window.CallNotifications=createCallReminders(callTone);
+ window.RadioNotifications=createRadioReminders(radioTone);const phone=createCallReminders(callTone);window.CallNotifications={check(state){if(!state.jobs.some(j=>j.kind==='emergency'&&!j.accepted&&j.status!=='done'&&(!j.owner||j.owner===state.session.me)))pendingCall=false;phone.check(state)}};
 }
 if(typeof module!=='undefined')module.exports={createTransportReminders,createRadioReminders,createCallReminders};
