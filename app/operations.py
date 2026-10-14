@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry','job_additional','agency_request','agency_release','agency_task')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry','job_additional','agency_request','agency_release','agency_task','job_code')
 
 class Operations:
     def migrate_operations(self):
@@ -90,6 +90,7 @@ class Operations:
             for request in old.get('agency_requests',[]):
                 if request['status'] in ('waiting','alarmed','enroute','working','onscene'):self.release_agency(old,request)
             self.unreserve({'job':old['id']})
+        self.sync_ecpr_team(old)
 
     def response_factor(self,v,j):
         if v['type']=='NAH':return 1/float(self.state['setup'].get('helicopter_speed_factor',1.15))
@@ -163,6 +164,7 @@ class Operations:
         if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
         elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
         elif j['status'] not in ('scene','transport','hospital'):j['status']='assigned'
+        self.sync_ecpr_team(j)
         self.ensure_agency_requests(j)
         return j
 
@@ -251,7 +253,7 @@ class Operations:
             doctors=[u for u in self.state['vehicles'] if u.get('job')==j['id'] and u['type']=='NEF' and u['status']=='scene' and u.get('assessment_due',0)<=self.state['clock']]
             escort=next((u for u in doctors if not patient or patient.get('doctor')==u['id']),None)
         v['transport_destination']=h['id'];v['transport_target']=__import__('copy').deepcopy(h)
-        self.drive(v,h,'transport',180);j['status']='transport'
+        self.drive(v,h,'transport',180);j['status']='transport';self.sync_ecpr_team(j)
         if patient:patient.update(phase='transport',destination=h['id'],doctor=escort['id'] if escort else v['id'] if v['type']=='NAH' else None)
         if escort:
             escort.update(signal=self.signal_for(v,j),escort_of=v['id'],transport_destination=h['id'],transport_target=__import__('copy').deepcopy(h));escort.pop('treating_patient',None)

@@ -7,7 +7,7 @@ import tempfile
 import time
 import urllib.request
 from playwright.sync_api import sync_playwright,expect
-from browser_helpers import on_tab,start_session
+from browser_helpers import on_tab,start_session,choose_code
 
 root=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as data:
@@ -50,5 +50,7 @@ with tempfile.TemporaryDirectory() as data:
             colors=p.evaluate("""()=>{const result={};for(const status of ['ready','radio','enroute','scene','transport','hospital','assigned']){const el=document.createElement('span');el.className='badge '+status;document.body.append(el);const css=getComputedStyle(el);result[status]=[css.backgroundColor,css.color];el.remove()}return result}""")
             assert colors['assigned']==['rgb(255, 255, 255)','rgb(207, 38, 56)'];assert colors['scene'][0]=='rgb(207, 52, 62)';assert colors['ready'][0]!=colors['radio'][0]
             p.set_viewport_size({'width':1366,'height':768});on_tab(p,'behoerden');p.wait_for_timeout(300);assert p.evaluate("document.getElementById('detail').scrollHeight<=document.getElementById('detail').clientHeight+1")
+            choose_code(p,'RD-9E1');on_tab(p,'gebucht');expect(p.locator('#detail [data-ecpr-team=alarmed]')).to_contain_text('eCPR AKH alarmiert')
+            p.evaluate("async()=>{await command('generate',{kind:'transport'});openDispatch(state.jobs.at(-1).id)}");on_tab(p,'disposition');assert p.locator('#job-code').input_value().startswith('KTR-');assert p.evaluate("state.jobs.at(-1).code_confirmed===true")
             assert not errors,errors;browser.close();print('Agency dispatch, live additional text, map focus, radio-origin alarm visibility, status colours and 2-second scene radio passed.')
     finally:proc.terminate();proc.wait(timeout=5)

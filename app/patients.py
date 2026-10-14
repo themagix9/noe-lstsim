@@ -58,7 +58,9 @@ class Patients:
         if v.get('assessment_due',0)>self.state['clock']:return
         self.ensure_patient_condition(j);c=j['patient_condition']
         if c is None:return
-        if c['reported'] and not force:return
+        if c['reported'] and not force:
+            if v['type'] in ('NEF','NAH'):self.raise_scene_radio(j,v)
+            return
         c.update(reported=True,last_report=self.state['clock'],next_change=self.state['clock']+300)
         present=any(self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('NEF','NAH') for id in j['vehicles'])
         if c['notarzt_required'] and not present:

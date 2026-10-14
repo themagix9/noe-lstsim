@@ -93,3 +93,44 @@ class AgencyTests(unittest.TestCase):
         self.e=Engine(self.path);restored=self.e.get('jobs',j['id'])
         self.assertEqual(restored['agency_requests'][0]['unit'],unit);self.assertTrue(self.e.agency_gate(restored))
         self.assertEqual(next(v for v in self.e.state['agency_units'] if v['id']==unit)['job'],j['id'])
+
+    def test_arriving_doctor_gets_own_situation_request_after_first_crew_report(self):
+        j=self.job();a=self.vehicle('77/002');nef=self.vehicle('77/099');self.e.dispatch({'job':j['id'],'vehicles':[a['id'],nef['id']]})
+        a.update(status='scene',assessment_due=0);self.e.patient_report(j,a)
+        nef.update(status='scene',assessment_due=0);self.e.patient_report(j,nef)
+        self.assertTrue(any(c['kind']=='Lagemeldung' and c['vehicle']==nef['id'] for c in self.e.state['radio_calls']))
+
+    def test_automatic_transport_codes_match_mobility_and_manual_stays_unconfirmed(self):
+        for _ in range(20):
+            j=self.e.new_job('transport')
+            self.assertTrue(j['code_confirmed']);self.assertEqual(self.e.rule(j['code'])['kind'],'transport')
+            mode=j['transport_mode'];title=self.e.rule(j['code'])['title'].lower()
+            self.assertIn({'gehfaehig':'gehfähig','tragstuhl':'tragstuhl','liegend':'liegend'}[mode],title)
+            self.assertEqual(self.e.eligible(self.vehicle('77/020'),j),mode=='gehfaehig')
+        manual=self.e.new_job('transport',manual=True);self.assertFalse(manual.get('code_confirmed',False))
+
+    def test_all_rd9_codes_alarm_virtual_ecpr_without_helicopter(self):
+        from aao import CODES
+        codes=[code for code in CODES if code.startswith('RD-9') and len(code)>4 and not code[4].isdigit()]
+        for code in codes:
+            j=self.job();self.e.edit_job({'job':j['id'],'code':code});v=self.vehicle('77/002');self.e.dispatch({'job':j['id'],'vehicles':[v['id']]})
+            self.assertEqual(j['ecpr_team']['status'],'alarmed',code);self.assertTrue(j['ecpr_team']['virtual']);self.e.detach(v)
+            self.assertNotIn('ecpr_team',j);self.assertEqual(j['status'],'done');v.update(status='ready',phase_due=None,leg=None)
+    def test_active_code_upgrade_preserves_patient_and_units_and_deduplicates_ecpr(self):
+        j=self.job();v=self.vehicle('77/002');self.e.dispatch({'job':j['id'],'vehicles':[v['id']]});v.update(status='scene',assessment_due=0)
+        before=copy.deepcopy(v);patient=copy.deepcopy(j['patient_condition'])
+        self.e.command('job_code',{'job':j['id'],'code':'RD-9E1'});self.assertEqual(v,before);self.assertEqual(j['patient_condition'],patient)
+        id=j['ecpr_team']['id'];self.e.command('job_code',{'job':j['id'],'code':'RD-9E1'});self.assertEqual(j['ecpr_team']['id'],id)
+        self.assertEqual(len([l for l in self.e.state['logs'] if l['text'].startswith('eCPR AKH alarmiert')]),1)
+        self.assertEqual(j['code_history'][-1]['after'],'RD-9E1')
+    def test_ecpr_ready_on_transport_removed_after_handover_and_persisted(self):
+        j=self.job();v=self.vehicle('77/002');self.e.dispatch({'job':j['id'],'vehicles':[v['id']]});v.update(status='scene',assessment_due=0)
+        self.e.command('job_code',{'job':j['id'],'code':'RD-9E1'});j['destination']='kh-hainburg';self.e.start_transport(v)
+        self.assertEqual(j['ecpr_team']['status'],'ready');self.e.save();self.e.db.close()
+        from engine import Engine
+        self.e=Engine(self.path);j=self.e.get('jobs',j['id']);v=self.e.get('vehicles',v['id']);self.assertEqual(j['ecpr_team']['status'],'ready')
+        self.e.advance(v);self.assertIn('ecpr_team',j);self.e.advance(v);self.assertNotIn('ecpr_team',j);self.assertEqual(j['status'],'done')
+    def test_reclassification_during_transport_marks_ecpr_ready_immediately(self):
+        j=self.job();v=self.vehicle('77/002');self.e.dispatch({'job':j['id'],'vehicles':[v['id']]});v.update(status='scene',assessment_due=0);j['destination']='kh-hainburg';self.e.start_transport(v)
+        before=copy.deepcopy(v['leg']);self.e.command('job_code',{'job':j['id'],'code':'RD-9E1'})
+        self.assertEqual(j['ecpr_team']['status'],'ready');self.assertEqual(v['leg'],before)

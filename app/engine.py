@@ -12,6 +12,7 @@ from operations import Operations, STATUS_LABELS, JOB_ACTIONS
 from agencies import Agencies
 from scene_radio import SceneRadio
 from radio_pacing import RadioPacing
+from ecpr_team import EcprTeam
 from signal_ops import SignalOps
 from fleet import Fleet, upgrade
 from daylight import window
@@ -66,7 +67,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':copy.deepcopy(HOSPITALS),'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
+class Engine(EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -105,8 +106,13 @@ class Engine(SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,Mul
         upgrade_responder_pools(self)
         self.upgrade_agencies()
         for j in self.state['jobs']:
+            if j['kind']=='transport' and not j.get('manual') and j['status']=='new' and not j.get('code_confirmed') and j.get('caller')=='Elektronischer Transportauftrag':
+                from transport_codes import assign
+                assign(self,j,preserve_mode=True)
+        for j in self.state['jobs']:
             had=bool(j['vehicles']);j['vehicles']=[id for id in j['vehicles'] if any(v['id']==id and v.get('job')==j['id'] for v in self.state['vehicles'])]
             if had and not j['vehicles']:j.update(status='done',completed=j.get('completed',self.state['clock']))
+            self.sync_ecpr_team(j)
         self.save()
 
     def save(self):
@@ -184,7 +190,7 @@ class Engine(SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,Mul
         address_point=random.choice([a for a in ADDRESSES if a['city']==city])
         place,lat,lon=address_point['city'],address_point['lat'],address_point['lon']
         clock=self.state['clock']
-        job={'id':uid(),'kind':kind,'place':place,'lat':lat,'lon':lon,'address':address_point['address'],'address_point':address_point.copy(),'address_source':'OpenStreetMap','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ' and isinstance(h.get('lat'),(int,float)) and isinstance(h.get('lon'),(int,float))])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
+        job={'id':uid(),'manual':bool(manual),'kind':kind,'place':place,'lat':lat,'lon':lon,'address':address_point['address'],'address_point':address_point.copy(),'address_source':'OpenStreetMap','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ' and isinstance(h.get('lat'),(int,float)) and isinstance(h.get('lon'),(int,float))])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
         if kind=='emergency':
             from scenarios import EXTRA_SCENARIOS
             from scenario_catalog import CATALOG
@@ -206,6 +212,9 @@ class Engine(SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,Mul
         job.update(code=code,category=rule.get('category') if rule else None,signal=kind=='emergency',additional='',fire=job.get('fire',False),police=job.get('police',False),organization='RK')
         job['event_title']=job['title']
         if rule:job.update(title=rule['title'],needs=rule['needs'][:],priority=rule['priority'])
+        if kind=='transport' and not manual:
+            from transport_codes import assign
+            assign(self,job)
         self.ensure_patient_condition(job)
         if kind=='emergency' and not manual:self.prepare_call(job)
         self.ensure_alarm_identity(job)
@@ -293,6 +302,7 @@ class Engine(SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,Mul
             elif action=='hospital':
                 from hospitals import edit_hospital
                 edit_hospital(self,data)
+            elif action=='job_code':self.update_job_code(data)
             elif action=='job_additional':self.update_additional(data)
             elif action=='agency_request':self.agency_request(data)
             elif action=='agency_task':self.agency_task(data)

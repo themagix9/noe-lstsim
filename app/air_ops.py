@@ -28,6 +28,9 @@ class AirOps:
 
     def update_air(self,now):
         for j in self.state['jobs']:
+            if j['status']=='done':
+                if j.get('cpr_due') is not None:j.update(cpr_due=None,ecpr_state='closed')
+                continue
             if j.get('ecpr_state')=='question_sent' and now>=j['cpr_due']:
                 ongoing=j.get('exercise_cpr',True);j['cpr_confirmed']=ongoing;j['cpr_due']=None;j['ecpr_state']='confirmed' if ongoing else 'not_required'
                 carrier=self.patient_carrier(j)

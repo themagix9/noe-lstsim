@@ -136,7 +136,7 @@ with tempfile.TemporaryDirectory() as data:
             p.screenshot(path='/tmp/noe-ui-qa/manv-triage.png')
             # A negative reply ends the call and can be explicitly reset later.
             p.evaluate("command('radio_generate',{job:manvId,vehicle:state.vehicles.find(v=>v.callsign==='77/099').id,kind:'NEF',reason_initial:true})")
-            on_tab(p,'kommunikation');p.locator('#radio-detail [data-radio][data-step=listen]').click()
+            on_tab(p,'kommunikation');p.locator('#radio-detail').get_by_role('button',name='LEO hört',exact=True).click()
             p.locator('#radio-detail [data-radio][data-step=unavailable]').click()
             p.wait_for_function("state.jobs.find(j=>j.id===manvId).request_denials?.NEF")
             assert p.evaluate("state.radio_calls.filter(c=>c.job===manvId&&c.kind==='NEF').every(c=>c.state==='closed')")

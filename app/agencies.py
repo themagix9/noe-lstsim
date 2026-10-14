@@ -28,7 +28,7 @@ class Agencies:
         j=self.get('jobs',data['job']);kind=data.get('kind');task=data.get('task','assist')
         if kind not in KINDS or task not in TASKS[kind]:raise ValueError('Organisation und Aufgabe prüfen.')
         if not j['accepted'] or j['status']=='done':raise ValueError('Einen angenommenen, offenen Einsatz wählen.')
-        if not j.get('code_confirmed') and j.get('dispatched_at') is None:raise ValueError('Zuerst das Alarmierungsstichwort speichern.')
+        if not j.get('code_confirmed') and j.get('dispatched_at') is None and not j.get('vehicles'):raise ValueError('Zuerst das Alarmierungsstichwort speichern.')
         if any(r['kind']==kind and r['status'] in OPEN for r in j.get('agency_requests',[])):raise ValueError('Für diese Organisation läuft bereits eine Unterstützung. Bestehenden Auftrag zuerst beenden.')
         now=self.state['clock'];label,work=TASKS[kind][task]
         r=dict(id=uuid.uuid4().hex[:12],kind=kind,task=task,label=label,status='waiting',created=now,unit=None,work_seconds=work,signal=bool(data.get('signal',True)),reason=str(data.get('reason') or label).strip()[:300])
@@ -82,7 +82,7 @@ class Agencies:
         self.resume_after_agency(j)
 
     def ensure_agency_requests(self,j):
-        if j['status']=='done' or j.get('dispatched_at') is None or not j.get('accepted'):return
+        if j['status']=='done' or j.get('dispatched_at') is None and not j.get('vehicles') or not j.get('accepted'):return
         for kind in KINDS:
             if j.get(kind) and not j.get('agency_started',{}).get(kind):
                 self.agency_request({'job':j['id'],'kind':kind,'task':'assist'})
