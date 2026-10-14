@@ -93,3 +93,9 @@ class SignalTests(unittest.TestCase):
         nef['escort_of']=v['id'];self.instruction(j,nef,False)
         self.assertFalse(v['signal']);self.assertFalse(nef['signal']);self.assertEqual(v['phase_due'],nef['phase_due'])
         self.e.command('reset',{});self.assertNotIn('signal',self.e.get('vehicles',v['id']))
+
+    def test_open_signal_instruction_does_not_hold_patient_care(self):
+        j,v=self.dispatched();j['crew_target']='kh-hainburg'
+        v.update(status='scene',leg=None,phase_due=self.e.state['clock'])
+        self.e.command('signal_contact',{'job':j['id'],'vehicle':v['id'],'signal':False})
+        self.e.advance(v);self.assertEqual(v['status'],'transport')

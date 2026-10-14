@@ -31,8 +31,10 @@
   function start(){if(frameId===null&&!anchor.paused&&tracks.size)frameId=request(draw)}
   function sync(snapshot){
    const nextRoom=snapshot.session?.me||null;
-   if(nextRoom!==room||snapshot.clock<anchor.clock){tracks.clear();room=nextRoom}
-   anchor={clock:snapshot.clock,speed:snapshot.speed,paused:snapshot.paused,received:now()};
+   const changedRoom=nextRoom!==room,changedMode=snapshot.speed!==anchor.speed||snapshot.paused!==anchor.paused;
+   if(changedRoom||changedMode||snapshot.clock<anchor.clock)tracks.clear();
+   if(changedRoom||changedMode||snapshot.clock!==anchor.clock)anchor={clock:snapshot.clock,speed:snapshot.speed,paused:snapshot.paused,received:now()};
+   room=nextRoom;
    if(anchor.paused&&frameId!==null){cancel(frameId);frameId=null}
    start();
   }

@@ -19,3 +19,9 @@ const paused=[...drawn];now=9000;assert.deepEqual(drawn,paused);
 motion.sync({clock:101,speed:1,paused:false,session:{me:'one'}});motion.attach(vehicle,layer);motion.retain(new Set());assert.equal(callbacks.size,0);
 motion.attach(vehicle,layer);motion.clear();assert.equal(callbacks.size,0);
 console.log('Smooth route motion: street geometry, frames, pause, monotonic progress and cleanup passed.');
+
+// A speed reduction must not wait for an earlier fast-forward prediction.
+motion.sync({clock:100,speed:60,paused:false,session:{me:'two'}});motion.attach(vehicle,layer);frame(9010);
+motion.sync({clock:100,speed:1,paused:false,session:{me:'two'}});motion.attach(vehicle,layer);const start=drawn[1];frame(9110);assert(drawn[1]>start);
+// Duplicate snapshots from form commands do not restart the interpolation clock.
+motion.sync({clock:100,speed:1,paused:false,session:{me:'two'}});frame(9210);assert(drawn[1]>start+.3);motion.clear();

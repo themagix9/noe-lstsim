@@ -310,7 +310,7 @@ class Operations:
             elif j['status'] not in ('transport','hospital'):j['status']='scene'
             self.log(f'{v["callsign"]}, Status 3: am Berufungsort.','Status');return
         if status=='scene' and self.get('jobs',v['job']).get('no_patient'):self.finish_without_patient(self.get('jobs',v['job']));return
-        if status=='scene' and any(c['vehicle']==v['id'] and c['state']!='closed' for c in self.state['radio_calls']):v['phase_due']=None;return
+        if status=='scene' and any(c['vehicle']==v['id'] and c['state']!='closed' and c['kind']!='Signalfahrt' for c in self.state['radio_calls']):v['phase_due']=None;return
         if status=='scene':
             if v['type']=='NEF' and self.doctor_needed_at_scene(self.get('jobs',v['job'])):
                 self.assign_doctors(self.get('jobs',v['job']));self.request_manv_resources(self.get('jobs',v['job']),v);v['phase_due']=now+60
