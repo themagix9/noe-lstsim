@@ -53,6 +53,7 @@ class WorkflowCleanupTests(unittest.TestCase):
         self.e.advance(nearest);self.assertEqual(nearest['status'],'enroute');self.assertIsNone(nearest['ack_deadline']);self.assertEqual(nearest['fr_number'],1)
         second=self.e.nearest_responder(members[0],j);self.assertNotEqual(nearest['id'],second['id'])
         self.e.dispatch({'job':j['id'],'vehicles':[second['id']]});self.e.advance(second);self.assertEqual(second['status'],'enroute');self.assertEqual(second['fr_number'],2)
+        self.assertEqual(self.e.radio_name(nearest),'FR Leopoldsdorf 1');self.assertEqual(self.e.radio_name(second),'FR Leopoldsdorf 2')
         self.e.detach(nearest);self.assertNotIn('fr_number',nearest)
 
     def test_automatic_patient_report_is_acknowledged_without_request(self):

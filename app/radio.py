@@ -5,6 +5,7 @@ import uuid
 
 class Radio:
     def radio_name(self,v):
+        if v['type']=='FR' and v.get('fr_name'):return v['fr_name']+(f' {v["fr_number"]}' if v.get('fr_number') else '')
         if v['type']=='NAH':return {'C3':'Christophorus 3','C9':'Christophorus 9','C15':'Christophorus 15','C16':'Christophorus 16'}.get(v['callsign'],v['callsign'])
         if v['type']=='NEF':return 'NEF '+self.station(v['station'])['name'].removeprefix('RK ').removeprefix('NEF ').split(' · ')[0]
         return v['callsign']
@@ -62,12 +63,12 @@ class Radio:
             self.log(f'Hier {self.radio_name(v)}, ich wiederhole: Bitte {request} zum Berufungsort. '+(call['reason']+' ' if call['state']=='awaiting_dispatch' else '')+'Kommen.','Funk');return
         if step=='listen' and call['state']=='calling':
             self.log('LEO hört.','Funk')
-            self.log(f'Hier {v["callsign"]}, bitte '+('ein NEF' if kind=='NEF' else 'einen RTW-C' if kind=='RTW-C' else 'einen weiteren RTW' if kind=='RTW' else 'die '+kind)+f' zum Berufungsort. '+(call['reason']+' ' if call['reason_initial'] else '')+'Kommen.','Funk')
+            self.log(f'Hier {self.radio_name(v)}, bitte '+('ein NEF' if kind=='NEF' else 'einen RTW-C' if kind=='RTW-C' else 'einen weiteren RTW' if kind=='RTW' else 'die '+kind)+f' zum Berufungsort. '+(call['reason']+' ' if call['reason_initial'] else '')+'Kommen.','Funk')
             call['state']='awaiting_dispatch' if call['reason_initial'] else 'reason_needed'
             # Keep the crew at scene until the interactive request has been handled.
             v['phase_due']=None
         elif step=='reason' and call['state']=='reason_needed':
-            self.log('Verstanden, Grund der Nachforderung? Kommen.','Funk');self.log(f'Hier {v["callsign"]}, {call["reason"]} Kommen.','Funk');call['state']='awaiting_dispatch'
+            self.log('Verstanden, Grund der Nachforderung? Kommen.','Funk');self.log(f'Hier {self.radio_name(v)}, {call["reason"]} Kommen.','Funk');call['state']='awaiting_dispatch'
         elif step=='confirm' and call['state']=='awaiting_dispatch':
             if kind in ('Polizei','Feuerwehr'):
                 j['police' if kind=='Polizei' else 'fire']=True;answer=kind+' ist verständigt und kommt zum Berufungsort.'
@@ -76,7 +77,7 @@ class Radio:
                 if not unit:raise ValueError('Benötigtes Rettungsmittel zuerst zum bestehenden Einsatz dazubuchen.')
                 call['assigned']=unit['id'];j['reinforcement_waiting']=unit['id'];j['reinforcement_arrived']=unit['status']=='scene';place=self.station(unit['station'])['name'].removeprefix('RK ').split(' · ')[0]
                 answer=f'{self.radio_name(unit) if kind=="NEF" else kind+" "+place} kommt '+('ab Wache.' if unit.get('alarm_from')=='ready' else 'über Funk zum Berufungsort.')
-            self.log(answer+' Kommen.','Funk');self.log(f'Hier {v["callsign"]}, '+answer.split(' kommt ')[0]+', verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed';v['phase_due']=self.state['clock']+120
+            self.log(answer+' Kommen.','Funk');self.log(f'Hier {self.radio_name(v)}, '+answer.split(' kommt ')[0]+', verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed';v['phase_due']=self.state['clock']+120
         elif step=='unavailable' and call['state']=='awaiting_dispatch':
             self.log(f'{self.radio_name(v)} von LEO: Negativ, derzeit keine weiteren Kräfte ({kind}) verfügbar. Kommen.','Funk')
             self.log(f'Hier {self.radio_name(v)}, negativ verstanden, Versorgung mit vorhandenen Mitteln. Kommen.','Funk')
