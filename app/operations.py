@@ -132,8 +132,12 @@ class Operations:
                 self.log(f'{v["type"]} {v["callsign"]} ← '+text,channel)
             self.state['messages']=self.state['messages'][-250:]
             previous=v['status'];handover=v.get('phase_due') if previous=='hospital' else None
+            from turnout import seconds
+            delay=seconds(self,v,j);now=self.state['clock']
+            direct=random.random()<.25
             self.detach(v)
-            v.update(status='standby' if data.get('standby') else 'assigned',alarm_from=previous,job=j['id'],phase_due=self.state['clock']+random.randint(20,45),ack_deadline=self.state['clock']+600,handover_due=handover,leg=None,manual_out=False)
+            v.update(turnout_seconds=delay,turnout_due=max(now,handover or now)+delay,direct_departure=direct)
+            v.update(status='standby' if data.get('standby') else 'assigned',alarm_from=previous,job=j['id'],phase_due=(now+random.randint(20,45) if data.get('standby') else v['turnout_due'] if direct else now+max(1,int(delay*.4))),ack_deadline=self.state['clock']+600,handover_due=handover,leg=None,manual_out=False)
             j['vehicles'].append(v['id'])
             if v.get('reservation')==j['id']:v['reservation']=None;j['reserved']=None
             self.log(f'{v["type"]} {v["callsign"]}: '+('Bereitschaft' if data.get('standby') else 'Alarmiert auf Wache' if previous=='ready' else 'Alarmiert über Funk')+'.','Status')
@@ -144,15 +148,17 @@ class Operations:
 
     def acknowledge(self,v,direct=False):
         if v['status'] not in ('assigned','standby'):raise ValueError('Es liegt keine offene Alarmierung vor.')
+        if v['status']=='standby':v['turnout_due']=max(self.state['clock'],v.get('handover_due') or 0)+v.get('turnout_seconds',15)
         v['ack_deadline']=None
         if direct:self.depart(v)
         else:
-            v.update(status='acknowledged',phase_due=max(self.state['clock']+15,v.get('handover_due') or 0))
+            v.update(status='acknowledged',phase_due=max(self.state['clock'],v.get('turnout_due') or self.state['clock']+15,v.get('handover_due') or 0))
             self.log(f'{v["callsign"]}, Status 9: alarmiert und quittiert.')
 
     def depart(self,v):
         if v.get('handover_due') and self.state['clock']<v['handover_due']:
             v.update(status='acknowledged',phase_due=v['handover_due']);return
+        v['turnout_due']=None
         j=self.get('jobs',v['job']);self.drive(v,j,'enroute')
         self.log(f'{v["callsign"]}, Status 2: zum Berufungsort {j["place"]}.')
 
@@ -260,7 +266,7 @@ class Operations:
 
     def advance(self,v):
         now=self.state['clock'];home=self.home(v);status=v['status'];v['leg']=None
-        if status in ('assigned','standby'):self.acknowledge(v,direct=status=='assigned' and random.random()<.25);return
+        if status in ('assigned','standby'):self.acknowledge(v,direct=status=='assigned' and v.get('direct_departure',False));return
         if status=='acknowledged':self.depart(v);return
         if status=='enroute':
             j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])

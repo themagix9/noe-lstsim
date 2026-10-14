@@ -295,3 +295,18 @@ Die Nutzergrafiken vom 14.10.2026 sind Standard für RTW/RTW-C, NEF und Christop
 
 
 Kartenansicht entsprechend der vom Nutzer bereitgestellten LstSim-JavaScript-Referenz: Startzoom 13, Maximalzoom 18, kleinere Fahrzeugicons unter Zoom 12. Die ausgewählte Leitstellenregion wird zentriert; Live-Updates verändern den gewählten Ausschnitt nicht. Sichtbare Fahrzeugbeschriftungen enthalten die aktuelle Statuszahl (S2, S4, S6 oder S7).
+
+### Simulierte Ausrückzeit
+
+Bodenfahrzeuge bekommen pro Auftrag eine stabile, gestaffelte Ausrückzeit. Tag ist 06:00–18:00, Nacht 18:00–06:00. Die Zeiten sind Übungsparameter nach Nutzerwunsch, keine Aussage über gesetzliche Vorgaben.
+
+| AMPDS-Stufe | Tag | Nacht |
+|---|---:|---:|
+| A / regulärer Transport | 85–120 s | 125–180 s |
+| B | 60–84 s | 90–124 s |
+| C | 40–59 s | 60–89 s |
+| D | 25–39 s | 30–59 s |
+| E | 15–24 s | 15–29 s |
+| 9E1 | 15–25 s | 15–25 s |
+
+Frei über Funk: 5–15 Sekunden. AAO und ETA enthalten dieselbe Vorbereitung wie die automatische Alarmierung. Status 9 beendet die Vorbereitung nicht; manche Mannschaften fahren direkt mit Status 2 ab. Die Fahrzeugliste zeigt währenddessen einen Countdown. Eine manuell gesetzte Status-2-Meldung gilt als tatsächliche Abfahrt. Krankenhausübergabe wird zusätzlich abgewartet; bei Bereitschaft beginnt die Vorbereitung nach Quittierung. NAH behalten ihre konfigurierte Startvorbereitung. Bodenfahrzeuge verwenden automatisch diese Tabelle statt des früheren pauschalen Fahrzeug-Schätzwerts.

@@ -89,8 +89,8 @@ class OperationsTests(unittest.TestCase):
         other=next(v for v in self.e.state['vehicles'] if v['type']=='RTW');self.e.command('vehicle_status',{'vehicle':other['id'],'status':'6'})
         self.dispatch(self.job(),other);self.assertEqual(other['alarm_from'],'radio');self.e.command('vehicle_status',{'vehicle':other['id'],'status':'2'});self.assertEqual(other['status'],'enroute')
     def test_automatic_ack_and_direct_departure(self):
-        self.dispatch(self.job())
-        with patch('operations.random.random',return_value=.1):self.advance()
+        with patch('operations.random.random',return_value=.1):self.dispatch(self.job())
+        self.advance()
         self.assertEqual(self.v['status'],'enroute')
     def test_standby_deadline_reminder_without_fake_ack(self):
         self.dispatch(self.job(),standby=True);self.assertEqual(self.v['status'],'standby');self.assertEqual(self.v['ack_deadline'],self.e.state['clock']+600)

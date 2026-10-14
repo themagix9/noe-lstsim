@@ -122,7 +122,9 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                             eta.update(seconds=distance(v,j)*1.25/45*3600,approximate=True)
                         if eta and 'seconds' in eta:
                             eta['base_travel_seconds']=eta['seconds'];eta['time_factor']=self.response_factor(v,j);eta['seconds']*=eta['time_factor']
-                            eta['seconds']+=float(v.get('turnout',60))+max(0,(v.get('phase_due') or 0)-self.state['clock'] if v['status']=='hospital' else 0)
+                            from turnout import preparation, seconds
+                            eta['turnout_seconds']=seconds(self,v,j)
+                            eta['seconds']+=preparation(self,v,j)
                             eta['arrival']=self.state['clock']+eta['seconds']
                     j['resource_eta']=estimates;j['aao']=self.recommendation(j)
             for j in result['jobs']:
@@ -133,6 +135,7 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                     if j.get('patient_condition'):j['patient_condition']={'reported':False}
                 elif j.get('no_patient'):j['patient']=None
             for v in result['vehicles']:
+                v['turnout_remaining']=max(0,v['turnout_due']-self.state['clock']) if v.get('turnout_due') is not None and v['status'] in ('assigned','acknowledged') else None
                 v['eta_seconds']=max(0,v['phase_due']-self.state['clock']) if v.get('leg') and v.get('phase_due') else None
             result['routing']={'enabled':self.router.enabled,'source':'OSRM · OpenStreetMap','mode':'external' if self.router.url.startswith('https://') else 'self-hosted'}
             return result
@@ -212,6 +215,13 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
             self.update_assessments(now)
             self.update_patients(now)
             for v in self.state['vehicles']:
+                # Alarm/ack events must retain their simulated timestamps even
+                # when a fast-forward tick spans the entire preparation.
+                try:
+                    while v['status'] in ('assigned','standby','acknowledged') and v.get('phase_due') is not None and now>=v['phase_due']:
+                        self.state['clock']=v['phase_due']
+                        self.advance(v)
+                finally:self.state['clock']=now
                 if v['phase_due'] is not None and now>=v['phase_due']: self.advance(v)
                 elif v['job']: pass
                 elif self.in_shift(v) and v['status']=='out' and not v.get('manual_out'): v['status']=self.idle_status(v)
@@ -352,7 +362,7 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                 incident_counter=self.state.get('incident_counter',0);location_version=self.state.get('location_version');vehicles=copy.deepcopy(self.state['vehicles']); stations=self.state['stations']; hospitals=self.state['hospitals'];graphics=self.state['graphics']; zone5_fleet_version=self.state.get('zone5_fleet_version');staffing_version=self.state.get('staffing_version');start_date=self.state['start_date'];fleet_version=self.state.get('fleet_version',0); rules=self.state['rules']; setup=self.state['setup']
                 self.state=seed();self.state.update(incident_counter=incident_counter,location_version=location_version,start_date=start_date,fleet_version=fleet_version,staffing_version=staffing_version,zone5_fleet_version=zone5_fleet_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations;self.state['hospitals']=hospitals; self.state['vehicles']=vehicles
                 for v in vehicles:
-                    s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None)
+                    s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None,turnout_due=None)
                 for v in vehicles:v.pop('support_job',None);v.pop('support_request',None)
                 self.migrate_operations()
                 self.upgrade_support()
