@@ -1,8 +1,24 @@
 """Real OSM address points and public hospital contact addresses; patients are fictional."""
 import json
+import random
+import hashlib
 from pathlib import Path
-ADDRESSES=json.loads((Path(__file__).parent/'data'/'addresses.json').read_text())['addresses']
+ADDRESS_DATA=Path(__file__).parent/'data'
+ADDRESS_INDEX=json.loads((ADDRESS_DATA/'addresses.json').read_text())
+ADDRESSES=ADDRESS_INDEX.get('addresses',[])+[a for filename in ADDRESS_INDEX.get('address_files',[]) for a in json.loads((ADDRESS_DATA/filename).read_text())['addresses']]
 ADDRESS_CITIES=sorted({a['city'] for a in ADDRESSES})
+ADDRESS_BY_CITY={city:[a for a in ADDRESSES if a['city']==city] for city in ADDRESS_CITIES}
+ADDRESS_POOL=hashlib.sha256('|'.join(ADDRESS_CITIES).encode()).hexdigest()
+
+def choose_address(engine):
+    bag=engine.state.get('address_rotation',[])
+    if engine.state.get('address_pool')!=ADDRESS_POOL or not bag:
+        bag=ADDRESS_CITIES[:];random.shuffle(bag)
+        if len(bag)>1 and bag[-1]==engine.state.get('last_address_city'):bag[0],bag[-1]=bag[-1],bag[0]
+    city=bag.pop();engine.state.update(address_pool=ADDRESS_POOL,address_rotation=bag,last_address_city=city)
+    points=ADDRESS_BY_CITY[city];previous=engine.state.get('last_address_id')
+    choices=[a for a in points if a['id']!=previous] or points
+    result=random.choice(choices);engine.state['last_address_id']=result['id'];return result
 HOSPITALS={
  'kh-hainburg':{'address':'Hofmeisterstraße 70, 2410 Hainburg an der Donau','lat':48.1432994,'lon':16.9580624,'address_source':'https://hainburg.lknoe.at/fuer-besucher/kontakt-und-anfahrt','coordinate_source':'Kartenmarker auf offizieller Betreiberseite'},
  'kh-moedling':{'address':'Sr. M. Restituta-Gasse 12, 2340 Mödling','lat':48.0885476,'lon':16.2977629,'address_source':'https://moedling.lknoe.at/fuer-besucher/kontakt-und-anfahrt','coordinate_source':'Kartenmarker auf offizieller Betreiberseite'},

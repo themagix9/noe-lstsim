@@ -28,6 +28,7 @@ jobs:
       - name: Check frontend syntax
         run: |
           node --check app/static/agency-ui.js
+          node --check app/static/event-settings.js
           node --check app/static/resource-motion.js
           node tests/test_resource_motion.js
           node --check app/static/app.js
@@ -44,6 +45,8 @@ jobs:
         run: |
           pip install playwright==1.58.0
           python -m playwright install --with-deps chromium webkit
+      - name: Test event frequency settings and emergency-only mode
+        run: python tests/browser_event_settings.py
       - name: Test agency support, live incident texts and paced scene radio
         run: python tests/browser_agencies.py
       - name: Test multiplayer in two browser sessions

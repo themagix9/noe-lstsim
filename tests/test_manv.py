@@ -13,7 +13,7 @@ class ManvTests(unittest.TestCase):
 
     def incident(self,scores=None):
         scenario=copy.deepcopy(MANV_SCENARIOS[0])
-        if scores is not None:scenario['_scenario'].update(patient_count=len(scores),patient_scores=scores)
+        if scores is not None:scenario['_scenario'].update(patient_count=len(scores),patient_scores=scores,manv=len(scores)>=5)
         j=self.e.new_job('emergency',manual=True,scenario=scenario);j['accepted']=True
         return j
 
@@ -31,7 +31,7 @@ class ManvTests(unittest.TestCase):
         self.assertNotIn('patients',visible);self.assertNotIn('manv',visible)
         self.e.state['clock']=v['assessment_due'];self.e.update_assessments(self.e.state['clock'])
         self.assertEqual(len(j['patients']),6);self.assertTrue(j['manv'])
-        self.assertEqual(j['patients'][v['patient_index']]['percent'],18)
+        self.assertEqual(j['triage_leader'],v['id']);self.assertNotIn('patient_index',v);self.assertTrue(all(p['carrier'] is None for p in j['patients']))
         self.assertEqual([triage(n) for n in (0,44,45,69,70,100)],['I','I','II','II','III','III'])
 
     def test_doctor_treats_worst_and_switches_dynamically(self):
@@ -50,14 +50,15 @@ class ManvTests(unittest.TestCase):
         self.assertTrue(all(p['percent']>before for p,before in zip(j['patients'],[15,25,80])))
         self.assertIsNone(j['patients'][2]['doctor'])
 
-    def test_nef_can_request_both_transport_and_notarzt(self):
-        j=self.incident([10,20,30,35,38,40,70,80]);self.arrive(j,'77/002');nef=self.arrive(j,'77/099')
-        self.e.state['radio_calls']=[]
+    def test_manv_has_one_coordinated_report_from_first_arrival(self):
+        j=self.incident([10,20,30,35,38,40,70,80]);leader=self.arrive(j,'77/002');nef=self.arrive(j,'77/099')
         with patch.dict('os.environ',{'REINFORCEMENTS_AUTO':'1'}):
-            self.e.request_manv_resources(j,nef);self.e.request_manv_resources(j,nef)
-        self.assertCountEqual([c['kind'] for c in self.e.state['radio_calls']],['NEF','RTW'])
-        self.assertTrue(all(c['vehicle']==nef['id'] for c in self.e.state['radio_calls']))
-        self.assertIn('7 transportierende',next(c for c in self.e.state['radio_calls'] if c['kind']=='RTW')['reason'])
+            self.e.request_manv_resources(j,nef);self.e.request_manv_resources(j,leader);self.e.request_manv_resources(j,leader)
+        calls=[c for c in self.e.state['radio_calls'] if c['state']!='closed']
+        self.assertEqual(len(calls),1);self.assertEqual(calls[0]['kind'],'Lagemeldung');self.assertEqual(calls[0]['vehicle'],leader['id'])
+        self.assertEqual(self.e.manv_needs(j),{'RTW':8,'NEF':1})
+        self.e.command('radio',{'job':j['id'],'call':calls[0]['id'],'step':'listen'})
+        self.assertIn('8 weitere transportierende',calls[0]['report']);self.assertIn('1 weitere Notarztmittel',calls[0]['report'])
 
     def test_unassessed_doctor_waits_and_nef_cannot_transport(self):
         j=self.incident([10,80]);self.arrive(j,'77/002');nef=self.arrive(j,'77/099',False)
@@ -89,9 +90,9 @@ class ManvTests(unittest.TestCase):
         self.assertLess(j['patients'][1]['percent'],before);self.assertEqual(j['patients'][0]['percent'],24)
 
     def test_aaos_consider_all_patients_and_doctor_shortage(self):
-        j=self.incident([10,20,30,80]);self.arrive(j,'77/002')
+        j=self.incident([10,20,30,80]);j['_scenario']['manv']=True;self.arrive(j,'77/002')
         result=self.e.recommendation(j);units=[self.e.get('vehicles',id) for id in result['vehicles']]
-        self.assertEqual(sum(v['type'] in ('RTW','RTW-C','KTW') for v in units),3)
+        self.assertEqual(sum(v['type'] in ('RTW','RTW-C','KTW') for v in units),4)
         self.assertEqual(sum(v['type'] in ('NEF','NAH') for v in units),1)
         self.assertEqual(len(set(result['vehicles'])),len(result['vehicles']))
 
@@ -144,3 +145,30 @@ class ManvTests(unittest.TestCase):
         self.e=Engine(self.path);j=self.e.get('jobs',j['id'])
         self.assertIn('NEF',j['request_denials'])
         self.e.command('radio_retry',{'job':j['id'],'kind':'NEF'});self.assertNotIn('NEF',j['request_denials'])
+
+    def test_first_nef_only_triages_c9_and_rtw_provide_care(self):
+        j=self.incident();leader=self.arrive(j,'77/099');nah=self.arrive(j,'C9');rtw=self.arrive(j,'77/011')
+        self.e.assign_doctors(j);self.assertEqual(j['triage_leader'],leader['id'])
+        self.assertNotIn('treating_patient',leader);self.assertNotIn('patient_index',leader)
+        self.assertTrue(all(p['doctor']!=leader['id'] and p['carrier']!=leader['id'] for p in j['patients']))
+        self.assertIn(nah['id'],[p['doctor'] for p in j['patients']])
+        calls=[c for c in self.e.state['radio_calls'] if c['state']!='closed'];self.assertEqual(len(calls),1);self.assertEqual(calls[0]['vehicle'],leader['id'])
+        self.assertEqual(self.e.manv_needs(j)['NEF'],0)
+        with self.assertRaises(ValueError):self.e.start_transport(leader)
+        self.e.advance(leader);self.assertEqual(leader['status'],'scene')
+        before=[p['percent'] for p in j['patients']];self.e.state['clock']=j['patients_next_change']
+        with patch.dict('os.environ',{'REINFORCEMENTS_AUTO':'0'}):self.e.update_patients(self.e.state['clock'])
+        self.assertTrue(all(p['percent']>=v for p,v in zip(j['patients'],before)))
+
+    def test_triage_leader_never_transports_and_negative_is_aggregated(self):
+        j=self.incident();leader=self.arrive(j,'C9');rtw=self.arrive(j,'77/011')
+        call=next(c for c in self.e.state['radio_calls'] if c['state']!='closed')
+        self.e.command('radio',{'job':j['id'],'call':call['id'],'step':'listen'})
+        self.e.command('radio',{'job':j['id'],'call':call['id'],'step':'manv_unavailable'})
+        self.assertEqual(call['state'],'closed');self.assertIn('RTW',j['request_denials']);self.assertIn('NEF',j['request_denials'])
+        before=len(self.e.state['radio_calls']);self.e.request_manv_resources(j,leader);self.assertEqual(len(self.e.state['radio_calls']),before)
+        with self.assertRaises(ValueError):self.e.choose_carrier({'job':j['id'],'vehicle':leader['id']})
+        self.e.detach(leader);self.assertEqual(j['triage_leader'],rtw['id']);self.assertNotIn('patient_index',rtw)
+        self.e.save();self.e.db.close()
+        from engine import Engine
+        self.e=Engine(self.path);self.assertEqual(self.e.get('jobs',j['id'])['triage_leader'],rtw['id'])

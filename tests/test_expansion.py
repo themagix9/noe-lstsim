@@ -12,7 +12,7 @@ class ExpansionTests(unittest.TestCase):
     job=helpers.FleetTests.job
 
     def test_catalog_codes_and_real_placements(self):
-        self.assertEqual(len(CATALOG),52)
+        self.assertGreaterEqual(len(CATALOG),190)
         for source in CATALOG:
             self.assertIsNotNone(self.e.rule(source['suggested_code']))
             j=self.e.new_job('emergency',scenario=source)

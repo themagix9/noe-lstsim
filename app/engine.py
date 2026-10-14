@@ -9,6 +9,8 @@ import sqlite3
 import threading
 import uuid
 from operations import Operations, STATUS_LABELS, JOB_ACTIONS
+from event_generation import EventGeneration
+from manv_coordination import ManvCoordination
 from agencies import Agencies
 from scene_radio import SceneRadio
 from radio_pacing import RadioPacing
@@ -26,7 +28,7 @@ from cancellations import Cancellations
 from multiple_patients import MultiplePatients
 from calls import Calls
 from support import Support
-from locations import ADDRESSES,ADDRESS_CITIES,upgrade_locations
+from locations import ADDRESSES,ADDRESS_CITIES,upgrade_locations,choose_address
 
 GRAPHICS = [
     {'id':'helicopter','name':'Notarzthubschrauber · schematisch','url':'/graphics/helicopter.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
@@ -67,7 +69,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':copy.deepcopy(HOSPITALS),'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
+class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -113,6 +115,7 @@ class Engine(EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancella
             had=bool(j['vehicles']);j['vehicles']=[id for id in j['vehicles'] if any(v['id']==id and v.get('job')==j['id'] for v in self.state['vehicles'])]
             if had and not j['vehicles']:j.update(status='done',completed=j.get('completed',self.state['clock']))
             self.sync_ecpr_team(j)
+            self.ensure_triage_leader(j)
         self.save()
 
     def save(self):
@@ -123,7 +126,9 @@ class Engine(EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancella
         with self.lock:
             if self.flush_radio():self.save()
             result=copy.deepcopy(self.state)
+            for name in ('scenario_rotation','scenario_pool','last_scenario','address_rotation','address_pool','last_address_city','last_address_id'):result.pop(name,None)
             result['support_catalog']=self.support_catalog()
+            result['event_settings']=self.event_settings()
             for v in result['vehicles']:
                 v['in_shift']=self.in_shift(v);v['crew_shift']='Tagmannschaft 06–18' if 21600<=self.state['clock']%86400<64800 else 'Nachtmannschaft 18–06';v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
                 if v.get('daylight'):v['duty_window']=list(self.daylight_window(v))
@@ -145,6 +150,7 @@ class Engine(EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancella
                             eta['arrival']=self.state['clock']+eta['seconds']
                     j['resource_eta']=estimates;j['aao']=self.recommendation(j)
             for j in result['jobs']:
+                if j.get('manv') and j.get('patients'):j['manv_resources_needed']=self.manv_needs(j)
                 j.pop('_scenario',None);j.pop('suggested_code',None)
                 if not j.get('scene_report'):
                     j.pop('scene',None);j.pop('scenario_id',None)
@@ -186,16 +192,15 @@ class Engine(EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancella
         return v['staffed'] and (a==b or (a<=minute<b if a<b else minute>=a or minute<b))
 
     def new_job(self, kind, manual=False, scenario=None):
-        city=random.choice(ADDRESS_CITIES)
-        address_point=random.choice([a for a in ADDRESSES if a['city']==city])
+        address_point=choose_address(self)
         place,lat,lon=address_point['city'],address_point['lat'],address_point['lon']
         clock=self.state['clock']
         job={'id':uid(),'manual':bool(manual),'kind':kind,'place':place,'lat':lat,'lon':lon,'address':address_point['address'],'address_point':address_point.copy(),'address_source':'OpenStreetMap','created':clock,'vehicles':[],'owner':None,'status':'new','accepted':False,'asked':False,'destination':random.choice([h for h in self.state['hospitals'] if h['region']=='NÖ' and isinstance(h.get('lat'),(int,float)) and isinstance(h.get('lon'),(int,float))])['id'] if kind=='transport' else None,'reserved':None,'bed_state':'none','case_number':None,'requested_destination':None,'bed_due':None}
         if kind=='emergency':
             from scenarios import EXTRA_SCENARIOS
             from scenario_catalog import CATALOG
-            from manv_scenarios import MANV_SCENARIOS
-            scenario=copy.deepcopy(scenario if scenario is not None else random.choice(SCENARIOS if manual else SCENARIOS+EXTRA_SCENARIOS+CATALOG+MANV_SCENARIOS)); job.update(scenario)
+            from scenario_zone5 import choose
+            scenario=copy.deepcopy(scenario if scenario is not None else random.choice(SCENARIOS) if manual else choose(self,SCENARIOS)); job.update(scenario)
             job['due']=clock
             if not manual:self.log('Neuer 144-Anruf wartet auf Annahme.','Telefon')
         elif kind=='transport':
@@ -249,11 +254,7 @@ class Engine(EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancella
                 elif v['job']: pass
                 elif self.in_shift(v) and v['status']=='out' and not v.get('manual_out'): v['status']=self.idle_status(v)
                 elif not self.in_shift(v) and not v.get('leg') and v['status'] in ('ready','radio','fr_ready'): v['status']='out'
-            auto_enabled=any(s.get('dispo')==self.state['setup']['dispo'] for s in self.state['stations']) and self.state['setup']['dispo']=='05'
-            if auto_enabled and now>=self.state['next_transport']:
-                self.new_job('transport'); self.state['next_transport']=now+random.randint(600,1500)*(2/3 if self.state['setup'].get('workflow')=='split' else 1)
-            if auto_enabled and now>=self.state['next_emergency']:
-                self.new_job('emergency'); self.state['next_emergency']=now+random.randint(900,1800)*(.5 if self.state['setup'].get('workflow')=='split' else 1)
+            self.generate_events(now)
             if len(self.state['jobs'])>150:
                 completed=[j for j in self.state['jobs'] if j['status']=='done' and not any(c['job']==j['id'] and c['state']!='closed' for c in self.state['radio_calls'])]
                 for j in completed[:len(self.state['jobs'])-150]: self.state['jobs'].remove(j)
@@ -291,6 +292,7 @@ class Engine(EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancella
                 speed=data.get('speed',self.state['speed'])
                 if speed not in (1,5,15,60): raise ValueError('Ungültige Geschwindigkeit.')
                 self.state['speed']=speed; self.state['paused']=bool(data.get('paused',self.state['paused']))
+            elif action=='event_settings':self.configure_events(data)
             elif action=='travel_settings':
                 try:factor=float(data['blue_light_factor'])
                 except (KeyError,TypeError,ValueError):raise ValueError('Fahrzeitfaktor zwischen 0,50 und 1,00 eingeben.')

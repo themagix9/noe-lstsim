@@ -69,7 +69,7 @@ class Sessions:
                 e.state=copy.deepcopy(self.engine('legacy').snapshot()); e.state['paused']=True
                 for j in e.state['jobs']:j['owner']=None
                 e.save()
-            e.state['setup']={'centre':centre,'dispo':dispo,'workflow':workflow,'blue_light_factor':e.state.get('setup',{}).get('blue_light_factor',.85)}
+            e.state['setup']={**e.state.get('setup',{}),'centre':centre,'dispo':dispo,'workflow':workflow,'blue_light_factor':e.state.get('setup',{}).get('blue_light_factor',.85)}
             if not data.get('adopt_legacy'):
                 e.state['start_date']=start_date;e.state['clock']=hour*3600;e.state['next_transport']=hour*3600+(40 if workflow=='split' else 60);e.state['next_emergency']=hour*3600+(90 if workflow=='split' else 180)
                 for v in e.state['vehicles']:v['status']=e.idle_status(v)
@@ -110,7 +110,7 @@ class Sessions:
 
     def command(self,member,action,data):
         with self.lock:
-            if action in ('vehicle','vehicle_graphic','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc','travel_settings','hospital') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
+            if action in ('vehicle','vehicle_graphic','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc','travel_settings','event_settings','hospital') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
             engine=self.engine(member['room_id'])
             split=engine.state['setup'].get('workflow')=='split';role=member.get('role','both')
             if split:

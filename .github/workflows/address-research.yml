@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - scripts/import_zone5_addresses.py
+      - scripts/collect_zone5_osm.py
       - .github/workflows/address-research.yml
   workflow_dispatch:
 permissions:
@@ -16,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python scripts/import_zone5_addresses.py /tmp/zone5-addresses.json
+      - run: python scripts/collect_zone5_osm.py /tmp/zone5-addresses.json
       - uses: actions/upload-artifact@v4
         with:
           name: zone5-addresses

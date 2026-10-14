@@ -10,6 +10,10 @@ class Radio:
         if v['type']=='NEF':return 'NEF '+self.station(v['station'])['name'].removeprefix('RK ').removeprefix('NEF ').split(' · ')[0]
         return v['callsign']
     def raise_radio(self,j,v,kind='NEF',reason=None,reason_initial=False,force=False):
+        if self.is_manv(j) and kind in ('NEF','NAH','RTW','RTW-C'):
+            leader=self.ensure_triage_leader(j)
+            if leader and leader.get('assessment_due',0)<=self.state['clock']:return self.raise_scene_radio(j,leader,force=force)
+            return
         if kind in j.get('request_denials',{}) and not force:return
         if any(c['job']==j['id'] and c['kind']==kind and c['state']!='closed' for c in self.state['radio_calls']):return
         if v['job']!=j['id'] or v['status']!='scene':raise ValueError('Mannschaft muss am Berufungsort sein.')
@@ -98,3 +102,6 @@ class Radio:
         if kind not in ('NEF','NAH','RTW-C','RTW','Polizei','Feuerwehr'):raise ValueError('Unbekannte Nachforderung.')
         j.setdefault('request_denials',{}).pop(kind,None)
         self.log(f'Einsatz {j["incident_number"]}: automatische Nachforderungen {kind} wieder zugelassen.','System')
+        if self.is_manv(j) and kind in ('NEF','RTW'):
+            leader=self.ensure_triage_leader(j)
+            if leader and leader.get('assessment_due',0)<=self.state['clock']:self.raise_scene_radio(j,leader,force=True)

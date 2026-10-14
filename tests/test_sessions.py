@@ -83,9 +83,16 @@ class SessionTests(unittest.TestCase):
         self.s.command(self.host,'control',{'paused':False});before=self.s.snapshot(self.host)['clock'];self.s.tick(1);self.assertGreater(self.s.snapshot(self.host)['clock'],before)
         self.s.command(self.host,'leave',{});self.s.command(self.guest,'leave',{});before=self.s.snapshot(self.host)['clock'];self.s.tick(10);self.assertEqual(self.s.snapshot(self.host)['clock'],before)
 
+    def test_event_frequency_only_host_and_shared_room(self):
+        settings={'emergency_per_hour':9,'transport_per_hour':4,'transports_enabled':False}
+        with self.assertRaises(PermissionError):self.s.command(self.guest,'event_settings',settings)
+        self.s.command(self.host,'event_settings',settings)
+        self.assertEqual(self.s.snapshot(self.guest)['event_settings'],settings)
+        self.assertIsNone(self.s.engine(self.host['room_id']).state['next_transport'])
+
 class MigrationTest(unittest.TestCase):
     def test_adopt_v01_preserves_custom_fleet(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=str(Path(tmp)/'db');db=sqlite3.connect(path);db.execute('CREATE TABLE state (id INTEGER PRIMARY KEY,value TEXT NOT NULL)');state=seed();state['vehicles'][0]['callsign']='CUSTOM';db.execute('INSERT INTO state VALUES (1,?)',(json.dumps(state),));db.commit();db.close()
             s=Sessions(path);credential=s.create({'name':'Julian','adopt_legacy':True});member=s.member(credential['token']);self.assertEqual(s.snapshot(member)['vehicles'][0]['callsign'],'CUSTOM');s.close()
-if __name__=='__main__':unittest.main()
+

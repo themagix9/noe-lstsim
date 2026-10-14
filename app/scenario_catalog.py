@@ -71,3 +71,8 @@ for id,title,caller,report in [
     item=scenario(id,title,caller,'Personenlage telefonisch noch unklar.','RD-29A1' if id=='two-crash' else 'RD-17B1',report,
         {'patient':'Zwei erwachsene Personen; ich weiß noch nicht, ob beide verletzt sind.','consciousness':'Beide sprechen mit mir.','breathing':'Beide atmen, eine auffällige Atemnot sehe ich nicht.','access':'Ich erwarte euch beim Eingang und bleibe unter dieser Nummer erreichbar.'},score=70)
     item['_scenario'].update(patient_count=2,patient_scores=[70,80]);CATALOG.append(item)
+
+# Further original everyday incidents and calls whose true cause only becomes
+# clear after the crew arrives. No LstSim scenarios or dialogue are imported.
+from scenario_zone5 import SCENARIOS as ZONE5_SCENARIOS
+CATALOG.extend(ZONE5_SCENARIOS)

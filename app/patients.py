@@ -9,6 +9,10 @@ class Patients:
             if due is None or now<due:continue
             if v.get('job') and v['status']=='scene' and self.agency_gate(self.get('jobs',v['job'])):
                 v.update(agency_assessment_wait=True,assessment_due=now+30);continue
+            if v.get('job') and v['status']=='scene':
+                job=self.get('jobs',v['job']);leader=self.ensure_triage_leader(job)
+                if leader and leader['id']!=v['id'] and not job.get('patients'):
+                    v['assessment_due']=max(now+15,leader.get('assessment_due') or now+15);continue
             v.pop('assessment_due',None)
             if v['status']!='scene' or not v.get('job'):continue
             j=self.get('jobs',v['job'])
@@ -58,6 +62,11 @@ class Patients:
         if v.get('assessment_due',0)>self.state['clock']:return
         self.ensure_patient_condition(j);c=j['patient_condition']
         if c is None:return
+        if self.is_manv(j):
+            leader=self.ensure_triage_leader(j)
+            if leader and leader['id']==v['id']:
+                c.update(reported=True,last_report=self.state['clock']);self.raise_scene_radio(j,v,force=force)
+            return
         if c['reported'] and not force:
             if v['type'] in ('NEF','NAH'):self.raise_scene_radio(j,v)
             return

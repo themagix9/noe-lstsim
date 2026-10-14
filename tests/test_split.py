@@ -52,8 +52,8 @@ class SplitTests(unittest.TestCase):
         self.assertEqual(self.s.engine(self.ct['room_id']).get('jobs',self.j['id'])['handoff']['note'],'Notiz')
     def test_split_increases_call_rate(self):
         now=self.e.state['clock'];self.e.state.update(paused=False,next_emergency=now,next_transport=now+9999)
-        with patch('engine.random.randint',return_value=1000):self.e.tick(1)
-        self.assertEqual(self.e.state['next_emergency']-self.e.state['clock'],500)
+        with patch('event_generation.random.uniform',return_value=1):self.e.tick(1)
+        self.assertEqual(self.e.state['next_emergency']-self.e.state['clock'],600)
 
     def test_signal_controls_follow_split_role_and_handoff(self):
         data={'job':self.j['id'],'vehicle':'not-yet-dispatched','signal':True}

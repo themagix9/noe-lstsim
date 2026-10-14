@@ -41,7 +41,7 @@ def recommend(engine,j):
     if j.get('manv') and j.get('patients'):
         pending=[p for p in j['patients'] if not p['delivered'] and engine.patient_phase(j,p)=='scene']
         critical=sum(p['percent']<45 for p in pending)
-        active=[v for v in assigned if v.get('job')==j['id'] and v['status'] in ('assigned','acknowledged','standby','enroute','scene')]
+        active=[v for v in assigned if not engine.triage_unit(j,v) and v.get('job')==j['id'] and v['status'] in ('assigned','acknowledged','standby','enroute','scene')]
         targets=[('Transportmittel',max(0,len(pending)-sum(v['type'] in transport_types+('NAH',) for v in active)),transporters),('Notarztmittel',max(0,engine.doctor_demand(j)-sum(v['type'] in ('NEF','NAH') for v in active)),[v for v in candidates if v['type'] in ('NEF','NAH')])]
         used=set()
         for label,count,options in targets:

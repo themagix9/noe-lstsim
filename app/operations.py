@@ -82,7 +82,7 @@ class Operations:
         old=self.get('jobs',v['job'])
         if v['status']=='hospital' and v['type'] not in ('NEF','FR'):self.delivered_patient(old,v)
         self.release_patient_carrier(old,v)
-        v['job']=None
+        v['job']=None;v.pop('manv_role',None);v.pop('scene_arrived_at',None)
         old['vehicles']=[id for id in old['vehicles'] if self.get('vehicles',id).get('job')==old['id']]
         if old.get('carrier')==v['id']:old['carrier']=None
         if not old['vehicles']:
@@ -90,6 +90,7 @@ class Operations:
             for request in old.get('agency_requests',[]):
                 if request['status'] in ('waiting','alarmed','enroute','working','onscene'):self.release_agency(old,request)
             self.unreserve({'job':old['id']})
+        self.ensure_triage_leader(old)
         self.sync_ecpr_team(old)
 
     def response_factor(self,v,j):
@@ -193,6 +194,7 @@ class Operations:
 
     def crew_destination(self,v):
         j=self.get('jobs',v['job'])
+        if self.triage_unit(j,v):v['phase_due']=self.state['clock']+60;return
         if self.agency_gate(j,'transport'):
             v.update(agency_transport_wait=True,phase_due=self.state['clock']+30);return
         if j.get('no_patient'):self.finish_without_patient(j);return
@@ -253,6 +255,7 @@ class Operations:
 
     def start_transport(self,v):
         j=self.get('jobs',v['job'])
+        if self.triage_unit(j,v):raise ValueError('Das Sichtungsfahrzeug übernimmt keinen Patiententransport.')
         if v['type'] not in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'):raise ValueError('Diese Ressource kann keine Patienten transportieren.')
         if self.ongoing_cpr(j,v) and v['type']!='NAH':raise ValueError('Transport unter laufender Reanimation nur durch einen NAH.')
         if self.ongoing_cpr(j,v) and not j.get('cpr_confirmed'):raise ValueError('NAH-Transport unter laufender Reanimation zuerst über Funk abstimmen.')
@@ -340,14 +343,19 @@ class Operations:
         if status in ('assigned','standby'):self.acknowledge(v,direct=status=='assigned' and v.get('direct_departure',False));return
         if status=='acknowledged':self.depart(v);return
         if status=='enroute':
-            j=self.get('jobs',v['job']);v.update(status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])
-            self.assign_patients(j)
+            arrived=v.get('phase_due') or now
+            j=self.get('jobs',v['job']);v.update(scene_arrived_at=min(now,arrived),status='scene',phase_due=now+(600 if j['kind']=='transport' else 900),lat=j['lat'],lon=j['lon'])
+            self.ensure_triage_leader(j);self.assign_patients(j)
             if j.get('reinforcement_waiting')==v['id']:j['reinforcement_arrived']=True
             v['assessment_due']=now+random.randint(60,120)
             if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
             elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
             elif j['status'] not in ('transport','hospital'):j['status']='scene'
             self.log(f'{v["callsign"]}, Status 3: am Berufungsort.','Status');return
+        if status=='scene' and self.triage_unit(self.get('jobs',v['job']),v):
+            j=self.get('jobs',v['job'])
+            if not j.get('patients') or self.scene_patients(j):self.manv_request(j,v);v['phase_due']=now+60;return
+            self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Sichtung abgeschlossen, Status 6: frei über Funk.','Status');return
         if status=='scene' and self.agency_gate(self.get('jobs',v['job'])):v.update(agency_transport_wait=True,phase_due=now+30);return
         if status=='scene' and self.get('jobs',v['job']).get('no_patient'):self.finish_without_patient(self.get('jobs',v['job']));return
         if status=='scene' and any(c['vehicle']==v['id'] and c['state']!='closed' and c['kind'] not in ('Signalfahrt','Lagemeldung') for c in self.state['radio_calls']):v['phase_due']=None;return

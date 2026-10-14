@@ -4,16 +4,20 @@ import uuid
 class SceneRadio:
     def raise_scene_radio(self,j,v,force=False):
         if j.get('no_patient') or v['type']=='FR':return
+        if self.is_manv(j):
+            leader=self.ensure_triage_leader(j)
+            if not leader or leader['id']!=v['id']:return
         if any(c['vehicle']==v['id'] and c['job']==j['id'] and c['kind']=='Lagemeldung' and c['state']!='closed' for c in self.state['radio_calls']):return
         if v['id'] in j.get('lage_reported',[]) and not force:return
         j.setdefault('lage_reported',[]).append(v['id'])
         call=dict(id=uuid.uuid4().hex[:12],job=j['id'],vehicle=v['id'],kind='Lagemeldung',state='calling',created=self.state['clock'])
+        if self.is_manv(j):call['manv']=True;j['manv_reported_needs']=self.manv_needs(j)
         self.state['radio_calls'].append(call);self.log(f'LEO von {self.radio_name(v)}, kommen.','Funk')
         return call
 
     def excess_units(self,j,reporter):
         transporters=('KTW','KTW-B','BKTW','RTW','RTW-C','NAH')
-        scene=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['status']=='scene']
+        scene=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['status']=='scene' and not self.triage_unit(j,v)]
         patients=max(1,len(self.scene_patients(j))) if j.get('patients') else 1
         doctor_need=self.doctor_demand(j) if j.get('patients') else int(j.get('patient_condition',{}).get('notarzt_required',False))
         enough_transport=sum(v['type'] in transporters for v in scene)>=patients
@@ -34,12 +38,21 @@ class SceneRadio:
             self.log('LEO verstanden, Ende.','Funk');c['state']='closed'
             if v.get('job')==j['id'] and v['status']=='scene' and v.get('phase_due') is None:v['phase_due']=self.state['clock']+120
             return
+        if c.get('manv') and step in ('manv_confirm','manv_unavailable') and c['state']=='awaiting_end':
+            needs=self.manv_needs(j)
+            if step=='manv_confirm' and any(needs.values()):raise ValueError('Benötigte Kräfte zuerst zuordnen oder negativ bestätigen.')
+            if step=='manv_unavailable':
+                for kind,count in needs.items():
+                    if count:j.setdefault('request_denials',{})[kind]={'time':self.state['clock'],'reason':'Keine weiteren Kräfte verfügbar.'}
+            self.log('Hier LEO, '+('negativ, derzeit keine weiteren Kräfte verfügbar.' if step=='manv_unavailable' else 'benötigte Kräfte sind disponiert.')+' Kommen.','Funk')
+            self.log(f'Hier {self.radio_name(v)}, verstanden.','Funk');self.log('LEO Ende.','Funk');c['state']='closed';return
         if step=='listen' and c['state']=='calling':
             self.log('Hier LEO.','Funk');condition=j.get('patient_condition') or {}
             text='Laufende Reanimation.' if condition.get('percent')==0 or j.get('code')=='RD-9E1' else j.get('scene_report',{}).get('text','')
             if not text or text.startswith('Mannschaft vor Ort'):
                 text='Patient kritisch, notärztliche Versorgung läuft.' if condition.get('notarzt_required') and v['type'] in ('NEF','NAH') else 'Patient wird von uns versorgt, Zustand derzeit stabil.' if not condition.get('notarzt_required') else 'Patient kritisch, weitere Versorgung am Berufungsort.'
-            if j.get('patients'):text+=f' {len(self.scene_patients(j))} Patienten noch am Berufungsort, davon {sum(p["percent"]<45 for p in self.scene_patients(j))} kritisch.'
+            if c.get('manv'):text=self.manv_report_text(j);j['manv_reported_needs']=self.manv_needs(j)
+            elif j.get('patients'):text+=f' {len(self.scene_patients(j))} Patienten noch am Berufungsort, davon {sum(p["percent"]<45 for p in self.scene_patients(j))} kritisch.'
             present=[self.radio_name(u) for u in self.state['vehicles'] if u.get('job')==j['id'] and u['status']=='scene' and u['id']!=v['id']]
             if present:text+=' '+', '.join(present)+' bereits vor Ort.'
             c['cancel_candidates']=self.excess_units(j,v)

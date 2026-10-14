@@ -34,14 +34,14 @@ class MultiplePatients:
         if not j.get('patients'):return
         for id in j['vehicles']:
             v=self.get('vehicles',id)
-            if v['job']!=j['id'] or v['type'] not in TRANSPORTERS:continue
+            if v['job']!=j['id'] or v['type'] not in TRANSPORTERS or self.triage_unit(j,v):continue
             if any(p['carrier']==id for p in j['patients']):continue
             patient=min((p for p in j['patients'] if not p['delivered'] and not p['carrier']),key=lambda p:(p['percent'],p['number']),default=None)
             if patient:patient['carrier']=id;v['patient_index']=patient['number']-1
 
     def assign_doctors(self,j):
         patients=self.scene_patients(j);now=self.state['clock']
-        doctors=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['type'] in ('NEF','NAH') and v['status']=='scene' and v.get('assessment_due',0)<=now]
+        doctors=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['type'] in ('NEF','NAH') and v['status']=='scene' and v.get('assessment_due',0)<=now and not self.triage_unit(j,v)]
         for p in patients:p['doctor']=None
         for v in doctors:
             options=[p for p in patients if not p['doctor']]
@@ -68,6 +68,9 @@ class MultiplePatients:
         return sum(not p['delivered'] and not p['carrier'] for p in j['patients'])
 
     def request_manv_resources(self,j,v):
+        if self.is_manv(j):
+            if os.environ.get('REINFORCEMENTS_AUTO','1')!='0':self.manv_request(j,v)
+            return
         if not j.get('patients') or v['status']!='scene' or v.get('assessment_due',0)>self.state['clock']:return
         if os.environ.get('REINFORCEMENTS_AUTO','1')=='0':return
         scene=[p for p in j['patients'] if self.patient_phase(j,p)=='scene']
@@ -83,7 +86,7 @@ class MultiplePatients:
         for p in j['patients']:p['phase']=self.patient_phase(j,p);p.setdefault('triage',triage(p['percent']))
         if os.environ.get('PATIENT_EVOLUTION','1')!='0' and now>=j.get('patients_next_change',now+60):
             transport_care=[p for p in j['patients'] if self.patient_phase(j,p)=='transport' and any(v['id']==p.get('doctor') and v.get('job')==j['id'] and v['status']=='transport' for v in self.state['vehicles'])]
-            present=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['type'] in ('NEF','NAH') and v['status']=='scene']
+            present=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['type'] in ('NEF','NAH') and v['status']=='scene' and not self.triage_unit(j,v)]
             qualified=[v for v in present if v.get('assessment_due',0)<=now]
             shared_rate=max(1,18*len(qualified)//max(1,len(scene))) if qualified else 0
             for p in scene+transport_care:
@@ -101,6 +104,10 @@ class MultiplePatients:
         c=j.get('patient_condition')
         if scene and c:
             c.update(percent=min(p['percent'] for p in scene),notarzt_required=any(p['percent']<45 for p in scene))
+        if self.is_manv(j):
+            leader=self.ensure_triage_leader(j)
+            if leader:self.request_manv_resources(j,leader)
+            return
         reporter=next((v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['status']=='scene' and v.get('assessment_due',0)<=now and v['type'] in ('NEF','NAH')),None)
         if reporter:self.request_manv_resources(j,reporter)
 
