@@ -283,3 +283,12 @@ Das Einsatzfenster hat getrennte Reiter für Disposition, zugeordnete Kräfte, U
 Ressourcen-Icons können unter Konfiguration mit Vorschau einzeln zugeordnet werden; Änderungen betreffen ausschließlich die Grafik und lassen laufende Einsätze unverändert. PNG, JPEG und WebP bis 20 MB werden im Browser auf höchstens 512 × 256 Pixel und 512 KiB PNG verkleinert. Fahrzeuge am Berufungsort werden am Einsatzmarker nach Typfarbe gezählt und haben dort keinen separaten Fahrzeugmarker.
 
 Beim Öffnen des Einsatzfensters steht Kommunikation zuerst, danach Disposition mit AMPDS-Auswahl, Einsatzdaten und getrennte Reiter für Nachforderung und externe Unterstützung. Noch nicht gewählte Alarmierungsstichwörter sperren die Ressourcenauswahl. Bei fehlenden Straßenroutendaten wird eine sofortige, ausdrücklich ungefähre ETA angezeigt. Offene Matrix-Anfragen werden nach zwölf Sekunden als Fehler markiert; später eintreffende Straßendaten ersetzen die Schätzung. Tatsächliche Straßenfahrten warten weiterhin auf Routengeometrie, damit Fahrzeuge bei ausgefallenem Routing nicht querfeldein fahren.
+
+
+### Fachabteilungen und Mannschaftsziel
+
+Betreiber-Abteilungsübersichten für 24 NÖ-Standorte sowie Klinik Landstraße und Donaustadt sind als datierte Profile hinterlegt. Zwei weitere recherchierte NÖ-Standorte bleiben ausdrücklich ungeprüft. Die Klinikliste und Karten-Popups zeigen die erfassten Abteilungen. Die Mannschaft wählt ihr Ziel nach dem vor Ort festgestellten Fachbedarf; ein ausdrücklich vorgegebenes Szenarioziel bleibt erhalten. Wiener Ziele werden weiterhin über den simulierten Bettenmann koordiniert.
+
+Für Erwachsenen-Traumatologie wird Baden im regionalen Umfeld bevorzugt. Mödling gilt hierfür laut Betreiberhinweis Mo–Fr 08–13 Uhr als verfügbar; Kinder bis zehn Jahre bleiben dort durchgehend im Übungsmodell versorgbar. Bei stabilen dermatologischen Befunden wird im regionalen Umfeld Landstraße bevorzugt. Das sind Simulationsregeln, keine reale Zuweisungsanweisung und keine Echtzeit-Auskunft über Betten, Sperren oder Aufnahmefähigkeit. Ungeprüfte Profile werden nicht als verifiziert ausgegeben.
+
+Die Nutzergrafiken vom 14.10.2026 sind Standard für RTW/RTW-C, NEF und Christophorus. Bereits individuell gewählte eigene Grafiken bleiben erhalten; explizite Icon-Zuordnungen sind auch beim RTW-C-Wechsel geschützt. Die Vordispositionsliste zeigt Heimatdienststelle und Entfernung zum Abholort, nach Entfernung aufsteigend.

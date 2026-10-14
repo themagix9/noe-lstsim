@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory() as data:
             choose_code(b, 'KTR-90K3');on_tab(b, 'disposition').locator('.dispatch-options input').first.check();b.locator('#dispatch').click();expect(b.locator('#detail')).to_contain_text('Alarmiert');expect(b.locator('#dispatch-dialog')).not_to_be_visible();a.locator('#close-dispatch').click();expect(a.locator('#fleet-table')).to_contain_text('Alarmiert',timeout=8000)
             b.locator('#chat-input').fill('Transport übernommen.');b.get_by_role('button',name='Senden',exact=True).click();expect(a.locator('#chat')).to_contain_text('Transport übernommen.',timeout=8000)
             a.reload();expect(a.locator('#lobby')).to_be_hidden(timeout=8000);expect(a.locator('#copy-code')).to_have_text(code)
-            a.locator('#desk-menu > summary').click();a.get_by_role('button',name='Ressourcen',exact=True).click();expect(a.locator('#graphic-list img')).to_have_count(6);a.wait_for_function("[...document.querySelectorAll('#graphic-list img')].every(img=>img.complete&&img.naturalWidth>0)")
+            a.locator('#desk-menu > summary').click();a.get_by_role('button',name='Ressourcen',exact=True).click();expect(a.locator('#graphic-list img')).to_have_count(9);a.wait_for_function("[...document.querySelectorAll('#graphic-list img')].every(img=>img.complete&&img.naturalWidth>0)")
             a.locator('#desk-menu > summary').click();a.get_by_role('button',name='Disposition',exact=True).click();a.locator('#speed').select_option('60');a.locator('#pause').click();expect(a.locator('#running')).to_have_text('SIMULATION LÄUFT')
             # Move and resize a desk window, preserve its layout through live updates and reload.
             a.evaluate("command('control',{paused:true})")

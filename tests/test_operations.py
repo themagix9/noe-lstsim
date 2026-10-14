@@ -17,7 +17,7 @@ class OperationsTests(unittest.TestCase):
     def test_graphic_change_preserves_busy_vehicle_and_persists(self):
         before=copy.deepcopy(self.v);before.update(status='duty',job='active',phase_due=9876,lat=48.11,lon=16.45)
         self.v.update(before);self.e.command('vehicle_graphic',{'vehicle':self.v['id'],'graphic':'box'})
-        self.assertEqual(self.v,{**before,'graphic':'box'})
+        self.assertEqual(self.v,{**before,'graphic':'box','graphic_custom':True})
         self.e.db.close();self.e=Engine(self.path);self.assertEqual(self.e.get('vehicles',self.v['id'])['graphic'],'box')
     def test_unknown_graphic_does_not_change_vehicle(self):
         before=copy.deepcopy(self.v)

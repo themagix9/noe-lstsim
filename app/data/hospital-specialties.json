@@ -1,0 +1,449 @@
+{
+  "profiles": [
+    {
+      "registry_id": "K303.1",
+      "site": "amstetten",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Chirurgie",
+        "Frauenheilkunde und Geburtshilfe",
+        "Innere Medizin 1",
+        "Innere Medizin 2",
+        "Kinder- und Jugendheilkunde",
+        "Neurologie",
+        "Orthopädie und Traumatologie"
+      ],
+      "source": "https://amstetten.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K316.1",
+      "site": "hainburg",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Chirurgie",
+        "Frauenheilkunde und Geburtshilfe",
+        "Innere Medizin"
+      ],
+      "source": "https://hainburg.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K324.1",
+      "site": "tulln",
+      "departments": [
+        "Anästhesie und Intensivmedizin",
+        "Chirurgie",
+        "Frauenheilkunde und Geburtshilfe",
+        "Innere Medizin",
+        "Kinder- und Jugendpsychiatrie und Psychotherapie",
+        "Kinder- und Jugendheilkunde",
+        "Neurologie",
+        "Psychiatrie und psychotherapeutische Medizin",
+        "Orthopädie und Traumatologie"
+      ],
+      "source": "https://tulln.lknoe.at/fuer-patienten/klinische-abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K324.2",
+      "site": "klosterneuburg",
+      "departments": [
+        "Anästhesie und Intensivmedizin",
+        "Gynäkologische Tagesklinik",
+        "Innere Medizin"
+      ],
+      "source": "https://klosterneuburg.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K326.1",
+      "site": "krems",
+      "departments": [
+        "Anästhesie und Intensivmedizin",
+        "Allgemein-, Viszeral- und Thoraxchirurgie",
+        "Gynäkologie und Geburtshilfe",
+        "Hals-, Nasen- und Ohrenkrankheiten",
+        "Innere Medizin 1",
+        "Innere Medizin 2",
+        "Kinder- und Jugendheilkunde",
+        "Orthopädie und Traumatologie",
+        "Pneumologie",
+        "Strahlentherapie-Radioonkologie",
+        "Urologie"
+      ],
+      "source": "https://krems.lknoe.at/fuer-patienten/klinische-abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K333.1",
+      "site": "mauer",
+      "departments": [
+        "Erwachsenenpsychiatrie",
+        "Stationäre Psychotherapie",
+        "Abhängigkeitserkrankungen",
+        "Forensische Psychiatrie",
+        "Kinder- und Jugendpsychiatrie und Psychotherapie"
+      ],
+      "source": "https://mauer.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K334.1",
+      "site": "melk",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Chirurgie",
+        "Frauenheilkunde und Geburtshilfe",
+        "Innere Medizin",
+        "Neurologie"
+      ],
+      "source": "https://melk.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K335.1",
+      "site": "mistelbach",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Augenheilkunde",
+        "Chirurgie",
+        "Frauenheilkunde und Geburtshilfe",
+        "Innere Medizin I - Abteilung für Kardiologie und internistische Intensivmedizin",
+        "Innere Medizin II - Abteilung für Gastroenterologie, Hepatologie sowie Onkologie",
+        "Innere Medizin III - Abteilung für Nephrologie und Diabetologie",
+        "Kinder- und Jugendabteilung",
+        "Neurologie",
+        "Orthopädie und Traumatologie",
+        "Urologie"
+      ],
+      "source": "https://mistelbach.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K335.2",
+      "site": "gaenserndorf",
+      "departments": [],
+      "checked": "2026-10-14",
+      "status": "Abteilungsprofil noch ungeprüft",
+      "errors": [
+        "HTTP Error 404: Not Found",
+        "HTTP Error 404: Not Found"
+      ]
+    },
+    {
+      "registry_id": "K338.1",
+      "site": "neunkirchen",
+      "departments": [
+        "Anästhesie und Intensivmedizin",
+        "Chirurgie",
+        "Gynäkologie und Geburtshilfe",
+        "Innere Medizin",
+        "Orthopädie und Traumatologie",
+        "Psychiatrie und Psychotherapeutische Medizin"
+      ],
+      "source": "https://neunkirchen.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K343.1",
+      "site": "korneuburg",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Chirurgie",
+        "Frauenheilkunde und Geburtshilfe",
+        "Orthopädie und Traumatologie",
+        "Urologie"
+      ],
+      "source": "https://korneuburg.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K343.2",
+      "site": "stockerau",
+      "departments": [
+        "1. Medizinische Abteilung",
+        "2. Medizinische Abteilung"
+      ],
+      "source": "https://stockerau.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K343.3",
+      "site": "hollabrunn",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Chirurgie",
+        "Innere Medizin",
+        "Sozialpsychiatrische Abteilung"
+      ],
+      "source": "https://hollabrunn.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K347.1",
+      "site": "scheibbs",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Gynäkologie und Geburtshilfe",
+        "Innere Medizin mit Palliative Care",
+        "Orthopädie und Traumatologie"
+      ],
+      "source": "https://scheibbs.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K354.1",
+      "site": "waidhofen-ybbs",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Chirurgie",
+        "Innere Medizin"
+      ],
+      "source": "https://waidhofen-ybbs.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K367.1",
+      "site": "wienerneustadt",
+      "departments": [
+        "Anästhesie, Notfall- und Allgemeine Intensivmedizin",
+        "Augenheilkunde und Optometrie",
+        "Allgemein-, Viszeral- und Gefäßchirurgie",
+        "Dermatologie und Venerologie",
+        "Gynäkologie und Geburtshilfe",
+        "Hals- Nasen- Ohrenheilkunde",
+        "Innere Medizin I - Gastroenterologie und Hepatologie",
+        "Innere Medizin II - Kardiologie, Nephrologie und internistische Intensivmedizin",
+        "Innere Medizin III - Hämatologie und internistische Onkologie",
+        "Kinder- und Jugendheilkunde",
+        "Neurochirurgie",
+        "Neurologie",
+        "Orthopädie und Traumatologie",
+        "Urologie"
+      ],
+      "source": "https://wienerneustadt.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K367.2",
+      "site": "hochegg",
+      "departments": [
+        "Neurologie",
+        "Innere Medizin - Pulmologie"
+      ],
+      "source": "https://hochegg.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K377.1",
+      "site": "horn",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Augenheilkunde",
+        "Chirurgie",
+        "Frauenheilkunde und Geburtshilfe",
+        "Innere Medizin 1",
+        "Innere Medizin 2",
+        "Neurologie",
+        "Unfallchirurgie"
+      ],
+      "source": "https://horn.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K377.3",
+      "site": "allentsteig",
+      "departments": [],
+      "checked": "2026-10-14",
+      "status": "Abteilungsprofil noch ungeprüft",
+      "errors": [
+        "HTTP Error 404: Not Found",
+        "HTTP Error 404: Not Found"
+      ]
+    },
+    {
+      "registry_id": "K380.1",
+      "site": "moedling",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Allgemein-, Viszeral- und Gefäßchirurgie",
+        "Gynäkologie und Geburtshilfe",
+        "Innere Medizin",
+        "Kinder- und Jugendheilkunde",
+        "Neurologie",
+        "Orthopädie und Traumatologie"
+      ],
+      "source": "https://moedling.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage",
+      "availability_note": "Orthopädie / Traumatologie: Mo–Fr 08–13 Uhr; Kinder bis 10 Jahre durchgehend. Quelle: https://moedling.lknoe.at/fuer-patienten/ambulanzen/ambulanz-fuer-orthopaedie/informationen"
+    },
+    {
+      "registry_id": "K380.2",
+      "site": "baden",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Allgemein-, Viszeral- und Gefäßchirurgie",
+        "Innere Medizin",
+        "Orthopädie und Traumatologie",
+        "Psychiatrie und Psychotherapeutische Medizin",
+        "Urologie"
+      ],
+      "source": "https://baden.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage",
+      "availability_note": "Unfallambulanz rund um die Uhr laut Hinweis des Klinikbetreibers."
+    },
+    {
+      "registry_id": "K382.1",
+      "site": "stpoelten",
+      "departments": [
+        "Anästhesie und Intensivmedizin",
+        "Augenheilkunde und Orbitachirurgie",
+        "Chirurgie",
+        "Gynäkologie und Geburtshilfe",
+        "Hals-Nasen-Ohren",
+        "Haut- und Geschlechtskrankheiten",
+        "Herzchirurgie",
+        "Innere Medizin 1",
+        "Innere Medizin 2",
+        "Innere Medizin 3",
+        "Kinder- und Jugendheilkunde",
+        "Mund-, Kiefer- und Gesichtschirurgie",
+        "Neurochirurgie",
+        "Neurologie",
+        "Orthopädie und Traumatologie",
+        "Plastische, Ästhetische und Rekonstruktive Chirurgie",
+        "Psychiatrie und Psychotherapeutische Medizin",
+        "Urologie und Andrologie"
+      ],
+      "source": "https://stpoelten.lknoe.at/fuer-patienten/klinische-abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K382.2",
+      "site": "lilienfeld",
+      "departments": [
+        "Anästhesie und Intensivmedizin",
+        "Chirurgie",
+        "Orthopädie und Traumatologie",
+        "Frauenheilkunde und Geburtshilfe",
+        "Innere Medizin"
+      ],
+      "source": "https://lilienfeld.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K383.1",
+      "site": "zwettl",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Chirurgie",
+        "Gynäkologie und Geburtshilfe",
+        "Innere Medizin mit Herzüberwachungsstation",
+        "Kinder- und Jugendheilkunde mit Neonatologie",
+        "Orthopädie und Orthopädische Chirurgie"
+      ],
+      "source": "https://zwettl.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K383.2",
+      "site": "gmuend",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Dislozierte Wochenklinik Chirurgie",
+        "Innere Medizin",
+        "Orthopädie",
+        "Remobilisation und Nachsorge"
+      ],
+      "source": "https://gmuend.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K383.3",
+      "site": "waidhofen-thaya",
+      "departments": [
+        "Anästhesiologie und Intensivmedizin",
+        "Chirurgie",
+        "Innere Medizin mit Palliativmedizin, Onkologie und Herzüberwachung",
+        "Urologie",
+        "Waldviertler Zentrum für Seelische Gesundheit"
+      ],
+      "source": "https://waidhofen-thaya.lknoe.at/fuer-patienten/abteilungen",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K917.1",
+      "site": "landstrasse",
+      "departments": [
+        "Anästhesie und Intensivmedizin",
+        "Augenheilkunde und Optometrie",
+        "Chirurgie",
+        "Dermatologie, Venerologie und Allergologie",
+        "Diabetologie, Endokrinologie und Nephrologie",
+        "Gastroenterologie, Hepatologie und Endoskopie",
+        "Gynäkologie und Geburtshilfe",
+        "Hals-Nasen- und Ohrenheilkunde",
+        "Kardiologie und Intensivmedizin",
+        "Kinder- und Jugendheilkunde mit Neonatologie",
+        "Neurochirurgie",
+        "Neurologie",
+        "Plastische- und Wiederherstellungschirurgie",
+        "Psychiatrie"
+      ],
+      "source": "https://klinik-landstrasse.gesundheitsverbund.at/abteilungen/",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    },
+    {
+      "registry_id": "K956.1",
+      "site": "donaustadt",
+      "departments": [
+        "Anästhesie und Intensivmedizin",
+        "Augen",
+        "Chirurgie",
+        "Dermatologie",
+        "Gynäkologie und Geburtshilfe",
+        "Hals-Nasen-Ohren",
+        "Innere Medizin mit Gastroenterologie, Hepatologie, Hämatologie, Onkologie und Notfallmedizin",
+        "Innere Medizin mit Kardiologie und Intensivmedizin",
+        "Innere Medizin, Stoffwechsel- und Nierenerkrankungen",
+        "Kinder- und Jugendchirurgie",
+        "Kinder- und Jugendheilkunde mit Neonatologie",
+        "Neurochirurgie",
+        "Neurologie mit Akutgeriatrie",
+        "Orthopädie und Traumatologie",
+        "Psychiatrie und Psychotherapeutische Medizin",
+        "Urologie und Andrologie"
+      ],
+      "source": "https://klinik-donaustadt.gesundheitsverbund.at/abteilungen/",
+      "checked": "2026-10-14",
+      "status": "Betreiber-Abteilungsübersicht; keine Echtzeit-Aufnahmezusage"
+    }
+  ],
+  "checked": "2026-10-14"
+}

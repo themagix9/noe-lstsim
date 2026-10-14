@@ -65,6 +65,9 @@ class Fleet:
         if not v.get('rtwc_capable'):raise ValueError('Dieses Fahrzeug ist nicht RTW-C-fähig.')
         group=[u for u in self.state['vehicles'] if u['station']==station['id'] and u['type']=='RTW-C' and u['id']!=v['id']]
         if v.get('job') or v.get('reservation') or any(u.get('job') or u.get('reservation') or u.get('rtwc_fixed') for u in group):raise ValueError('RTW-C-Wechsel nur bei freien, nicht reservierten Fahrzeugen; feste Zuordnung bleibt geschützt.')
-        for u in group:u['type']='RTW';u['graphic']='van'
-        v.update(type='RTW-C',nfs=True,graphic='box')
+        for u in group:
+            u['type']='RTW'
+            if not u.get('graphic_custom'):u['graphic']='user-rtw'
+        v.update(type='RTW-C',nfs=True)
+        if not v.get('graphic_custom'):v['graphic']='user-rtw'
         self.log(f'{station["name"]}: {v["callsign"]} als RTW-C besetzt, mindestens ein NFS bestätigt.','System')

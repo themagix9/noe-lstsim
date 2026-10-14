@@ -31,7 +31,9 @@ GRAPHICS = [
     {'id':'car','name':'Notarzteinsatzfahrzeug · SUV','url':'/graphics/car.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
     {'id':'command','name':'Führungsfahrzeug · Bus','url':'/graphics/command.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
 ]
-DEFAULT_GRAPHIC = {'KTW':'van','KTW-B':'van','RTW':'van','RTW-C':'box','NEF':'car','BEL':'command','BKTW':'van','FR':'responder','NAH':'helicopter'}
+from user_graphics import GRAPHICS as USER_GRAPHICS
+GRAPHICS += USER_GRAPHICS
+DEFAULT_GRAPHIC = {'KTW':'van','KTW-B':'van','RTW':'user-rtw','RTW-C':'user-rtw','NEF':'user-nef','BEL':'command','BKTW':'van','FR':'responder','NAH':'user-nah'}
 
 TYPES = ['KTW', 'KTW-B', 'BKTW', 'RTW', 'RTW-C', 'NEF', 'NAH', 'FR', 'BEL']
 STATUSES = STATUS_LABELS
@@ -88,9 +90,13 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
         self.upgrade_support()
         from fleet_zone5 import upgrade as upgrade_zone5
         upgrade_zone5(self)
+        from user_graphics import upgrade as upgrade_graphics
+        upgrade_graphics(self)
         upgrade_locations(self)
         from hospitals import upgrade_hospitals
         upgrade_hospitals(self)
+        from hospital_specialties import upgrade as upgrade_specialties
+        upgrade_specialties(self)
         self.save()
 
     def save(self):
@@ -319,7 +325,7 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
             elif action=='vehicle_graphic':
                 v=self.get('vehicles',data['vehicle']);graphic=data.get('graphic')
                 if graphic not in {g['id'] for g in self.state['graphics']}:raise ValueError('Unbekannte Fahrzeuggrafik.')
-                v['graphic']=graphic
+                v['graphic']=graphic;v['graphic_custom']=True
             elif action=='vehicle': self.edit_vehicle(data)
             elif action=='station': self.edit_station(data)
             elif action=='delete_vehicle':
@@ -400,5 +406,7 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
         v['status']=self.idle_status(v)
         if typ=='FR':
             origin=self.home(v);v.update(lat=origin['lat'],lon=origin['lon'])
+        if existing and graphic!=existing.get('graphic'):v['graphic_custom']=True
+        if 'graphic_custom' in d:v['graphic_custom']=bool(d['graphic_custom'])
         if existing: existing.update(v)
         else: self.state['vehicles'].append(v)

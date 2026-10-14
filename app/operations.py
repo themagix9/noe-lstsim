@@ -183,8 +183,9 @@ class Operations:
             else:v['phase_due']=None
             return
         from hospitals import nearby
-        if multi and not j.get('crew_target'):j['crew_target']=nearby(self,j,'NÖ',True)[0]['id']
-        h=self.get('hospitals',j['crew_target']) if j.get('crew_target') else random.choice([h for h in nearby(self,j,emergency=True) if v['type']!='NAH' or h.get('helipad')][:5]);j['requested_destination']=h['id']
+        from hospital_specialties import choose_target
+        h=self.get('hospitals',j['crew_target']) if j.get('crew_target') else choose_target(self,j,v,'NÖ' if multi else None)
+        j['requested_destination']=h['id']
         if h['region']=='Wien':
             j['destination']=None;j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None
             self.log(f'{v["callsign"]} an Leitstelle: Patient transportbereit, benötigen ein Ziel in Wien, Wunsch {h["name"]}. Bitte Bettenmann verständigen.')
