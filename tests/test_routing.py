@@ -117,3 +117,13 @@ class RouteTests(unittest.TestCase):
             with patch('routing.urllib.request.urlopen',side_effect=error),patch('routing.time.sleep'):
                 self.assertEqual(router.request('/route')['code'],'NoSegment')
             router.db.close()
+
+    def test_failed_matrix_does_not_flood_driving_queue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            router=Router(Path(directory)/'cache.db',enabled=False,fetcher=lambda path:{'code':'Ok','durations':[[None],[None]],'distances':[[None],[None]]})
+            router.enabled=True
+            a={'id':'a','lat':48,'lon':16};b={'id':'b','lat':48.01,'lon':16};target={'lat':48.1,'lon':16.1}
+            with patch('routing.time.sleep'):router.fetch_matrix([a,b],target)
+            self.assertEqual(len(router.tasks.queue),0)
+            self.assertEqual(router.route(a,target)['status'],'pending');self.assertEqual(len(router.tasks.queue),1)
+            router.db.close()

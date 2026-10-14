@@ -160,8 +160,11 @@ class Router:
             if duration is not None and (not math.isfinite(duration) or duration<0):raise ValueError('Invalid matrix duration')
             record={'status':'ready','seconds':duration,'distance_m':distance,'source':'OSRM · OpenStreetMap'} if duration is not None else {'status':'error','retry_at':time.time()+60,'error':'Keine Straßenroute; Straßenanschluss wird geprüft'}
             if duration is None:
-                road=self.route(v,target)
-                if road['status']=='ready':record={name:value for name,value in road.items() if name not in ('geometry','cumulative')}
+                # A failed target can affect the entire fleet. Do not enqueue
+                # hundreds of recovery routes from one ETA matrix: only an
+                # actual journey starts recovery, at driving priority.
+                with self.lock:road=self.items.get('route|'+self.cachekey(v,target),{})
+                if road.get('status')=='ready':record={name:value for name,value in road.items() if name not in ('geometry','cumulative')}
             self.save('eta|'+self.cachekey(v,target),record)
     def cached_eta(self,v,j):
         with self.lock:return self.items.get('eta|'+self.cachekey(v,j))
