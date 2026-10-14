@@ -319,7 +319,9 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
                 if target:
                     if data.get('kind','emergency')!='emergency':raise ValueError('Übungsziel nur für Notruf-Szenarien.')
                     self.get('hospitals',target)
-                scenario=None
+                # The explicit Vienna exercise needs a patient. A random no-patient
+                # standby incident would correctly finish before bed allocation.
+                scenario=copy.deepcopy(SCENARIOS[2]) if target else None
                 if data.get('manv'):
                     if data.get('kind','emergency')!='emergency':raise ValueError('MANV nur als Rettungseinsatz erzeugen.')
                     from manv_scenarios import MANV_SCENARIOS

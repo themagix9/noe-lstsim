@@ -59,3 +59,12 @@ class WorkflowCleanupTests(unittest.TestCase):
     def test_automatic_patient_report_is_acknowledged_without_request(self):
         j=self.job();v=self.vehicle('77/002');v.update(job=j['id'],status='scene');j['vehicles']=[v['id']];j['patient_condition'].update(percent=90,notarzt_required=False,reported=False)
         self.e.patient_report(j,v);self.assertFalse(self.e.state['radio_calls']);self.assertEqual(self.e.state['logs'][0]['text'],'Hier LEO, verstanden, Ende.')
+
+    def test_explicit_vienna_exercise_always_has_a_patient(self):
+        for _ in range(4):
+            self.e.command('generate',{'kind':'emergency','crew_target':'kh-donaustadt'})
+            j=self.e.state['jobs'][-1]
+            self.assertEqual(j['event_title'],'Bewusstlose Person')
+            self.assertEqual(j['crew_target'],'kh-donaustadt')
+            self.assertIsNotNone(j['patient_condition'])
+            self.assertFalse(j.get('_scenario',{}).get('no_patient'))
