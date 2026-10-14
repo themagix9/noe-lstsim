@@ -34,7 +34,17 @@ class Calls:
         if not j['accepted'] or not call or call['state'] not in ('connected','ready'):raise ValueError('Zuerst den Notruf annehmen; Gespräch muss offen sein.')
         unanswered=[q for q in call['questions'] if q['key'] not in call['answered']]
         if not unanswered or data.get('question')!=unanswered[0]['key']:raise ValueError('Die nächste offene Abfrage auswählen.')
-        q=unanswered[0];self.phone_line(j,'LEO',q['question']);self.phone_line(j,'Anrufer',q['answer']);call['answered'].append(q['key'])
+        q=unanswered[0]
+        if data.get('combined') is True:
+            groups=[(('location','event'),'Wo genau sind Sie, und was ist passiert?'),(('patient','consciousness','breathing'),'Wer ist betroffen? Sind die Personen ansprechbar, und wie atmen sie?'),(('access',),'Wie kommen wir zu Ihnen? Bleiben Sie unter dieser Nummer erreichbar?')]
+            keys,question=next((keys,text) for keys,text in groups if q['key'] in keys)
+            batch=[item for item in unanswered if item['key'] in keys]
+            self.phone_line(j,'LEO',question)
+            self.phone_line(j,'Anrufer',' '.join(item['answer'] for item in batch))
+            call['transcript'][-1]['answered_keys']=[item['key'] for item in batch]
+            call['answered'].extend(item['key'] for item in batch)
+        else:
+            self.phone_line(j,'LEO',q['question']);self.phone_line(j,'Anrufer',q['answer']);call['answered'].append(q['key'])
         if len(call['answered'])==len(call['questions']):call['state']='ready';j['asked']=True;j['asked_at']=self.state['clock']
 
     def finish_call(self,data):

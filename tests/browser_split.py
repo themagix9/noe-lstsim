@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory() as data:
             expect(c.locator('#mode-label')).to_have_text('CALLTAKER');expect(d.locator('#mode-label')).to_have_text('DISPONENT')
             c.locator('#demo').click();c.locator('#new-call').click();expect(c.locator('#accept')).to_be_visible();c.locator('#accept').click()
             expect(d.locator('.job.emergency')).to_contain_text('Abfrage läuft beim Calltaker');d.locator('.job.emergency').click();on_tab(d,'kommunikation');expect(d.locator('.call-dialogue')).to_contain_text('wo genau ist der Notfallort');expect(d.locator('#call-next')).to_be_disabled()
-            for _ in range(6):
+            for _ in range(3):
                 with c.expect_response(lambda r:r.url.endswith('/api/call_question')) as response:c.locator('#call-next').click()
                 assert response.value.ok,response.value.text()
             c.locator('#handoff-note').fill('Zugang über die Seitentür.');c.locator('#handoff-job').click();expect(c.locator('#dispatch-dialog')).to_be_hidden()

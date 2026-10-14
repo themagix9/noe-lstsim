@@ -94,7 +94,7 @@ with tempfile.TemporaryDirectory() as data:
             p.evaluate("""async()=>{
              const j=state.jobs.at(-1);window.manvId=j.id;
              await command('accept',{id:j.id});
-             for(const q of state.jobs.find(j=>j.id===manvId).call.questions)await command('call_question',{job:manvId,question:q.key});
+             for(let i=0;i<3;i++){const call=state.jobs.find(j=>j.id===manvId).call,q=call.questions.find(q=>!call.answered.includes(q.key));await command('call_question',{job:manvId,question:q.key,combined:true})}
              await command('call_finish',{job:manvId});openDispatch(manvId)
             }""")
             expect(p.locator('#detail-tab-patienten')).to_have_count(0)
