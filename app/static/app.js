@@ -2,6 +2,7 @@
 const $=id=>document.getElementById(id), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const names={ready:'1 · Frei auf Wache',enroute:'2 · Zum Berufungsort',scene:'3 · Am Berufungsort',transport:'4 · Zum Zielort',hospital:'5 · Am Zielort',radio:'6 · Frei über Funk',duty:'7 · Dienstfahrt',standby:'8 · Bereitschaft',acknowledged:'9 · Alarmiert und Quittiert',out:'0 · Außer Betrieb',fr_ready:'Bereitschaft · zuhause'};
 function statusName(v){return v.status==='assigned'?(v.alarm_from==='ready'?'Alarmiert auf Wache':'Alarmiert über Funk'):names[v.status]||v.status}
+function statusNumber(v){return statusName(v).match(/^(\d+)\s*·/)?.[1]||'—'}
 const stages={new:'Offen',assigned:'Disponiert',scene:'Versorgung',awaiting_bed:'Wiener Ziel angefordert',awaiting_cpr:'Funkrückfrage Reanimation erforderlich',transport:'Transport',hospital:'Übergabe',done:'Abgeschlossen'};
 let playMode='single',leafletMap=null,mapLayers=null,mapZone=null,mapRoom=null,tiles=null;
 const noticedCalls=new Set();let callTranscriptOffset=null;let detailTab='einsatz',resourceFilter='',resourceSort='distance',resourceDirection='asc',resourceSelection=new Set(),ampdsRules=[],addressPoints=[];
@@ -215,7 +216,7 @@ function renderMap(vehicles,jobs){
  const overlaps={};vehicles.filter(mapVisible).forEach(v=>{
   const key=v.lat.toFixed(5)+','+v.lon.toFixed(5),n=overlaps[key]||0;overlaps[key]=n+1;
   const response=state.jobs.find(j=>j.id===v.job),blue=!!response?.signal&&['enroute','scene','transport'].includes(v.status)&&!['FR','NAH'].includes(v.type);
-  const icon=L.divIcon({className:'resource-marker'+(blue?' blue-response':''),html:`<img src="${esc(graphic(v).url)}" alt=""><span class="${unitClass(v)}">${esc(v.type)} ${esc(resourceName(v))}<small>${esc(homeLabel(v))}</small></span>`,iconSize:[60,55],iconAnchor:[30-n*8,20-n*5]});
+  const icon=L.divIcon({className:'resource-marker'+(blue?' blue-response':''),html:`<img src="${esc(graphic(v).url)}" alt=""><span class="${unitClass(v)}">${esc(v.type)} ${esc(resourceName(v))} <b class="map-status-number" title="${esc(statusName(v))}">S${statusNumber(v)}</b><small>${esc(homeLabel(v))}</small></span>`,iconSize:[60,55],iconAnchor:[30-n*8,20-n*5]});
   mapMarker('vehicle:'+v.id,()=>L.marker([v.lat,v.lon]),[v.lat,v.lon],icon,`<b>${esc(v.type)} ${esc(resourceName(v))}</b><br>Heimatdienststelle: ${esc(station(v.station)?.name)}<br>${esc(statusName(v))}<br>ETA: ${esc(unitEta(v))}${v.reservation?'<br>Vordisponiert':''}`);
   if(v.leg&&!v.leg.waiting){const geometry=v.leg.geometry||[[v.lat,v.lon],[v.leg.target_lat,v.leg.target_lon]],item=mapObject('route:'+v.id,()=>L.polyline(geometry,{color:v.type==='NAH'?'#7c5abc':'#2563eb',weight:3,dashArray:v.type==='NAH'?'5 6':null})),signature=JSON.stringify(geometry);if(item.geometry!==signature){item.layer.setLatLngs(geometry);item.geometry=signature}}
  });

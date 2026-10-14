@@ -43,6 +43,7 @@ with tempfile.TemporaryDirectory() as data:
             p.wait_for_function("state.vehicles.some(v=>v.callsign==='77/002'&&v.leg?.geometry)",timeout=20000);p.evaluate("command('control',{paused:true})")
             if p.locator('#dispatch-dialog').is_visible():p.locator('#close-dispatch').click()
             assert p.evaluate("mapLayers.getLayers().some(l=>l instanceof L.Polyline&&!(l instanceof L.CircleMarker)&&l.getLatLngs().length===3)")
+            p.wait_for_function("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id)?.layer.getElement()?.querySelector('.map-status-number')?.textContent==='S2'")
             expect(p.locator('.station-marker.staffed').first).to_be_visible();expect(p.locator('.hospital-marker').first).to_be_visible()
             assert p.evaluate("state.hospitals.every(h=>mapObjects.has('hospital:'+h.id)===hospitalMapVisible(h))")
             assert p.evaluate("['kh-hainburg','kh-moedling','kh-donaustadt'].every(id=>mapObjects.has('hospital:'+id))")
