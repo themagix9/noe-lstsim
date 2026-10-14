@@ -123,9 +123,14 @@ with tempfile.TemporaryDirectory() as data:
             }""")
             expect(p.locator('#detail-tab-patienten')).to_have_count(0)
             choose_code(p,'RD-29B1')
-            for call in ['77/002','77/099']:
-                on_tab(p,'disposition').locator('.resource-row').filter(has_text=call).locator('input').check()
-            p.locator('#dispatch').click();p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/002')?.job===manvId");p.evaluate("async()=>{await command('vehicle_status',{vehicle:state.vehicles.find(v=>v.callsign==='77/002').id,status:'2'});await command('control',{paused:false,speed:60})}")
+            on_tab(p,'disposition').locator('.resource-row').filter(has_text='77/002').locator('input').check()
+            p.locator('#dispatch').click();p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/002')?.job===manvId")
+            p.evaluate("async()=>{await command('vehicle_status',{vehicle:state.vehicles.find(v=>v.callsign==='77/002').id,status:'2'});await command('control',{paused:false,speed:60})}")
+            # Request the NEF only after the RTW has actually arrived: routing is
+            # asynchronous, so sending both together cannot guarantee order.
+            p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/002')?.status==='scene'",timeout=20000)
+            p.evaluate("async()=>{await command('control',{paused:true});await command('dispatch',{job:manvId,vehicles:[state.vehicles.find(v=>v.callsign==='77/099').id]});await command('control',{paused:false,speed:60})}")
+            assert p.evaluate("state.jobs.find(j=>j.id===manvId).triage_leader===state.vehicles.find(v=>v.callsign==='77/002').id")
             p.wait_for_function("state.jobs.find(j=>j.id===manvId)?.patients?.length===6",timeout=75000)
             p.wait_for_function("state.vehicles.some(v=>v.job===manvId&&v.status==='scene'&&['NEF','NAH'].includes(v.type)&&v.treating_patient!=null)",timeout=20000)
             p.evaluate("async()=>{await command('control',{paused:true});openDispatch(manvId)}")
