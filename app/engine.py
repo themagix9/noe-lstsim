@@ -176,7 +176,8 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
         if kind=='emergency':
             from scenarios import EXTRA_SCENARIOS
             from scenario_catalog import CATALOG
-            scenario=copy.deepcopy(scenario if scenario is not None else random.choice(SCENARIOS if manual else SCENARIOS+EXTRA_SCENARIOS+CATALOG)); job.update(scenario)
+            from manv_scenarios import MANV_SCENARIOS
+            scenario=copy.deepcopy(scenario if scenario is not None else random.choice(SCENARIOS if manual else SCENARIOS+EXTRA_SCENARIOS+CATALOG+MANV_SCENARIOS)); job.update(scenario)
             job['due']=clock
             if not manual:self.log('Neuer 144-Anruf wartet auf Annahme.','Telefon')
         elif kind=='transport':
@@ -308,7 +309,13 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                 if target:
                     if data.get('kind','emergency')!='emergency':raise ValueError('Übungsziel nur für Notruf-Szenarien.')
                     self.get('hospitals',target)
-                generated=self.new_job(data.get('kind','emergency'))
+                scenario=None
+                if data.get('manv'):
+                    if data.get('kind','emergency')!='emergency':raise ValueError('MANV nur als Rettungseinsatz erzeugen.')
+                    from manv_scenarios import MANV_SCENARIOS
+                    scenario=next((s for s in MANV_SCENARIOS if s['scenario_id']==data['manv']),None)
+                    if scenario is None:raise ValueError('Unbekanntes MANV-Szenario.')
+                generated=self.new_job(data.get('kind','emergency'),scenario=scenario)
                 if target:generated['crew_target']=target
             elif action=='accept':
                 j=self.get('jobs',data['id'])
@@ -363,7 +370,8 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                 self.state=seed();self.state.update(incident_counter=incident_counter,location_version=location_version,start_date=start_date,fleet_version=fleet_version,staffing_version=staffing_version,zone5_fleet_version=zone5_fleet_version); self.state['rules']=rules; self.state['setup']=setup; self.state['graphics']=graphics; self.state['chat']=[]; self.state['stations']=stations;self.state['hospitals']=hospitals; self.state['vehicles']=vehicles
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None,turnout_due=None)
-                for v in vehicles:v.pop('support_job',None);v.pop('support_request',None)
+                for v in vehicles:
+                    for key in ('support_job','support_request','patient_index','treating_patient','escort_of','transport_destination','transport_target','assessment_due'):v.pop(key,None)
                 self.migrate_operations()
                 self.upgrade_support()
             else: raise ValueError('Unbekannte Aktion.')

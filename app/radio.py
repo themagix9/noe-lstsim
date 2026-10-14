@@ -22,6 +22,8 @@ class Radio:
     def maybe_reinforcement(self,j,v):
         if j.get('no_patient') or j.get('_scenario',{}).get('no_patient'):return
         if os.environ.get('REINFORCEMENTS_AUTO','1')=='0' and not j.get('exercise_reinforcement'):return
+        if j.get('patients'):
+            self.request_manv_resources(j,v);return
         if self.missing_carriers(j) and v['type'] not in ('NEF','NAH','FR'):
             self.raise_radio(j,v,'RTW','Zwei Patienten am Berufungsort, bitte ein zweites transportierendes Rettungsmittel.',reason_initial=True);return
         if v['type'] in ('NEF','NAH','FR') or j['kind']!='emergency' or j.get('reinforcement_checked'):return
@@ -64,10 +66,10 @@ class Radio:
             if kind in ('Polizei','Feuerwehr'):
                 j['police' if kind=='Polizei' else 'fire']=True;answer=kind+' ist verständigt und kommt zum Berufungsort.'
             else:
-                unit=next((self.get('vehicles',id) for id in reversed(j['vehicles']) if (self.get('vehicles',id)['type']==kind or kind=='RTW' and self.get('vehicles',id)['type'] in ('RTW-C','KTW')) and self.get('vehicles',id)['job']==j['id'] and id!=v['id']),None)
+                unit=next((self.get('vehicles',id) for id in reversed(j['vehicles']) if (self.get('vehicles',id)['type']==kind or kind=='NEF' and self.get('vehicles',id)['type']=='NAH' or kind=='RTW' and self.get('vehicles',id)['type'] in ('RTW-C','KTW')) and self.get('vehicles',id)['job']==j['id'] and id!=v['id'] and self.get('vehicles',id)['status'] in ('assigned','standby','acknowledged','enroute','scene') and id not in [c.get('assigned') for c in self.state['radio_calls'] if c['job']==j['id'] and c['kind']==kind and c['state']=='closed']),None)
                 if not unit:raise ValueError('Benötigtes Rettungsmittel zuerst zum bestehenden Einsatz dazubuchen.')
                 call['assigned']=unit['id'];j['reinforcement_waiting']=unit['id'];j['reinforcement_arrived']=unit['status']=='scene';place=self.station(unit['station'])['name'].removeprefix('RK ').split(' · ')[0]
-                answer=f'{kind} {place} kommt '+('ab Wache.' if unit.get('alarm_from')=='ready' else 'über Funk zum Berufungsort.')
+                answer=f'{self.radio_name(unit) if kind=="NEF" else kind+" "+place} kommt '+('ab Wache.' if unit.get('alarm_from')=='ready' else 'über Funk zum Berufungsort.')
             self.log(answer+' Kommen.','Funk');self.log(f'Hier {v["callsign"]}, '+answer.split(' kommt ')[0]+', verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed';v['phase_due']=self.state['clock']+120
         elif step=='unavailable' and call['state']=='awaiting_dispatch':
             self.log(f'{v["callsign"]} von LEO: derzeit kein {kind} verfügbar. Wir klären ein weiteres Rettungsmittel, Rückmeldung folgt. Kommen.','Funk')

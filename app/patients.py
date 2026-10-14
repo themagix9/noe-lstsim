@@ -20,6 +20,10 @@ class Patients:
         j['scene_report']={'text':truth.get('report',j.get('scene','Lage vor Ort erhoben.')),'time':self.state['clock']}
         self.log(f'Hier {self.radio_name(v)}, '+j['scene_report']['text']+' Kommen.','Funk')
         self.discover_patients(j)
+        if j.get('patients'):
+            self.assign_doctors(j)
+            j['patient_condition']['percent']=min(p['percent'] for p in j['patients'])
+            j['patient_condition']['notarzt_required']=any(p['percent']<45 for p in j['patients'])
         if truth.get('no_patient'):
             j.update(no_patient=True,patient=None,patient_condition=None,destination=None)
             for id in j['vehicles']:
@@ -62,6 +66,8 @@ class Patients:
         if os.environ.get('PATIENT_EVOLUTION','1')=='0':return
         for j in self.state['jobs']:
             self.ensure_patient_condition(j);c=j['patient_condition']
+            if j.get('patients') and j['status']!='done':
+                self.update_multiple_patients(j,now);continue
             if c is None:continue
             if not c['reported'] or j['status']!='scene' or now<c['next_change']:continue
             units=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id']]

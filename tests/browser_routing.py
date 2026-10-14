@@ -14,6 +14,7 @@ from playwright.sync_api import sync_playwright,expect
 from browser_helpers import on_tab, choose_code, start_session
 
 class OSRM(BaseHTTPRequestHandler):
+    travel_seconds=2400
     def log_message(self,*args):pass
     def do_GET(self):
         url=urlsplit(self.path)
@@ -22,7 +23,7 @@ class OSRM(BaseHTTPRequestHandler):
             result={'code':'Ok','durations':[[120] for _ in range(n)],'distances':[[1500] for _ in range(n)]}
         else:
             a,b=[[float(x) for x in p.split(',')] for p in url.path.rsplit('/',1)[1].split(';')]
-            result={'code':'Ok','routes':[{'duration':2400,'distance':2000,'geometry':{'coordinates':[a,[a[0],a[1]+.01],b]}}]}
+            result={'code':'Ok','routes':[{'duration':self.travel_seconds,'distance':2000,'geometry':{'coordinates':[a,[a[0],a[1]+.01],b]}}]}
         raw=json.dumps(result).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(raw)
 
 root=Path(__file__).resolve().parents[1]
@@ -84,5 +85,30 @@ with tempfile.TemporaryDirectory() as data:
             assert p.evaluate("getComputedStyle(document.querySelector('.scene-count.unit-rtw')).color==='rgb(36, 99, 189)'&&getComputedStyle(document.querySelector('.scene-count.unit-doctor')).color==='rgb(180, 35, 45)'")
             assert p.evaluate('document.documentElement.scrollHeight<=innerHeight+1')
             Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);p.screenshot(path='/tmp/noe-ui-qa/road-routing.png');assert not errors,errors
-            print('Road routing browser test passed: address coordinates, street ETA, polyline, station and hospital icons.');browser.close()
+            # Exercise the MANV entry point and live individual-patient UI.
+            OSRM.travel_seconds=120
+            p.evaluate("async()=>{await command('reset',{});await command('control',{paused:true});selected=null}")
+            p.evaluate("document.getElementById('event-dialog').showModal()")
+            p.locator('#manv-scenario').select_option('manv-bus');p.locator('#new-manv').click()
+            p.wait_for_function("state.jobs.length===1")
+            p.evaluate("""async()=>{
+             const j=state.jobs.at(-1);window.manvId=j.id;
+             await command('accept',{id:j.id});
+             for(const q of state.jobs.find(j=>j.id===manvId).call.questions)await command('call_question',{job:manvId,question:q.key});
+             await command('call_finish',{job:manvId});openDispatch(manvId)
+            }""")
+            expect(p.locator('#detail-tab-patienten')).to_have_count(0)
+            choose_code(p,'RD-29B1')
+            for call in ['77/002','77/099']:
+                on_tab(p,'disposition').locator('.resource-row').filter(has_text=call).locator('input').check()
+            p.locator('#dispatch').click();p.evaluate("command('control',{paused:false,speed:60})")
+            p.wait_for_function("state.jobs.find(j=>j.id===manvId)?.patients?.length===6",timeout=75000)
+            p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/099')?.treating_patient!=null",timeout=20000)
+            p.evaluate("async()=>{await command('control',{paused:true});openDispatch(manvId)}")
+            on_tab(p,'patienten');expect(p.locator('.triage-patient')).to_have_count(6)
+            expect(p.locator('.triage-I')).to_have_count(2)
+            expect(p.locator('#detail-panel-patienten')).to_contain_text('Notarztversorgung: NEF')
+            assert p.evaluate('document.documentElement.scrollHeight<=innerHeight+1')
+            p.screenshot(path='/tmp/noe-ui-qa/manv-triage.png');assert not errors,errors
+            print('Road routing and MANV browser test passed: street ETA, map icons, MANV call and live triage.');browser.close()
     finally:proc.terminate();proc.wait(timeout=5);routes.shutdown();routes.server_close()

@@ -73,6 +73,7 @@ class Operations:
 
     def detach(self,v):
         if not v['job']:return
+        v.pop('transport_destination',None);v.pop('transport_target',None)
         old=self.get('jobs',v['job'])
         if v['status']=='hospital' and v['type'] not in ('NEF','FR'):self.delivered_patient(old,v)
         self.release_patient_carrier(old,v)
@@ -171,7 +172,15 @@ class Operations:
             if unit['job']==j['id'] and unit['status']!='scene':v['phase_due']=self.state['clock']+30;return
         self.assign_patients(j)
         multi=j.get('patient_count',1)>1
-        if multi and v.get('patient_index') is None:self.detach(v);self.drive(v,self.home(v),'radio');return
+        if multi and v.get('patient_index') is not None:
+            p=j['patients'][v['patient_index']]
+            other=next((q for q in j['patients'] if q.get('doctor')==v['id'] and q['number']!=p['number'] and self.patient_phase(j,q)=='scene' and q['percent']<45),None)
+            if other:v['phase_due']=self.state['clock']+60;return
+            if p['percent']<45 and not p.get('doctor'):
+                self.request_manv_resources(j,v);v['phase_due']=self.state['clock']+60;return
+        if multi and v.get('patient_index') is None:
+            if v['type']=='NAH' and self.scene_patients(j):v['phase_due']=self.state['clock']+60;return
+            self.detach(v);self.drive(v,self.home(v),'radio');return
         carrier=self.patient_carrier(j)
         if not multi and carrier and v['id']!=carrier['id']:
             if carrier['status'] in ('transport','hospital') or j.get('patient_delivered'):self.detach(v);self.drive(v,self.home(v),'radio')
@@ -202,15 +211,31 @@ class Operations:
 
     def start_transport(self,v):
         j=self.get('jobs',v['job'])
+        if v['type'] not in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'):raise ValueError('Diese Ressource kann keine Patienten transportieren.')
         if j.get('no_patient') or j.get('_scenario',{}).get('no_patient'):raise ValueError('Keine transportpflichtige Person in diesem Szenario.')
         h=__import__('hospitals').destination(self,j)
         if not __import__('hospitals').located(h):raise ValueError('Kartenposition des Transportziels zuerst in den Einstellungen bestätigen.')
         if v['type']=='NAH' and not h.get('helipad'):raise ValueError('Hubschrauberziel benötigt einen Landeplatz.')
         if j.get('cpr_confirmed') and (v['type']!='NAH' or not h.get('ecpr') or j.get('ecpr_state')!='confirmed'):raise ValueError('eCPR-Flug erst nach Mannschaftsrückmeldung und Zielbestätigung.')
+        patient=j['patients'][v['patient_index']] if j.get('patients') and v.get('patient_index') is not None else None
+        condition=patient or j.get('patient_condition') or {}
+        escort=None
+        if v['type']!='NAH' and (condition.get('requires_doctor') or condition.get('notarzt_required') or condition.get('percent',100)<45):
+            doctors=[u for u in self.state['vehicles'] if u.get('job')==j['id'] and u['type']=='NEF' and u['status']=='scene' and u.get('assessment_due',0)<=self.state['clock']]
+            escort=next((u for u in doctors if not patient or patient.get('doctor')==u['id']),None)
+        v['transport_destination']=h['id'];v['transport_target']=__import__('copy').deepcopy(h)
+        self.drive(v,h,'transport',180);j['status']='transport'
+        if patient:patient.update(phase='transport',destination=h['id'],doctor=escort['id'] if escort else v['id'] if v['type']=='NAH' else None)
+        if escort:
+            escort.update(escort_of=v['id'],transport_destination=h['id'],transport_target=__import__('copy').deepcopy(h));escort.pop('treating_patient',None)
+            self.drive(escort,h,'transport',180)
+            self.log(f'{self.radio_name(escort)}, Status 4: ärztliche Transportbegleitung bei {v["callsign"]}, Patient '+str(patient['number'] if patient else 1)+'.','Status')
+        remaining=any(self.patient_phase(j,p)=='scene' for p in j.get('patients',[]))
         for id in j['vehicles']:
             other=self.get('vehicles',id)
-            if other['id']!=v['id'] and other['job']==j['id'] and other['status']=='scene' and other.get('patient_index') is None:self.detach(other);self.drive(other,self.home(other),'radio')
-        self.drive(v,h,'transport',180);j['status']='transport'
+            if other['id']!=v['id'] and other['job']==j['id'] and other['status']=='scene' and other.get('patient_index') is None:
+                if remaining and other['type'] in ('NEF','FR'):other['phase_due']=self.state['clock']+60;continue
+                self.detach(other);self.drive(other,self.home(other),'radio')
         self.log(f'{v["callsign"]}, Status 4: Patient übernommen, zum Zielort {h["name"]}.')
 
     def request_bed(self,data):
@@ -245,7 +270,7 @@ class Operations:
             leg=v.get('leg')
             if v['status']=='transport' and v.get('job') and not leg:
                 # Recover older persisted transports which lost their active route.
-                j=self.get('jobs',v['job']);h=__import__('hospitals').destination(self,j)
+                j=self.get('jobs',v['job']);h=v.get('transport_target') or __import__('hospitals').destination(self,j)
                 from engine import distance
                 if distance(v,h)>.02:self.drive(v,h,'transport',180);leg=v.get('leg')
             if leg and self.router.enabled and v['type']!='NAH' and not leg.get('geometry') and not leg.get('waiting'):
@@ -280,11 +305,13 @@ class Operations:
         if status=='scene' and self.get('jobs',v['job']).get('no_patient'):self.finish_without_patient(self.get('jobs',v['job']));return
         if status=='scene' and any(c['vehicle']==v['id'] and c['state']!='closed' for c in self.state['radio_calls']):v['phase_due']=None;return
         if status=='scene':
-            if v['type'] in ('NEF','FR'):self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')
+            if v['type']=='NEF' and self.doctor_needed_at_scene(self.get('jobs',v['job'])):
+                self.assign_doctors(self.get('jobs',v['job']));self.request_manv_resources(self.get('jobs',v['job']),v);v['phase_due']=now+60
+            elif v['type'] in ('NEF','FR'):self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Status 6: Versorgung beendet, frei über Funk, Rückfahrt.')
             else:self.crew_destination(v)
             return
         if status=='transport':
-            j=self.get('jobs',v['job']);h=__import__('hospitals').destination(self,j);v.update(status='hospital',phase_due=now+600,lat=h['lat'],lon=h['lon']);j['status']='hospital'
+            j=self.get('jobs',v['job']);h=v.get('transport_target') or __import__('hospitals').destination(self,j);v.update(status='hospital',phase_due=now+180,lat=h['lat'],lon=h['lon']);j['status']='hospital'
             self.log(f'{v["callsign"]}, Status 5: am Zielort, Patientenübergabe.'+(f' Aufnahme mit Kasusnummer {j["case_number"]}.' if j.get('case_number') else ''));return
         if status=='hospital':
             self.detach(v);self.drive(v,home,'radio');self.log(f'{v["callsign"]}, Übergabe abgeschlossen, Status 6: frei über Funk.');return

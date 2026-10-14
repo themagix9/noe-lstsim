@@ -310,3 +310,15 @@ Bodenfahrzeuge bekommen pro Auftrag eine stabile, gestaffelte Ausrückzeit. Tag 
 | 9E1 | 15–25 s | 15–25 s |
 
 Frei über Funk: 5–15 Sekunden. AAO und ETA enthalten dieselbe Vorbereitung wie die automatische Alarmierung. Status 9 beendet die Vorbereitung nicht; manche Mannschaften fahren direkt mit Status 2 ab. Die Fahrzeugliste zeigt währenddessen einen Countdown. Eine manuell gesetzte Status-2-Meldung gilt als tatsächliche Abfahrt. Krankenhausübergabe wird zusätzlich abgewartet; bei Bereitschaft beginnt die Vorbereitung nach Quittierung. NAH behalten ihre konfigurierte Startvorbereitung. Bodenfahrzeuge verwenden automatisch diese Tabelle statt des früheren pauschalen Fahrzeug-Schätzwerts.
+
+### MANV, Sichtung und Notarztbegleitung
+
+Vier eigene fiktive MANV-Szenarien (Busunfall, Rauch im Wohnhaus, Mehrfachunfall, Veranstaltung) mit 6/8/10/12 Patienten können als Anruf über „Ereignis auslösen“ gestartet werden und sind Teil des automatischen Ereigniskatalogs. Die tatsächliche Lage wird erst nach der Erkundungszeit der Mannschaft sichtbar.
+
+Der Reiter „Patienten / Sichtung“ führt jede Person getrennt: Zustand, Spiel-Sichtungskategorie, Transportfahrzeug und behandelndes Notarztmittel. SK I (<45 %), SK II (45–69 %) und SK III (ab 70 %) sind fiktive Spielkategorien, keine klinische Sichtungsanleitung. Freie Transportplätze werden zuerst den Patienten mit dem niedrigsten Zustand zugeordnet. NEF und NAH versorgen jeweils einen der kritischsten Patienten; die Zuordnung wird nach Zustandsänderungen neu geprüft. Je Spielminute verbessert Notarztversorgung den Zustand um 4–8 Punkte, während unversorgte Patienten sich verschlechtern können. Die Spielwerte bleiben begrenzt auf 0–100.
+
+Auch ein NEF kann weitere Notarzt- und Transportmittel über die interaktive Funkabfrage nachfordern. Bereits disponierte Notarztmittel zählen für die Deckung des Bedarfs; ein bestätigtes Funkgespräch kann nicht mehrfach dieselbe Ressource als neue Verstärkung verwenden. Die MANV-AAO berücksichtigt nach der Lagemeldung alle noch am BO befindlichen Patienten.
+
+Ein NEF besitzt keine Patiententransportkapazität. Bei einem kritischen bodengebundenen Transport kann das behandelnde NEF ärztlich begleiten und ist dann bis zur Übergabe gebunden. Ein NAH kann zusätzlich selbst einen Patienten transportieren. Andere Notarztmittel bleiben bei verbleibenden Patienten am BO. Das beim Transportbeginn vereinbarte Ziel wird pro Fahrzeug gespeichert, damit spätere Zielmeldungen das laufende Ziel nicht ändern.
+
+Nach Ankunft am Ziel sind Rettungsmittel für 180 Simulationssekunden in Status 5 zur Übergabe. Danach fahren sie selbstständig in Status 6 zur Heimatdienststelle zurück und können unterwegs erneut disponiert werden. Ein Einsatz wird erst abgeschlossen, wenn sämtliche Patienten übergeben und die verbliebenen Kräfte freigegeben sind. Sichtung, Behandlungszuordnung und Begleitung bleiben auch nach einem Serverneustart erhalten.
