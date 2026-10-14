@@ -9,6 +9,7 @@ import sqlite3
 import threading
 import uuid
 from operations import Operations, STATUS_LABELS, JOB_ACTIONS
+from signal_ops import SignalOps
 from fleet import Fleet, upgrade
 from daylight import window
 from staffing import Staffing
@@ -62,7 +63,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':copy.deepcopy(HOSPITALS),'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
+class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -191,7 +192,7 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
             plan_transport(self,job)
         code=job.get('suggested_code') or {'Atemnot':'RD-6D2','Sturz in Wohnung':'RD-17B1','Bewusstlose Person':'RD-31D3','Verkehrsunfall':'RD-29A1','Entlassung':random.choice(['KTR-95K2','KTR-95K3']),'Ambulanztermin':random.choice(['KTR-90K2','KTR-90K3']),'Dialysefahrt':random.choice(['KTR-93Y1','KTR-93Y2'])}.get(job['title'],'SIM-KT')
         rule=self.rule(code)
-        job.update(code=code,category=rule.get('category') if rule else None,signal=rule['signal'] if rule else False,additional='',fire=job.get('fire',False),police=job.get('police',False),organization='RK')
+        job.update(code=code,category=rule.get('category') if rule else None,signal=kind=='emergency',additional='',fire=job.get('fire',False),police=job.get('police',False),organization='RK')
         job['event_title']=job['title']
         if rule:job.update(title=rule['title'],needs=rule['needs'][:],priority=rule['priority'])
         self.ensure_patient_condition(job)
@@ -280,6 +281,9 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
             elif action=='hospital':
                 from hospitals import edit_hospital
                 edit_hospital(self,data)
+            elif action=='job_signal':self.job_signal(data)
+            elif action=='signal_contact':self.signal_contact(data)
+            elif action=='signal_radio':self.signal_action(data)
             elif action=='resource_call':self.contact_resource(data)
             elif action=='support_request':self.request_support(data)
             elif action=='support_cancel':self.cancel_support(data)
@@ -371,7 +375,7 @@ class Engine(Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staf
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None,turnout_due=None)
                 for v in vehicles:
-                    for key in ('support_job','support_request','patient_index','treating_patient','escort_of','transport_destination','transport_target','assessment_due'):v.pop(key,None)
+                    for key in ('support_job','support_request','patient_index','treating_patient','escort_of','transport_destination','transport_target','assessment_due','signal'):v.pop(key,None)
                 self.migrate_operations()
                 self.upgrade_support()
             else: raise ValueError('Unbekannte Aktion.')

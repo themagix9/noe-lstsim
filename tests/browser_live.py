@@ -24,13 +24,13 @@ with tempfile.TemporaryDirectory() as data:
             p.evaluate('leafletMap.setZoom(11)');expect(p.locator('#map')).to_have_class(__import__('re').compile('map-icons-small'));p.evaluate('leafletMap.setZoom(13)')
             p.locator('#pause').click();p.locator('#create-manual').click();expect(p.locator('#manual-code')).to_have_value('')
             p.get_by_label('Einsatzort / Adresse',exact=True).fill('Schwechat Testadresse');p.locator('#manual-form button.primary').click();expect(p.locator('#manual-dialog')).to_be_visible();assert p.evaluate('state.jobs.length')==0
-            p.locator('#manual-code').select_option('RD-1A1');p.locator('#manual-form button.primary').click();expect(p.locator('#dispatch-dialog')).to_be_visible()
+            expect(p.locator('#manual-signal')).to_be_checked();p.locator('#manual-signal').uncheck();p.locator('#manual-code').select_option('RD-1A1');expect(p.locator('#manual-signal')).not_to_be_checked();p.locator('#manual-form button.primary').click();expect(p.locator('#dispatch-dialog')).to_be_visible()
             on_tab(p, 'einsatz').locator('#job-additional').focus();p.evaluate("window.stableText=document.getElementById('job-additional')")
             on_tab(p, 'einsatz').locator('#job-additional').press_sequentially('Text bleibt erhalten',delay=200)
             assert p.evaluate("stableText===document.getElementById('job-additional')&&document.activeElement===stableText")
             expect(on_tab(p, 'einsatz').locator('#job-additional')).to_have_value('Text bleibt erhalten')
             assert p.locator('.detail-tabs [role="tab"]').all_text_contents()[:3]==['Kommunikation','Disposition','Einsatzdaten']
-            on_tab(p,'disposition');expect(p.locator('#job-search')).to_be_visible()
+            on_tab(p,'disposition');expect(p.locator('#job-search')).to_be_visible();expect(p.locator('#job-signal')).not_to_be_checked();p.locator('#job-signal').check();p.wait_for_function('state.jobs.find(j=>j.id===selected).signal===true');p.locator('#job-signal').uncheck();p.wait_for_function('state.jobs.find(j=>j.id===selected).signal===false')
             expect(p.locator('#detail-tab-nachforderung')).to_be_visible();expect(p.locator('#detail-tab-support')).to_be_visible()
             on_tab(p, 'disposition').locator('[data-filter="RTW"]').click();assert p.evaluate("[...document.querySelectorAll('.resource-row')].every(e=>['RTW','RTW-C'].includes(state.vehicles.find(v=>v.id===e.dataset.resourceId).type))")
             row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('RTW 77/002');row.locator('input').check();on_tab(p, 'einsatz');expect(p.locator('#detail-panel-disposition')).to_be_hidden();expect(p.locator('#job-additional')).to_have_value('Text bleibt erhalten');on_tab(p, 'disposition');expect(row.locator('input')).to_be_checked()
@@ -96,6 +96,15 @@ with tempfile.TemporaryDirectory() as data:
             }""")
             assert optimized['original']>512*1024 and optimized['size']<=512*1024,optimized
             assert optimized['width']<=512 and optimized['height']<=256 and optimized['alpha']==0,optimized
+            # Job summaries are collapsed by default and only one can be expanded.
+            p.evaluate("async()=>{await command('generate',{kind:'transport'});await command('generate',{kind:'transport'});document.querySelector('[data-view=desk]').click()}")
+            expect(p.locator('[data-expand-job][aria-expanded=true]')).to_have_count(0)
+            p.locator('[data-expand-job]').nth(0).click();expect(p.locator('.job-expanded:visible')).to_have_count(1)
+            p.locator('[data-expand-job]').nth(1).click();expect(p.locator('.job-expanded:visible')).to_have_count(1)
+            expanded=p.locator('[data-expand-job][aria-expanded=true]').get_attribute('data-expand-job');p.wait_for_timeout(1200)
+            expect(p.locator('[data-expand-job][aria-expanded=true]')).to_have_attribute('data-expand-job',expanded)
+            expect(p.locator('#dispatch-dialog')).not_to_be_visible()
+            p.locator('.job-open').first.click();expect(p.locator('#dispatch-dialog')).to_be_visible();p.locator('#close-dispatch').click()
             assert not any(u.endswith('/api/state') for u in requests),requests;assert not errors,errors
             Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);p.screenshot(path='/tmp/noe-ui-qa/live-filter-sort.png');browser.close();print('Live editing, empty code, clock, filter, sort and preserved selection browser tests passed.')
     finally:proc.terminate();proc.wait(timeout=5)

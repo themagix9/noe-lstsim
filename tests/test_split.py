@@ -54,3 +54,13 @@ class SplitTests(unittest.TestCase):
         now=self.e.state['clock'];self.e.state.update(paused=False,next_emergency=now,next_transport=now+9999)
         with patch('engine.random.randint',return_value=1000):self.e.tick(1)
         self.assertEqual(self.e.state['next_emergency']-self.e.state['clock'],500)
+
+    def test_signal_controls_follow_split_role_and_handoff(self):
+        data={'job':self.j['id'],'vehicle':'not-yet-dispatched','signal':True}
+        for action in ('signal_contact','signal_radio'):
+            with self.assertRaises(PermissionError):self.s.command(self.ct,action,data)
+        with self.assertRaises(PermissionError):self.s.command(self.dispo,'job_signal',data)
+        self.ask();self.s.command(self.ct,'job_signal',{'job':self.j['id'],'signal':False})
+        self.assertFalse(self.j['signal'])
+        self.s.command(self.ct,'handoff',{'job':self.j['id']})
+        with self.assertRaises(PermissionError):self.s.command(self.ct,'job_signal',data)

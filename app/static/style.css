@@ -149,3 +149,6 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 
 .triage-patient{padding:9px 10px;border:1px solid #d9e1ec;border-radius:8px;background:#f8fafc}.triage-category{display:inline-block;padding:3px 7px;border-radius:5px;font-weight:700}.triage-I{color:#991b1b;background:#fee2e2}.triage-II{color:#713f12;background:#fef08a}.triage-III{color:#166534;background:#dcfce7}
 #event-dialog .dialog-actions{display:grid;grid-template-columns:minmax(0,1fr);justify-content:stretch}#event-dialog .dialog-actions>button{width:100%;min-width:0}#event-dialog .dialog-actions>label{display:grid;gap:6px;min-width:0}#event-dialog select{width:100%;max-width:100%;min-width:0}
+
+.job{position:relative;background:white;padding-right:44px}.job-open{display:block;width:100%;border:0;background:transparent;padding:0;text-align:left;font-weight:normal}.job-open:hover{filter:none}.job-expand{position:absolute;right:7px;top:8px;width:30px;height:30px;padding:2px;font-size:20px}.job-expanded{padding-top:9px;font-size:13px}.job-expanded[hidden]{display:none}.job-expanded p{margin:7px 0 0}.unit-signal-control{display:grid;gap:7px;margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:6px}.dispatch-signal{padding:8px 10px;background:#edf4ff;border-radius:6px}.dispatch-signal input{margin-right:7px}
+.unit-signal-control{width:100%;min-width:0}

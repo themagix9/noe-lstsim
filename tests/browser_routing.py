@@ -40,11 +40,31 @@ with tempfile.TemporaryDirectory() as data:
             p=context.new_page();errors=[];p.on('pageerror',lambda e:errors.append(str(e)));p.goto('http://127.0.0.1:8080');p.get_by_label('Dein Disponentenname').fill('Routingtest');p.locator('#lobby-submit').click();expect(p.locator('#lobby')).to_be_hidden();start_session(p)
             p.wait_for_function('addressPoints.length>500');address=p.evaluate("addressPoints.find(a=>a.city==='Schwechat').address")
             p.locator('#create-manual').click();p.locator('#manual-code').select_option('RD-1A1');p.get_by_label('Einsatzort / Adresse',exact=True).fill(address);p.get_by_label('Zusatztext',exact=True).click();p.locator('#manual-form button.primary').click()
-            row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('1.5 km Straße',timeout=15000);expect(row).to_contain_text('4 min');assert p.evaluate("(()=>{const j=state.jobs.find(j=>j.id===selected),v=state.vehicles.find(v=>v.callsign==='77/002'),eta=j.resource_eta[v.id];return eta.turnout_seconds>=85&&eta.turnout_seconds<=120&&eta.seconds===120+eta.turnout_seconds})()");row.locator('input').check();p.locator('#dispatch').click();expect(p.locator('#dispatch-dialog')).not_to_be_visible();p.locator('#speed').select_option('60');p.locator('#pause').click()
+            row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('1.5 km Straße',timeout=15000);expect(row).to_contain_text('4 min');assert p.evaluate("(()=>{const j=state.jobs.find(j=>j.id===selected),v=state.vehicles.find(v=>v.callsign==='77/002'),eta=j.resource_eta[v.id];return eta.turnout_seconds>=85&&eta.turnout_seconds<=120&&eta.seconds===120*.85+eta.turnout_seconds})()");row.locator('input').check();p.locator('#dispatch').click();expect(p.locator('#dispatch-dialog')).not_to_be_visible();p.locator('#speed').select_option('60');p.locator('#pause').click()
             p.wait_for_function("state.vehicles.some(v=>v.callsign==='77/002'&&v.leg?.geometry)",timeout=20000);p.evaluate("command('control',{paused:true})")
             if p.locator('#dispatch-dialog').is_visible():p.locator('#close-dispatch').click()
             assert p.evaluate("mapLayers.getLayers().some(l=>l instanceof L.Polyline&&!(l instanceof L.CircleMarker)&&l.getLatLngs().length===3)")
             p.wait_for_function("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id)?.layer.getElement()?.querySelector('.map-status-number')?.textContent==='S2'")
+            # Smooth map motion has many frames within a single server clock tick.
+            p.evaluate("command('control',{paused:false,speed:1})")
+            sampled=p.evaluate("""()=>new Promise(resolve=>{
+             const id=state.vehicles.find(v=>v.callsign==='77/002').id,layer=mapObjects.get('vehicle:'+id).layer,groups=new Map(),until=performance.now()+600;
+             function sample(){const point=layer.getLatLng(),key=state.clock;if(!groups.has(key))groups.set(key,new Set());groups.get(key).add(point.lat+','+point.lng);if(performance.now()<until)requestAnimationFrame(sample);else resolve(Math.max(...[...groups.values()].map(s=>s.size)))}sample()
+            })""")
+            assert sampled>=8,sampled
+            p.evaluate("command('control',{paused:true})")
+            still=p.evaluate("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id).layer.getLatLng()")
+            p.wait_for_timeout(300)
+            assert still==p.evaluate("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id).layer.getLatLng()")
+            # Change only this unit's signalfahrt over an actual radio conversation.
+            p.evaluate("openDispatch(state.vehicles.find(v=>v.callsign==='77/002').job)")
+            on_tab(p,'gebucht').locator('[data-signal-resource]').first.click()
+            p.locator('#radio-detail [data-signal-call][data-step=answer]').click()
+            p.locator('#radio-detail [data-signal-call][data-step=confirm]').click()
+            p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/002').signal===false")
+            assert p.evaluate("state.jobs.find(j=>j.id===selected).signal===true")
+            assert not p.evaluate("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id).layer.getElement().classList.contains('blue-response')")
+            p.locator('#close-dispatch').click()
             expect(p.locator('.station-marker.staffed').first).to_be_visible();expect(p.locator('.hospital-marker').first).to_be_visible()
             assert p.evaluate("state.hospitals.every(h=>mapObjects.has('hospital:'+h.id)===hospitalMapVisible(h))")
             assert p.evaluate("['kh-hainburg','kh-moedling','kh-donaustadt'].every(id=>mapObjects.has('hospital:'+id))")
