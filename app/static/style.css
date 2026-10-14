@@ -152,3 +152,13 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 
 .job{position:relative;background:white;padding-right:44px}.job-open{display:block;width:100%;border:0;background:transparent;padding:0;text-align:left;font-weight:normal}.job-open:hover{filter:none}.job-expand{position:absolute;right:7px;top:8px;width:30px;height:30px;padding:2px;font-size:20px}.job-expanded{padding-top:9px;font-size:13px}.job-expanded[hidden]{display:none}.job-expanded p{margin:7px 0 0}.unit-signal-control{display:grid;gap:7px;margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:6px}.dispatch-signal{padding:8px 10px;background:#edf4ff;border-radius:6px}.dispatch-signal input{margin-right:7px}
 .unit-signal-control{width:100%;min-width:0}
+
+/* Separate expand control from the text, including narrow job windows. */
+.job{display:grid;grid-template-columns:30px minmax(0,1fr);gap:7px;padding:10px}
+.job>.job-open{grid-column:2;grid-row:1;min-width:0}
+.job>.job-expand{position:static;grid-column:1;grid-row:1 / span 3;align-self:stretch;width:30px;height:auto;min-height:48px;border-radius:5px;background:#edf2f8}
+.job>.job-expanded,.job>.quick-alarm{grid-column:2;min-width:0}
+.job.pickup-ready{background:#e4f8eb;border-color:#48a26c;border-left-color:#14803b}
+.job .owner-chip{display:block;font-size:15px;font-weight:800;line-height:1.35;margin:7px 0;padding:6px 9px;background:#e5ebf3;color:#24364d}
+.job .owner-chip.own{background:#d8f3e6;color:#106544}
+.incident-duration{font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted)}

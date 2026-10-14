@@ -52,6 +52,8 @@ with tempfile.TemporaryDirectory() as data:
             expect(p.locator('#resource-sort')).to_have_value('distance');expect(p.locator('#resource-direction')).to_have_value('asc')
             assert p.evaluate("document.querySelector('.resource-list').scrollTop") == 0
             p.locator('#close-dispatch').click()
+            assert p.evaluate("(()=>{const card=document.querySelector('.job'),button=card.querySelector('.job-expand').getBoundingClientRect(),text=card.querySelector('.job-open').getBoundingClientRect();return button.right<=text.left&&button.height>=48})()"),'Expand control overlaps incident text'
+            assert p.evaluate("(()=>{const all=state.vehicles.filter(relevant),grouped=poolResources(all),idle=grouped.filter(v=>v.type==='FR'&&!v.job);return idle.length>2&&new Set(idle.map(v=>v.fr_pool)).size===idle.length&&idle.length<all.filter(v=>v.type==='FR').length})()")
             # UI clock interpolates without fetching /api/state every two seconds.
             start=p.locator('#clock').inner_text();p.wait_for_timeout(1200);assert p.locator('#clock').inner_text()!=start
             p.locator('#pause').click();expect(p.locator('#running')).to_have_text('SIMULATION PAUSIERT');start=p.locator('#clock').inner_text();p.wait_for_timeout(1300);expect(p.locator('#clock')).to_have_text(start)
@@ -62,6 +64,10 @@ with tempfile.TemporaryDirectory() as data:
             p.evaluate("()=>{window.gongTones=0;const original=AudioContext.prototype.createOscillator;AudioContext.prototype.createOscillator=function(){window.gongTones++;return original.call(this)}}")
             p.locator('#close-dispatch').click();p.locator('#pause').click();p.wait_for_function('window.gongTones===3');p.wait_for_timeout(1200);assert p.evaluate('window.gongTones')==3
             p.locator('#pause').click()
+            # Reserved ready transport can be alarmed directly from the list.
+            p.evaluate("()=>{const j=state.jobs.find(j=>j.kind==='transport');window.quickId=j.id;return command('reserve',{job:j.id,vehicle:state.vehicles.find(v=>v.callsign==='77/003').id})}")
+            quick=p.locator('[data-quick-alarm]');expect(quick).to_be_visible();expect(p.locator('.job.pickup-ready')).to_be_visible()
+            quick.click();expect(p.locator('#dispatch-dialog')).not_to_be_visible();p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/003').job===window.quickId")
             # Crew fuel approval and dispatcher-initiated per-unit cancellation in the UI.
             p.evaluate("()=>command('vehicle_status',{vehicle:state.vehicles.find(v=>v.callsign==='77/004').id,status:'6'})")
             p.evaluate("()=>command('fuel_request',{vehicle:state.vehicles.find(v=>v.callsign==='77/004').id})")
@@ -77,7 +83,8 @@ with tempfile.TemporaryDirectory() as data:
             on_tab(p,'kommunikation').locator('#radio-detail [data-cancel][data-step="cancel"]').click()
             p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/002').job===null")
             assert p.evaluate("new Set(state.messages.filter(m=>m.text.startsWith('EINSATZSTORNO')).map(m=>m.channel)).size===2")
-            p.locator('#close-dispatch').click();p.locator('#desk-menu summary').click();p.locator('[data-view="settings"]').click()
+            if p.locator('#dispatch-dialog').is_visible():p.locator('#close-dispatch').click()
+            p.locator('#desk-menu summary').click();p.locator('[data-view="settings"]').click()
             p.locator('#icon-resource-search').fill('77/004');expect(p.locator('#icon-resource option')).to_have_count(1)
             p.locator('#icon-graphic').select_option('box');expect(p.locator('#resource-icon-preview')).to_have_attribute('src','/graphics/box.svg')
             p.wait_for_timeout(1500);expect(p.locator('#icon-graphic')).to_have_value('box')

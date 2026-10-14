@@ -35,4 +35,4 @@ class Cancellations:
         if previous in ('assigned','standby','acknowledged') and distance(v,self.home(v))<.03:v.update(status=self.idle_status(v),phase_due=None,leg=None)
         else:self.drive(v,self.home(v),'radio')
         self.log(f'{v["callsign"]}: '+('Status 1: frei auf Wache.' if v['status']=='ready' else 'Status 6: frei über Funk.'),'Status')
-        if not j['vehicles']:j.update(status='new',bed_state='none',destination=None if j['kind']=='emergency' else j['destination'])
+        if not j['vehicles']:j.update(status='done',completed=self.state['clock'],bed_state='none')

@@ -48,6 +48,10 @@ class Operations:
         j.setdefault('event_title',j['title'])
 
     def eligible(self,v,j):
+        if v['type'] in ('BKTW','KTW-B'):
+            import re
+            rule=self.rule(j.get('code','')) or {}
+            return j['kind']=='transport' and bool(re.search(r'gehfähig',rule.get('title',''),re.I)) and not any(word in (j.get('detail','')+' '+j.get('additional','')).lower() for word in ('liegend','tragstuhl','nicht gehfähig'))
         if j.get('code')=='KTx-96K5':return v['type'] in ('RTW','RTW-C')
         return v['type'] in (('KTW','KTW-B','BKTW','RTW','RTW-C') if j['kind']=='transport' else ('KTW','RTW','RTW-C','NEF','NAH','FR'))
 
@@ -73,14 +77,17 @@ class Operations:
 
     def detach(self,v):
         if not v['job']:return
-        v.pop('signal',None)
+        v.pop('signal',None);v.pop('fr_number',None)
         v.pop('transport_destination',None);v.pop('transport_target',None)
         old=self.get('jobs',v['job'])
         if v['status']=='hospital' and v['type'] not in ('NEF','FR'):self.delivered_patient(old,v)
         self.release_patient_carrier(old,v)
         v['job']=None
-        if all(self.get('vehicles',id)['job']!=old['id'] for id in old['vehicles']):
-            old['status']='done' if old.get('patient_delivered') else 'assigned'
+        old['vehicles']=[id for id in old['vehicles'] if self.get('vehicles',id).get('job')==old['id']]
+        if old.get('carrier')==v['id']:old['carrier']=None
+        if not old['vehicles']:
+            old.update(status='done',completed=self.state['clock'])
+            self.unreserve({'job':old['id']})
 
     def response_factor(self,v,j):
         if v['type']=='NAH':return 1/float(self.state['setup'].get('helicopter_speed_factor',1.15))
@@ -113,6 +120,8 @@ class Operations:
         if j['kind']=='transport' and (len(ids)!=1 or j['vehicles']):raise ValueError('Ein Transportauftrag hat genau eine Ressource.')
         if data.get('destination') and data['destination']!=j.get('destination'):raise ValueError('Das Transportziel wird von der Mannschaft bzw. dem Transportauftrag gemeldet.')
         selected=[self.get('vehicles',id) for id in ids]
+        selected=[self.nearest_responder(v,j) if v['type']=='FR' and not v.get('job') else v for v in selected]
+        if len({v['id'] for v in selected})!=len(selected):raise ValueError('FR-Pool mehrfach ausgewählt.')
         for v in selected:
             if not self.sendable(v,j):raise ValueError(f'{v["callsign"]} kann den Auftrag noch nicht erhalten (Status 1, 5 oder 6 erforderlich).')
             if v['status']=='hospital' and j['kind']!='transport':raise ValueError('Während der Übergabe nur Transportaufträge senden.')
@@ -142,11 +151,11 @@ class Operations:
             previous=v['status'];handover=v.get('phase_due') if previous=='hospital' else None
             from turnout import seconds
             delay=seconds(self,v,j);now=self.state['clock']
-            direct=random.random()<.25
+            direct=v['type']=='FR' or random.random()<.25
             self.detach(v)
             v.update(signal=j['signal'],turnout_seconds=delay,turnout_due=max(now,handover or now)+delay,direct_departure=direct)
             v.update(status='standby' if data.get('standby') else 'assigned',alarm_from=previous,job=j['id'],phase_due=(now+random.randint(20,45) if data.get('standby') else v['turnout_due'] if direct else now+max(1,int(delay*.4))),ack_deadline=self.state['clock']+600,handover_due=handover,leg=None,manual_out=False)
-            j['vehicles'].append(v['id'])
+            j['vehicles'].append(v['id']);j.setdefault('dispatched_at',now)
             if v.get('reservation')==j['id']:v['reservation']=None;j['reserved']=None
             self.log(f'{v["type"]} {v["callsign"]}: '+('Bereitschaft' if data.get('standby') else 'Alarmiert auf Wache' if previous=='ready' else 'Alarmiert über Funk')+'.','Status')
         if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
@@ -156,6 +165,7 @@ class Operations:
 
     def acknowledge(self,v,direct=False):
         if v['status'] not in ('assigned','standby'):raise ValueError('Es liegt keine offene Alarmierung vor.')
+        if v['type']=='FR':self.depart(v);return
         if v['status']=='standby':v['turnout_due']=max(self.state['clock'],v.get('handover_due') or 0)+v.get('turnout_seconds',15)
         v['ack_deadline']=None
         if direct:self.depart(v)
@@ -166,7 +176,8 @@ class Operations:
     def depart(self,v):
         if v.get('handover_due') and self.state['clock']<v['handover_due']:
             v.update(status='acknowledged',phase_due=v['handover_due']);return
-        v['turnout_due']=None
+        self.number_responder(v)
+        v['turnout_due']=None;v['ack_deadline']=None
         j=self.get('jobs',v['job']);self.drive(v,j,'enroute')
         self.log(f'{v["callsign"]}, Status 2: zum Berufungsort {j["place"]}.')
 
@@ -211,9 +222,11 @@ class Operations:
         if h['region']=='Wien':
             j['destination']=None;j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None
             self.log(f'{v["callsign"]} an Leitstelle: Patient transportbereit, benötigen ein Ziel in Wien, Wunsch {h["name"]}. Bitte Bettenmann verständigen.')
+            self.log('Hier LEO, verstanden, Ende.','Funk')
         else:
             j['destination']=h['id'];j['bed_state']='crew_selected'
             self.log(f'{v["callsign"]} an Leitstelle: Transportziel {h["name"]}, von der Mannschaft vor Ort festgelegt.')
+            self.log('Hier LEO, verstanden, Ende.','Funk')
             self.start_transport(v)
 
     def start_transport(self,v):
@@ -238,7 +251,7 @@ class Operations:
             self.drive(escort,h,'transport',180)
             self.log(f'{self.radio_name(escort)}, Status 4: ärztliche Transportbegleitung bei {v["callsign"]}, Patient '+str(patient['number'] if patient else 1)+'.','Status')
         remaining=any(self.patient_phase(j,p)=='scene' for p in j.get('patients',[]))
-        for id in j['vehicles']:
+        for id in list(j['vehicles']):
             other=self.get('vehicles',id)
             if other['id']!=v['id'] and other['job']==j['id'] and other['status']=='scene' and other.get('patient_index') is None:
                 if remaining and other['type'] in ('NEF','FR'):other['phase_due']=self.state['clock']+60;continue
@@ -332,6 +345,7 @@ class Operations:
         v=self.get('vehicles',data['vehicle']);code=str(data.get('status'))
         if code in ('9','2'):
             if not v['job']:raise ValueError('Kein alarmierter Auftrag vorhanden.')
+            if code=='9' and v['type']=='FR':raise ValueError('First Responder rücken direkt mit Status 2 aus, ohne Quittierung.')
             if code=='9':self.acknowledge(v)
             elif v['status'] in ('assigned','standby','acknowledged'):self.depart(v)
             else:raise ValueError('Status 2 nur nach Alarmierung oder Quittierung.')

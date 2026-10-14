@@ -24,7 +24,7 @@ class AirStaffingTests(unittest.TestCase):
         fr=self.vehicle('FR-FIS-01');self.assertEqual(fr['status'],'fr_ready');home=(fr['lat'],fr['lon'])
         with self.assertRaises(ValueError):self.e.vehicle_status({'vehicle':fr['id'],'status':'1'})
         self.e.vehicle_status({'vehicle':fr['id'],'status':'8'});self.assertIsNone(fr['ack_deadline'])
-        j=self.job();self.e.dispatch({'job':j['id'],'vehicles':[fr['id']]});self.e.depart(fr);self.e.advance(fr);self.e.advance(fr);self.e.advance(fr)
+        j=self.job();fr=self.e.nearest_responder(fr,j);home=(fr['lat'],fr['lon']);self.e.dispatch({'job':j['id'],'vehicles':[fr['id']]});self.e.depart(fr);self.e.advance(fr);self.e.advance(fr);self.e.advance(fr)
         self.assertEqual(fr['status'],'fr_ready');self.assertEqual((fr['lat'],fr['lon']),home)
     def test_fifteen_distinct_fischamend_homes(self):
         fr=[v for v in self.e.state['vehicles'] if v['organization']=='FR Fischamend']

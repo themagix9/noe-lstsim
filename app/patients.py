@@ -19,6 +19,7 @@ class Patients:
         truth=j.get('_scenario',{})
         j['scene_report']={'text':truth.get('report',j.get('scene','Lage vor Ort erhoben.')),'time':self.state['clock']}
         self.log(f'Hier {self.radio_name(v)}, '+j['scene_report']['text']+' Kommen.','Funk')
+        self.log('Hier LEO, verstanden, Ende.','Funk')
         self.discover_patients(j)
         if j.get('patients'):
             self.assign_doctors(j)
@@ -31,10 +32,10 @@ class Patients:
                 if unit['job']==j['id'] and unit['status']=='scene':unit['phase_due']=self.state['clock']+truth.get('hold_seconds',120)
 
     def finish_without_patient(self,j):
-        for id in j['vehicles']:
+        for id in list(j['vehicles']):
             unit=self.get('vehicles',id)
             if unit['job']!=j['id']:continue
-            unit['job']=None;unit.pop('assessment_due',None);unit['ack_deadline']=None
+            self.detach(unit);unit.pop('assessment_due',None);unit['ack_deadline']=None
             self.drive(unit,self.home(unit),'radio')
             self.log(f'{unit["callsign"]}, Status 6: frei über Funk, kein Patiententransport.','Status')
         for call in self.state['radio_calls']:
@@ -60,7 +61,9 @@ class Patients:
         if c['notarzt_required'] and not present:
             reason='Laufende Reanimation.' if c['percent']==0 else 'Patientenzustand verschlechtert, Notarzt zur weiteren Versorgung erforderlich.'
             if os.environ.get('REINFORCEMENTS_AUTO','1')!='0':self.raise_radio(j,v,'NEF',reason,reason_initial=True)
-        else:self.log(f'Hier {self.radio_name(v)}, '+('Notarztversorgung erforderlich, Notarztmittel bereits disponiert.' if c['notarzt_required'] else 'Patient aktuell stabil, kein Notarztmittel nachgefordert.')+' Kommen.','Funk')
+        else:
+            self.log(f'Hier {self.radio_name(v)}, '+('Notarztversorgung erforderlich, Notarztmittel bereits disponiert.' if c['notarzt_required'] else 'Patient aktuell stabil, kein Notarztmittel nachgefordert.')+' Kommen.','Funk')
+            self.log('Hier LEO, verstanden, Ende.','Funk')
 
     def update_patients(self,now):
         if os.environ.get('PATIENT_EVOLUTION','1')=='0':return

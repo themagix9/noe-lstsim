@@ -98,6 +98,11 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
         upgrade_hospitals(self)
         from hospital_specialties import upgrade as upgrade_specialties
         upgrade_specialties(self)
+        from responder_pools import upgrade as upgrade_responder_pools
+        upgrade_responder_pools(self)
+        for j in self.state['jobs']:
+            had=bool(j['vehicles']);j['vehicles']=[id for id in j['vehicles'] if any(v['id']==id and v.get('job')==j['id'] for v in self.state['vehicles'])]
+            if had and not j['vehicles']:j.update(status='done',completed=j.get('completed',self.state['clock']))
         self.save()
 
     def save(self):
@@ -234,7 +239,7 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
             if auto_enabled and now>=self.state['next_emergency']:
                 self.new_job('emergency'); self.state['next_emergency']=now+random.randint(900,1800)*(.5 if self.state['setup'].get('workflow')=='split' else 1)
             if len(self.state['jobs'])>150:
-                completed=[j for j in self.state['jobs'] if j['status']=='done']
+                completed=[j for j in self.state['jobs'] if j['status']=='done' and not any(c['job']==j['id'] and c['state']!='closed' for c in self.state['radio_calls'])]
                 for j in completed[:len(self.state['jobs'])-150]: self.state['jobs'].remove(j)
             self.save()
 
@@ -376,7 +381,7 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None,turnout_due=None)
                 for v in vehicles:
-                    for key in ('support_job','support_request','patient_index','treating_patient','care_switch_due','escort_of','transport_destination','transport_target','assessment_due','signal'):v.pop(key,None)
+                    for key in ('support_job','support_request','patient_index','treating_patient','care_switch_due','escort_of','transport_destination','transport_target','assessment_due','signal','fr_number'):v.pop(key,None)
                 self.migrate_operations()
                 self.upgrade_support()
             else: raise ValueError('Unbekannte Aktion.')

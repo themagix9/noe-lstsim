@@ -4,6 +4,7 @@ import hashlib
 import random
 
 class Staffing:
+    from responder_pools import nearest_responder, number_responder
     def staff_plan(self):
         clock=self.state['clock'];day=dt.date.fromisoformat(self.state['start_date'])+dt.timedelta(days=int(clock//86400)-(1 if clock%86400<21600 else 0))
         key=day.isoformat();plans=self.state.setdefault('night_rosters',{})

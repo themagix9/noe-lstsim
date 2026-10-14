@@ -46,9 +46,9 @@ class FleetTests(unittest.TestCase):
     def test_fr_responds_but_never_transports_or_fulfils_aao(self):
         fr=self.vehicle('FR-SCH-01');j=self.job();j.update(category='ALS rot',priority='hoch')
         self.assertFalse(self.e.eligible(fr,self.job('transport')))
-        self.e.dispatch({'job':j['id'],'vehicles':[fr['id']]});self.e.depart(fr);self.e.advance(fr);self.e.advance(fr)
+        fr=self.e.nearest_responder(fr,j);self.e.dispatch({'job':j['id'],'vehicles':[fr['id']]});self.e.depart(fr);self.e.advance(fr);self.e.advance(fr)
         self.assertIsNone(fr['job']);self.assertNotEqual(fr['status'],'transport')
-        self.assertEqual(j['bed_state'],'none');self.assertNotEqual(j['status'],'done')
+        self.assertEqual(j['bed_state'],'none');self.assertEqual(j['status'],'done')
     def test_fr_count_and_fischamend_unknown_pool(self):
         self.assertEqual(len([v for v in self.e.state['vehicles'] if v['type']=='FR' and v['station']=='schwechat']),10)
         self.assertEqual(len([v for v in self.e.state['vehicles'] if v['organization']=='FR Fischamend']),15)

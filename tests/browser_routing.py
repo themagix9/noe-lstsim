@@ -43,7 +43,11 @@ with tempfile.TemporaryDirectory() as data:
             row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('1.5 km Straße',timeout=15000);expect(row).to_contain_text('4 min');assert p.evaluate("(()=>{const j=state.jobs.find(j=>j.id===selected),v=state.vehicles.find(v=>v.callsign==='77/002'),eta=j.resource_eta[v.id];return eta.turnout_seconds>=85&&eta.turnout_seconds<=120&&eta.seconds===120*.85+eta.turnout_seconds})()");row.locator('input').check();p.locator('#dispatch').click();expect(p.locator('#dispatch-dialog')).not_to_be_visible();p.locator('#speed').select_option('60');p.locator('#pause').click()
             p.wait_for_function("state.vehicles.some(v=>v.callsign==='77/002'&&v.leg?.geometry)",timeout=20000);p.evaluate("command('control',{paused:true})")
             if p.locator('#dispatch-dialog').is_visible():p.locator('#close-dispatch').click()
+            assert p.evaluate("![...mapObjects.keys()].some(k=>k.startsWith('route:'))"),'Routes must stay hidden by default'
+            p.evaluate("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id).layer.fire('click')")
             assert p.evaluate("mapLayers.getLayers().some(l=>l instanceof L.Polyline&&!(l instanceof L.CircleMarker)&&l.getLatLngs().length===3)")
+            p.evaluate("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id).layer.fire('click')")
+            assert p.evaluate("![...mapObjects.keys()].some(k=>k.startsWith('route:'))")
             p.wait_for_function("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id)?.layer.getElement()?.querySelector('.map-status-number')?.textContent==='S2'")
             # Smooth map motion has many frames within a single server clock tick.
             p.evaluate("command('control',{paused:false,speed:1})")

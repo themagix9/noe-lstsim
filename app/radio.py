@@ -49,6 +49,10 @@ class Radio:
         if not call:raise ValueError('Funkgespräch nicht gefunden.')
         v=self.get('vehicles',call['vehicle']);step=data.get('step');kind=call['kind']
         if call['state']=='closed':raise ValueError('Funkgespräch bereits beendet.')
+        if step=='end':
+            self.log('Hier LEO, verstanden, Ende.','Funk');call.update(state='closed',ended=self.state['clock'])
+            if v.get('job')==j['id'] and v['status']=='scene' and v.get('phase_due') is None:v['phase_due']=self.state['clock']+120
+            return
         if not v['job']==j['id'] or v['status']!='scene':raise ValueError('Anfordernde Mannschaft nicht mehr am Berufungsort.')
         if step=='wait' and call['state'] in ('reason_needed','awaiting_dispatch'):
             self.log(f'{self.radio_name(v)} von LEO, warten.','Funk');return
