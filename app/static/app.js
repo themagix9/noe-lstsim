@@ -92,7 +92,7 @@ function renderDetail(){
  if(detailPointerDown)return;
  const j=state.jobs.find(j=>j.id===selected);
  const pool=j&&!(splitWorkflow()&&state.session.role==='calltaker')?state.vehicles.filter(v=>sendable(v,j)&&v.type!=='BEL'&&(j.kind==='transport'?['KTW','KTW-B','BKTW','RTW','RTW-C'].includes(v.type):['KTW','RTW','RTW-C','NEF','NAH','FR'].includes(v.type))):[];
- const reservable=state.vehicles.filter(v=>!externalSupport(v)&&['KTW','KTW-B','BKTW','RTW','RTW-C'].includes(v.type)&&(!v.reservation||v.reservation===j?.id)).sort((a,b)=>compareResources(a,b,j,'distance','asc',state.stations));
+ const reservable=state.vehicles.filter(v=>!externalSupport(v)&&['KTW','KTW-B','BKTW','RTW','RTW-C'].includes(v.type)&&(!v.reservation||v.reservation===j?.id)).sort((a,b)=>j?compareResources(a,b,j,'distance','asc',state.stations):a.callsign.localeCompare(b.callsign,'de',{numeric:true}));
  const signature=JSON.stringify([j,resourceFilter,resourceSort,resourceDirection,callBusy,Math.floor(state.clock/30),callTranscriptOffset,pool.map(v=>[v.id,v.callsign,v.type,v.status]),reservable.map(v=>[v.id,v.status,v.reservation]),state.session.players,zone,state.support_catalog]);
  // Keep native selects mounted while open/focused; polling must not destroy their popup.
 
