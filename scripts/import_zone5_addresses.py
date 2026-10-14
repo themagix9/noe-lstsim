@@ -11,7 +11,8 @@ ENDPOINTS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.syst
 def collect():
     records={};coverage=[];date=datetime.date.today().isoformat()
     for district,level in [('Baden','6'),('Mödling','6'),('Bruck an der Leitha','6'),('Ebenfurth','8')]:
-        area=f'area["boundary"="administrative"]["admin_level"="{level}"]["name"="{district}"]'
+        name=('Bezirk ' if level=='6' else '(Gemeinde )?')+district
+        area=f'rel(47.7,15.7,48.4,17.2)["boundary"="administrative"]["admin_level"="{level}"]["name"~"^{name}$"];map_to_area'
         selection=area+'->.municipalities;' if level=='8' else area+'->.district;rel(area.district)["boundary"="administrative"]["admin_level"="8"];map_to_area->.municipalities;'
         query='[out:json][timeout:150];'+selection+'foreach.municipalities->.town(.town out tags;nwr(area.town)["addr:street"]["addr:housenumber"];out center qt 50;)'
         data=None
@@ -26,7 +27,7 @@ def collect():
         municipality=None;count=0
         for item in data.get('elements',[]):
             tags=item.get('tags',{})
-            if item['type']=='area':municipality=tags.get('name');continue
+            if item['type']=='area':municipality=tags.get('name','').removeprefix('Gemeinde ');continue
             if not municipality:continue
             center=item.get('center',item);street=tags.get('addr:street');number=tags.get('addr:housenumber');postcode=tags.get('addr:postcode')
             if not street or not number or not postcode or not (47.7<center.get('lat',0)<48.4 and 15.7<center.get('lon',0)<17.2):continue
