@@ -218,6 +218,7 @@ class Operations:
             if carrier['status'] in ('transport','hospital') or j.get('patient_delivered'):self.detach(v);self.drive(v,self.home(v),'radio')
             else:v['phase_due']=None
             return
+        if v['type']=='NAH' and self.ongoing_cpr(j,v) and not j.get('cpr_confirmed') and j.get('ecpr_state','none')=='none':self.ecpr_precall(j)
         if j.get('ecpr_state') in ('prealerted','awaiting_question','question_sent'):
             j['ecpr_state']='awaiting_question' if j['ecpr_state']=='prealerted' else j['ecpr_state'];j['status']='awaiting_cpr';v['phase_due']=None;return
         if j['kind']=='transport':

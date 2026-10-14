@@ -71,3 +71,12 @@ class AirStaffingTests(unittest.TestCase):
         self.e.dispatch({'job':j['id'],'vehicles':[rtw['id']]});self.e.depart(rtw);self.e.advance(rtw)
         j['patient_condition']['percent']=70;j['destination']='kh-hainburg';self.e.start_transport(rtw)
         self.assertEqual(rtw['status'],'transport')
+
+    def test_cpr_after_reclassification_starts_crew_confirmation(self):
+        j=self.job();self.e.state['clock']=12*3600;nah=self.vehicle('C9')
+        self.e.dispatch({'job':j['id'],'vehicles':[nah['id']]});self.e.depart(nah);self.e.advance(nah)
+        j['patient_condition']['percent']=0;j['exercise_cpr']=True
+        self.e.update_job_code({'job':j['id'],'code':'RD-9E1'});self.e.crew_destination(nah)
+        self.assertEqual(j['ecpr_state'],'awaiting_question');self.assertEqual(nah['status'],'scene')
+        self.e.ask_cpr({'job':j['id']});self.e.update_air(self.e.state['clock']+30)
+        self.assertEqual(nah['status'],'transport');self.assertEqual(j['bed_state'],'ecpr_direct');self.assertIsNone(j['case_number'])
