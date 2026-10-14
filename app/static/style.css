@@ -162,3 +162,26 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 .job .owner-chip{display:block;font-size:15px;font-weight:800;line-height:1.35;margin:7px 0;padding:6px 9px;background:#e5ebf3;color:#24364d}
 .job .owner-chip.own{background:#d8f3e6;color:#106544}
 .incident-duration{font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--muted)}
+
+.job>.job-actions{grid-column:1;grid-row:1 / span 3;display:flex;flex-direction:column;gap:5px;align-self:stretch}
+.job-actions>.job-expand,.job-actions>.job-map{position:static;flex:1;width:30px;height:auto;min-height:48px;padding:3px;border-radius:5px;background:#edf2f8}
+.job-actions>.job-map{font-size:22px;color:#2458a2}
+.additional-editor{display:grid;gap:7px;grid-column:1 / -1;min-width:0}
+.additional-editor>label:first-child{display:grid;gap:4px}
+.agency-card>b{display:flex;align-items:center;gap:10px}
+.agency-card>b img{width:64px;height:32px;object-fit:contain}
+.agency-card label{display:flex;gap:8px;align-items:center;margin:7px 0}
+.unit-police{color:#334f90;font-weight:700}.unit-fire{color:#c53630;font-weight:700}
+.agency-summary{margin-top:6px}
+
+.badge.ready,.map-status-number.status-ready{background:#17633e;color:#fff}
+.badge.radio,.map-status-number.status-radio{background:#b9efb2;color:#174c28}
+.badge.enroute,.map-status-number.status-enroute{background:#ffe36a;color:#654c00}
+.badge.scene,.map-status-number.status-scene{background:#cf343e;color:#fff}
+.badge.transport,.map-status-number.status-transport{background:#f6b9d8;color:#74264e}
+.badge.hospital,.map-status-number.status-hospital{background:#bfa2e8;color:#442568}
+.badge.assigned,.badge.acknowledged,.map-status-number.status-assigned,.map-status-number.status-acknowledged{background:#fff;color:#cf2638;border:1px solid #e6adb4}
+.agency-gate{padding:7px 10px;background:#fff0cf;border-left:3px solid #ce8c10}
+.radio-busy{padding:7px 10px;background:#edf3fc;color:#526b8d}
+
+.job-additional{display:block;margin:5px 0 7px;font-size:14px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}

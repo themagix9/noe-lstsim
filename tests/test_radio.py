@@ -27,7 +27,7 @@ class RadioTests(unittest.TestCase):
         j,v=self.scene();c=self.e.raise_radio(j,v,'NEF');self.e.advance(v);self.assertEqual(v['status'],'scene')
         self.e.save();self.e.db.close()
         from engine import Engine
-        self.e=Engine(self.path);self.assertEqual(self.e.state['radio_calls'][0]['id'],c['id'])
+        self.e=Engine(self.path);self.assertTrue(any(x['id']==c['id'] and x['state']!='closed' for x in self.e.state['radio_calls']))
     def test_other_owner_cannot_answer(self):
         j,v=self.scene();c=self.e.raise_radio(j,v);j['owner']='owner'
         with self.assertRaises(ValueError):self.e.command('radio',{'job':j['id'],'call':c['id'],'step':'listen','_actor':{'id':'other','name':'Anderer'}})

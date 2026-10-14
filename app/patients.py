@@ -7,6 +7,8 @@ class Patients:
         for v in self.state['vehicles']:
             due=v.get('assessment_due')
             if due is None or now<due:continue
+            if v.get('job') and v['status']=='scene' and self.agency_gate(self.get('jobs',v['job'])):
+                v.update(agency_assessment_wait=True,assessment_due=now+30);continue
             v.pop('assessment_due',None)
             if v['status']!='scene' or not v.get('job'):continue
             j=self.get('jobs',v['job'])
@@ -18,8 +20,9 @@ class Patients:
         if j.get('scene_report'):return
         truth=j.get('_scenario',{})
         j['scene_report']={'text':truth.get('report',j.get('scene','Lage vor Ort erhoben.')),'time':self.state['clock']}
-        self.log(f'Hier {self.radio_name(v)}, '+j['scene_report']['text']+' Kommen.','Funk')
-        self.log('Hier LEO, verstanden, Ende.','Funk')
+        if truth.get('no_patient'):
+            self.log(f'Hier {self.radio_name(v)}, '+j['scene_report']['text']+' Kommen.','Funk')
+            self.log('Hier LEO, verstanden, Ende.','Funk')
         self.discover_patients(j)
         if j.get('patients'):
             self.assign_doctors(j)
@@ -61,9 +64,7 @@ class Patients:
         if c['notarzt_required'] and not present:
             reason='Laufende Reanimation.' if c['percent']==0 else 'Patientenzustand verschlechtert, Notarzt zur weiteren Versorgung erforderlich.'
             if os.environ.get('REINFORCEMENTS_AUTO','1')!='0':self.raise_radio(j,v,'NEF',reason,reason_initial=True)
-        else:
-            self.log(f'Hier {self.radio_name(v)}, '+('Notarztversorgung erforderlich, Notarztmittel bereits disponiert.' if c['notarzt_required'] else 'Patient aktuell stabil, kein Notarztmittel nachgefordert.')+' Kommen.','Funk')
-            self.log('Hier LEO, verstanden, Ende.','Funk')
+        else:self.raise_scene_radio(j,v,force=force)
 
     def update_patients(self,now):
         if os.environ.get('PATIENT_EVOLUTION','1')=='0':return
@@ -73,6 +74,7 @@ class Patients:
                 self.update_multiple_patients(j,now);continue
             if c is None:continue
             if not c['reported'] or j['status']!='scene' or now<c['next_change']:continue
+            if self.agency_gate(j):c['next_change']=now+30;continue
             units=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id']]
             carrier=next((v for v in units if v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH')),None)
             if not carrier:continue

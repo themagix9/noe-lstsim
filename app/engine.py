@@ -9,6 +9,9 @@ import sqlite3
 import threading
 import uuid
 from operations import Operations, STATUS_LABELS, JOB_ACTIONS
+from agencies import Agencies
+from scene_radio import SceneRadio
+from radio_pacing import RadioPacing
 from signal_ops import SignalOps
 from fleet import Fleet, upgrade
 from daylight import window
@@ -63,7 +66,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':copy.deepcopy(HOSPITALS),'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
+class Engine(SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -100,6 +103,7 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
         upgrade_specialties(self)
         from responder_pools import upgrade as upgrade_responder_pools
         upgrade_responder_pools(self)
+        self.upgrade_agencies()
         for j in self.state['jobs']:
             had=bool(j['vehicles']);j['vehicles']=[id for id in j['vehicles'] if any(v['id']==id and v.get('job')==j['id'] for v in self.state['vehicles'])]
             if had and not j['vehicles']:j.update(status='done',completed=j.get('completed',self.state['clock']))
@@ -111,6 +115,7 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
 
     def snapshot(self):
         with self.lock:
+            if self.flush_radio():self.save()
             result=copy.deepcopy(self.state)
             result['support_catalog']=self.support_catalog()
             for v in result['vehicles']:
@@ -148,7 +153,8 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
 
     def log(self, text, channel='Funk'):
         if channel=='Funk' and re.search(r'Status\s*(?:\d|meldung)',text,re.I):channel='Status'
-        self.state['logs'].insert(0, {'time':self.state['clock'],'text':text,'channel':channel})
+        if channel=='Funk':self.queue_radio(text)
+        else:self.state['logs'].insert(0, {'time':self.state['clock'],'text':text,'channel':channel})
         self.state['logs']=self.state['logs'][:250]
 
     def station(self, id):
@@ -219,6 +225,7 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
             self.update_air(now)
             self.update_fuel(now)
             self.update_support(now)
+            self.update_agencies(now)
             self.update_assessments(now)
             self.update_patients(now)
             for v in self.state['vehicles']:
@@ -286,6 +293,10 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
             elif action=='hospital':
                 from hospitals import edit_hospital
                 edit_hospital(self,data)
+            elif action=='job_additional':self.update_additional(data)
+            elif action=='agency_request':self.agency_request(data)
+            elif action=='agency_task':self.agency_task(data)
+            elif action=='agency_release':self.agency_release(data)
             elif action=='job_signal':self.job_signal(data)
             elif action=='signal_contact':self.signal_contact(data)
             elif action=='signal_radio':self.signal_action(data)
@@ -383,9 +394,10 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None,turnout_due=None)
                 for v in vehicles:
-                    for key in ('support_job','support_request','patient_index','treating_patient','care_switch_due','escort_of','transport_destination','transport_target','assessment_due','signal','fr_number'):v.pop(key,None)
+                    for key in ('support_job','support_request','patient_index','treating_patient','care_switch_due','escort_of','transport_destination','transport_target','assessment_due','signal','fr_number','agency_assessment_wait','agency_transport_wait'):v.pop(key,None)
                 self.migrate_operations()
                 self.upgrade_support()
+                self.upgrade_agencies()
             else: raise ValueError('Unbekannte Aktion.')
             if actor and action in JOB_ACTIONS and action!='handoff': j['owner']=actor['id']
             self.save()

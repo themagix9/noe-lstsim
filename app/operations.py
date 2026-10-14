@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry','job_additional','agency_request','agency_release','agency_task')
 
 class Operations:
     def migrate_operations(self):
@@ -87,6 +87,8 @@ class Operations:
         if old.get('carrier')==v['id']:old['carrier']=None
         if not old['vehicles']:
             old.update(status='done',completed=self.state['clock'])
+            for request in old.get('agency_requests',[]):
+                if request['status'] in ('waiting','alarmed','enroute','working','onscene'):self.release_agency(old,request)
             self.unreserve({'job':old['id']})
 
     def response_factor(self,v,j):
@@ -161,6 +163,7 @@ class Operations:
         if j.get('ecpr_state') in ('awaiting_question','question_sent'):j['status']='awaiting_cpr'
         elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
         elif j['status'] not in ('scene','transport','hospital'):j['status']='assigned'
+        self.ensure_agency_requests(j)
         return j
 
     def acknowledge(self,v,direct=False):
@@ -183,6 +186,8 @@ class Operations:
 
     def crew_destination(self,v):
         j=self.get('jobs',v['job'])
+        if self.agency_gate(j,'transport'):
+            v.update(agency_transport_wait=True,phase_due=self.state['clock']+30);return
         if j.get('no_patient'):self.finish_without_patient(j);return
         waiting=j.get('reinforcement_waiting')
         if waiting and not j.get('reinforcement_arrived'):
@@ -232,6 +237,8 @@ class Operations:
     def start_transport(self,v):
         j=self.get('jobs',v['job'])
         if v['type'] not in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'):raise ValueError('Diese Ressource kann keine Patienten transportieren.')
+        if self.agency_gate(j,'transport'):
+            v.update(agency_transport_wait=True,phase_due=self.state['clock']+30);return
         if j.get('no_patient') or j.get('_scenario',{}).get('no_patient'):raise ValueError('Keine transportpflichtige Person in diesem Szenario.')
         h=__import__('hospitals').destination(self,j)
         if not __import__('hospitals').located(h):raise ValueError('Kartenposition des Transportziels zuerst in den Einstellungen bestätigen.')
@@ -322,8 +329,9 @@ class Operations:
             elif j['bed_state'] in ('requested','calling','allocated'):j['status']='awaiting_bed'
             elif j['status'] not in ('transport','hospital'):j['status']='scene'
             self.log(f'{v["callsign"]}, Status 3: am Berufungsort.','Status');return
+        if status=='scene' and self.agency_gate(self.get('jobs',v['job'])):v.update(agency_transport_wait=True,phase_due=now+30);return
         if status=='scene' and self.get('jobs',v['job']).get('no_patient'):self.finish_without_patient(self.get('jobs',v['job']));return
-        if status=='scene' and any(c['vehicle']==v['id'] and c['state']!='closed' and c['kind']!='Signalfahrt' for c in self.state['radio_calls']):v['phase_due']=None;return
+        if status=='scene' and any(c['vehicle']==v['id'] and c['state']!='closed' and c['kind'] not in ('Signalfahrt','Lagemeldung') for c in self.state['radio_calls']):v['phase_due']=None;return
         if status=='scene':
             if v['type']=='NEF' and self.doctor_needed_at_scene(self.get('jobs',v['job'])):
                 self.assign_doctors(self.get('jobs',v['job']));self.request_manv_resources(self.get('jobs',v['job']),v);v['phase_due']=now+60

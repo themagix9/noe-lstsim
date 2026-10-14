@@ -50,6 +50,7 @@ class Radio:
         if not call:raise ValueError('Funkgespräch nicht gefunden.')
         v=self.get('vehicles',call['vehicle']);step=data.get('step');kind=call['kind']
         if call['state']=='closed':raise ValueError('Funkgespräch bereits beendet.')
+        if kind=='Lagemeldung':return self.scene_radio_action(j,call,v,data)
         if step=='end':
             self.log('Hier LEO, verstanden, Ende.','Funk');call.update(state='closed',ended=self.state['clock'])
             if v.get('job')==j['id'] and v['status']=='scene' and v.get('phase_due') is None:v['phase_due']=self.state['clock']+120
@@ -71,7 +72,13 @@ class Radio:
             self.log('Verstanden, Grund der Nachforderung? Kommen.','Funk');self.log(f'Hier {self.radio_name(v)}, {call["reason"]} Kommen.','Funk');call['state']='awaiting_dispatch'
         elif step=='confirm' and call['state']=='awaiting_dispatch':
             if kind in ('Polizei','Feuerwehr'):
-                j['police' if kind=='Polizei' else 'fire']=True;answer=kind+' ist verständigt und kommt zum Berufungsort.'
+                agency='police' if kind=='Polizei' else 'fire'
+                text=call['reason'].lower()
+                task='safety' if agency=='police' and any(t in text for t in ('gefährd','bedroh','gewalt','waffe')) else 'extrication' if agency=='fire' and any(t in text for t in ('eingeschloss','eingeklemm','technische rettung','befrei')) else 'fire' if agency=='fire' and any(t in text for t in ('brand','rauch','feuer')) else 'assist'
+                existing=next((r for r in j.get('agency_requests',[]) if r['kind']==agency and r['status'] in ('waiting','alarmed','enroute','working','onscene')),None)
+                if existing and task!='assist' and existing['task']!=task and existing.get('task_completed') is None:self.agency_task({'job':j['id'],'request':existing['id'],'task':task})
+                request=existing or self.agency_request({'job':j['id'],'kind':agency,'task':task,'reason':call['reason']})
+                answer=kind+(' ist angefordert; derzeit keine freie Einheit, Rückmeldung folgt.' if request['status']=='waiting' else ' ist verständigt und kommt zum Berufungsort.')
             else:
                 unit=next((self.get('vehicles',id) for id in reversed(j['vehicles']) if (self.get('vehicles',id)['type']==kind or kind=='NEF' and self.get('vehicles',id)['type']=='NAH' or kind=='RTW' and self.get('vehicles',id)['type'] in ('RTW-C','KTW')) and self.get('vehicles',id)['job']==j['id'] and id!=v['id'] and self.get('vehicles',id)['status'] in ('assigned','standby','acknowledged','enroute','scene') and id not in [c.get('assigned') for c in self.state['radio_calls'] if c['job']==j['id'] and c['kind']==kind and c['state']=='closed']),None)
                 if not unit:raise ValueError('Benötigtes Rettungsmittel zuerst zum bestehenden Einsatz dazubuchen.')

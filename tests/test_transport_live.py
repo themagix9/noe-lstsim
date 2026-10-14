@@ -36,8 +36,9 @@ class TransportLiveTests(unittest.TestCase):
     def test_stable_patient_reports_no_doctor_required(self):
         j=self.job();v=self.vehicle('77/002');v.update(job=j['id'],status='scene');j['vehicles']=[v['id']]
         j['patient_condition'].update(percent=90,notarzt_required=False)
-        self.e.patient_report(j,v);self.assertFalse(self.e.state['radio_calls'])
-        self.assertTrue(any('kein Notarztmittel' in l['text'] for l in self.e.state['logs']))
+        self.e.patient_report(j,v);self.assertEqual([c['kind'] for c in self.e.state['radio_calls']],['Lagemeldung'])
+        self.assertTrue(any(l['text'].startswith('LEO von ') for l in self.e.state['logs']))
+        self.assertFalse(any('Notarztmittel bereits disponiert' in l['text'] for l in self.e.state['logs']))
     def test_numeric_status_reports_use_status_channel(self):
         v=self.vehicle('77/002');self.e.vehicle_status({'vehicle':v['id'],'status':'6'})
         self.assertEqual(self.e.state['logs'][0]['channel'],'Status')

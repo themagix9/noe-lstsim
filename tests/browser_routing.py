@@ -29,7 +29,7 @@ class OSRM(BaseHTTPRequestHandler):
 root=Path(__file__).resolve().parents[1]
 routes=ThreadingHTTPServer(('127.0.0.1',0),OSRM);threading.Thread(target=routes.serve_forever,daemon=True).start()
 with tempfile.TemporaryDirectory() as data:
-    proc=subprocess.Popen([sys.executable,'app/server.py'],cwd=root,env={**os.environ,'DATA_DIR':data,'ROUTING_ENABLED':'1','ROUTING_URL':f'http://127.0.0.1:{routes.server_port}','REINFORCEMENTS_AUTO':'0'},stdout=subprocess.DEVNULL)
+    proc=subprocess.Popen([sys.executable,'app/server.py'],cwd=root,env={**os.environ,'DATA_DIR':data,'RADIO_INTERVAL':'0','ROUTING_ENABLED':'1','ROUTING_URL':f'http://127.0.0.1:{routes.server_port}','REINFORCEMENTS_AUTO':'0'},stdout=subprocess.DEVNULL)
     try:
         for _ in range(60):
             try:urllib.request.urlopen('http://127.0.0.1:8080/api/health',timeout=.5);break
@@ -139,7 +139,7 @@ with tempfile.TemporaryDirectory() as data:
             on_tab(p,'kommunikation');p.locator('#radio-detail [data-radio][data-step=listen]').click()
             p.locator('#radio-detail [data-radio][data-step=unavailable]').click()
             p.wait_for_function("state.jobs.find(j=>j.id===manvId).request_denials?.NEF")
-            expect(p.locator('#radio-detail .radio-call')).to_have_count(0)
+            assert p.evaluate("state.radio_calls.filter(c=>c.job===manvId&&c.kind==='NEF').every(c=>c.state==='closed')")
             on_tab(p,'nachforderung');expect(p.locator('[data-retry-request=NEF]')).to_be_visible();p.locator('[data-retry-request=NEF]').click()
             p.wait_for_function("!state.jobs.find(j=>j.id===manvId).request_denials?.NEF")
             assert not errors,errors

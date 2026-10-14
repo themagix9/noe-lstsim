@@ -89,6 +89,7 @@ class MultiplePatients:
             for p in scene+transport_care:
                 unit=next((u for u in self.state['vehicles'] if u['id']==p.get('carrier') and u.get('job')==j['id'] and u['status']=='scene' and u.get('assessment_due',0)<=now),None)
                 if p in transport_care:delta=random.randint(4,8)
+                elif self.agency_gate(j):delta=0
                 elif qualified:delta=shared_rate+(2 if p.get('doctor') else 0)
                 elif present:delta=0
                 else:delta=random.randint(-2,1) if unit else random.randint(-4,0)
