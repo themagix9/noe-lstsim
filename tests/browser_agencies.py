@@ -56,13 +56,14 @@ with tempfile.TemporaryDirectory() as data:
             p.wait_for_function("state.jobs.find(j=>j.id===jobId).patient_condition.reported",timeout=10000);p.evaluate("command('control',{paused:true})")
             on_tab(p,'kommunikation');p.wait_for_function("!state.radio_pending?.length",timeout=20000)
             before=time.monotonic();visible(p,'#radio-detail [data-radio][data-step=listen]').click()
+            p.wait_for_function("state.radio_calls.some(c=>c.job===jobId&&c.kind==='Lagemeldung'&&c.state==='awaiting_end')")
             # The reply is queued, not inserted together with LEO's answer.
             assert p.evaluate("state.radio_pending.some(r=>r.text.startsWith('Hier 77/002,'))")
             p.wait_for_function("!state.radio_pending.length",timeout=10000);assert time.monotonic()-before>=1.8
             expect(p.locator('#radio-detail')).to_contain_text('Weitere anfahrende Kräfte können storniert werden.')
             checkbox=visible(p,'#radio-detail [data-lage-unit]');expect(checkbox).to_have_count(1);checkbox.check();p.wait_for_timeout(1200);expect(checkbox).to_be_checked()
             visible(p,'#radio-detail [data-lage-storno]').click();p.wait_for_function("state.vehicles.find(v=>v.callsign==='64/007').job===null")
-            p.wait_for_function("!state.radio_pending.length",timeout=30000);visible(p,'#radio-detail [data-radio][data-step=end]').click();p.wait_for_function("!state.radio_pending.length",timeout=10000)
+            p.wait_for_function("!state.radio_pending.length",timeout=30000);visible(p,'#radio-detail [data-radio][data-step=end]').click();p.wait_for_function("state.radio_calls.filter(c=>c.job===jobId&&c.kind==='Lagemeldung').every(c=>c.state==='closed')");p.wait_for_function("!state.radio_pending.length",timeout=10000)
             expect(p.locator('#logs')).to_contain_text('LEO verstanden, Ende.');p.screenshot(path='/tmp/noe-ui-qa/paced-scene-report.png')
             colors=p.evaluate("""()=>{const result={};for(const status of ['ready','radio','enroute','scene','transport','hospital','assigned']){const el=document.createElement('span');el.className='badge '+status;document.body.append(el);const css=getComputedStyle(el);result[status]=[css.backgroundColor,css.color];el.remove()}return result}""")
             assert colors['assigned']==['rgb(255, 255, 255)','rgb(207, 38, 56)'];assert colors['scene'][0]=='rgb(207, 52, 62)';assert colors['ready'][0]!=colors['radio'][0]
