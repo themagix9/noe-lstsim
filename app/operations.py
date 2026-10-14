@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry')
 
 class Operations:
     def migrate_operations(self):
@@ -183,7 +183,7 @@ class Operations:
             p=j['patients'][v['patient_index']]
             other=next((q for q in j['patients'] if q.get('doctor')==v['id'] and q['number']!=p['number'] and self.patient_phase(j,q)=='scene' and q['percent']<45),None)
             if other:v['phase_due']=self.state['clock']+60;return
-            if p['percent']<45 and not p.get('doctor'):
+            if p['percent']<45 and not p.get('doctor') and not j.get('request_denials',{}).get('NEF'):
                 self.request_manv_resources(j,v);v['phase_due']=self.state['clock']+60;return
         if multi and v.get('patient_index') is None:
             if v['type']=='NAH' and self.scene_patients(j):v['phase_due']=self.state['clock']+60;return

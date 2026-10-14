@@ -47,3 +47,11 @@ class RadioTests(unittest.TestCase):
         j,v=self.scene();j.update(code='RD-29D1',reinforcement_checked=False)
         with patch.dict('os.environ',{'REINFORCEMENTS_AUTO':'1'}),patch('radio.random.random',return_value=.1):self.e.maybe_reinforcement(j,v)
         self.assertEqual(self.e.state['radio_calls'][-1]['kind'],'Feuerwehr')
+
+    def test_negative_response_is_allowed_even_if_support_is_booked(self):
+        j,v=self.scene();c=self.e.raise_radio(j,v,'NEF',reason_initial=True)
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'})
+        nef=self.vehicle('77/099');self.e.dispatch({'job':j['id'],'vehicles':[nef['id']]})
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'unavailable'})
+        self.assertEqual(c['state'],'closed');self.assertIsNone(self.e.raise_radio(j,v,'NEF'))
+        text=' '.join(log['text'] for log in self.e.state['logs']);self.assertIn('Negativ',text);self.assertIn('LEO Ende.',text)

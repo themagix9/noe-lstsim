@@ -8,12 +8,14 @@ class Radio:
         if v['type']=='NAH':return {'C3':'Christophorus 3','C9':'Christophorus 9','C15':'Christophorus 15','C16':'Christophorus 16'}.get(v['callsign'],v['callsign'])
         if v['type']=='NEF':return 'NEF '+self.station(v['station'])['name'].removeprefix('RK ').removeprefix('NEF ').split(' · ')[0]
         return v['callsign']
-    def raise_radio(self,j,v,kind='NEF',reason=None,reason_initial=False):
+    def raise_radio(self,j,v,kind='NEF',reason=None,reason_initial=False,force=False):
+        if kind in j.get('request_denials',{}) and not force:return
         if any(c['job']==j['id'] and c['kind']==kind and c['state']!='closed' for c in self.state['radio_calls']):return
         if v['job']!=j['id'] or v['status']!='scene':raise ValueError('Mannschaft muss am Berufungsort sein.')
         if v.get('assessment_due',0)>self.state['clock']:raise ValueError('Mannschaft verschafft sich noch einen Überblick am Berufungsort.')
         if kind not in ('NEF','RTW-C','RTW','Polizei','Feuerwehr'):raise ValueError('Unbekannte Nachforderung.')
         if reason is not None and (not isinstance(reason,str) or len(reason)>300):raise ValueError('Nachforderungsgrund maximal 300 Zeichen.')
+        if force:j.setdefault('request_denials',{}).pop(kind,None)
         reason=reason or {'NEF':'Patientenzustand verschlechtert, Notarzt erforderlich.','RTW-C':'Notfallsanitäter zur weiteren Versorgung erforderlich.','RTW':'Weiterer Patient am Berufungsort.','Polizei':'Unterstützung zur Absicherung erforderlich.','Feuerwehr':'Technische Unterstützung beim Patiententransport erforderlich.'}[kind]
         call={'id':uuid.uuid4().hex[:12],'job':j['id'],'vehicle':v['id'],'kind':kind,'reason':reason,'reason_initial':reason_initial,'state':'calling','created':self.state['clock'],'assigned':None}
         self.state['radio_calls'].append(call);self.state['radio_calls']=self.state['radio_calls'][-100:]
@@ -72,6 +74,15 @@ class Radio:
                 answer=f'{self.radio_name(unit) if kind=="NEF" else kind+" "+place} kommt '+('ab Wache.' if unit.get('alarm_from')=='ready' else 'über Funk zum Berufungsort.')
             self.log(answer+' Kommen.','Funk');self.log(f'Hier {v["callsign"]}, '+answer.split(' kommt ')[0]+', verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed';v['phase_due']=self.state['clock']+120
         elif step=='unavailable' and call['state']=='awaiting_dispatch':
-            self.log(f'{v["callsign"]} von LEO: derzeit kein {kind} verfügbar. Wir klären ein weiteres Rettungsmittel, Rückmeldung folgt. Kommen.','Funk')
-            self.log(f'Hier {v["callsign"]}, verstanden, wir warten auf Rückmeldung. Kommen.','Funk')
+            self.log(f'{self.radio_name(v)} von LEO: Negativ, derzeit keine weiteren Kräfte ({kind}) verfügbar. Kommen.','Funk')
+            self.log(f'Hier {self.radio_name(v)}, negativ verstanden, Versorgung mit vorhandenen Mitteln. Kommen.','Funk')
+            self.log('LEO Ende.','Funk');call.update(state='closed',declined=True)
+            j.setdefault('request_denials',{})[kind]={'time':self.state['clock'],'reason':'Keine weiteren Kräfte verfügbar.'}
+            if v.get('phase_due') is None:v['phase_due']=self.state['clock']+120
         else:raise ValueError('Dieser Gesprächsschritt ist jetzt nicht möglich.')
+
+    def retry_requests(self,data):
+        j=self.get('jobs',data['job']);kind=data.get('kind')
+        if kind not in ('NEF','RTW-C','RTW','Polizei','Feuerwehr'):raise ValueError('Unbekannte Nachforderung.')
+        j.setdefault('request_denials',{}).pop(kind,None)
+        self.log(f'Einsatz {j["incident_number"]}: automatische Nachforderungen {kind} wieder zugelassen.','System')

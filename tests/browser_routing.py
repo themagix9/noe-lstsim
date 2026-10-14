@@ -129,6 +129,15 @@ with tempfile.TemporaryDirectory() as data:
             expect(p.locator('.triage-I')).to_have_count(2)
             expect(p.locator('#detail-panel-patienten')).to_contain_text('Notarztversorgung: NEF')
             assert p.evaluate('document.documentElement.scrollHeight<=innerHeight+1')
-            p.screenshot(path='/tmp/noe-ui-qa/manv-triage.png');assert not errors,errors
+            p.screenshot(path='/tmp/noe-ui-qa/manv-triage.png')
+            # A negative reply ends the call and can be explicitly reset later.
+            p.evaluate("command('radio_generate',{job:manvId,vehicle:state.vehicles.find(v=>v.callsign==='77/099').id,kind:'NEF',reason_initial:true})")
+            on_tab(p,'kommunikation');p.locator('#radio-detail [data-radio][data-step=listen]').click()
+            p.locator('#radio-detail [data-radio][data-step=unavailable]').click()
+            p.wait_for_function("state.jobs.find(j=>j.id===manvId).request_denials?.NEF")
+            expect(p.locator('#radio-detail .radio-call')).to_have_count(0)
+            on_tab(p,'nachforderung');expect(p.locator('[data-retry-request=NEF]')).to_be_visible();p.locator('[data-retry-request=NEF]').click()
+            p.wait_for_function("!state.jobs.find(j=>j.id===manvId).request_denials?.NEF")
+            assert not errors,errors
             print('Road routing and MANV browser test passed: street ETA, map icons, MANV call and live triage.');browser.close()
     finally:proc.terminate();proc.wait(timeout=5);routes.shutdown();routes.server_close()

@@ -64,3 +64,6 @@ class SplitTests(unittest.TestCase):
         self.assertFalse(self.j['signal'])
         self.s.command(self.ct,'handoff',{'job':self.j['id']})
         with self.assertRaises(PermissionError):self.s.command(self.ct,'job_signal',data)
+
+    def test_retrying_automatic_requests_is_dispatcher_only(self):
+        with self.assertRaises(PermissionError):self.s.command(self.ct,'radio_retry',{'job':self.j['id'],'kind':'NEF'})

@@ -40,14 +40,27 @@ class MultiplePatients:
             if patient:patient['carrier']=id;v['patient_index']=patient['number']-1
 
     def assign_doctors(self,j):
-        patients=[p for p in j.get('patients',[]) if self.patient_phase(j,p)=='scene']
-        doctors=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['type'] in ('NEF','NAH') and v['status']=='scene' and v.get('assessment_due',0)<=self.state['clock']]
-        for p in j.get('patients',[]):
-            if self.patient_phase(j,p)=='scene':p['doctor']=None
+        patients=self.scene_patients(j);now=self.state['clock']
+        doctors=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['type'] in ('NEF','NAH') and v['status']=='scene' and v.get('assessment_due',0)<=now]
+        for p in patients:p['doctor']=None
         for v in doctors:
-            v.pop('treating_patient',None)
-            p=min((p for p in patients if not p['doctor']),key=lambda p:(p['percent'],p['number']),default=None)
-            if p:p['doctor']=v['id'];v['treating_patient']=p['number']
+            options=[p for p in patients if not p['doctor']]
+            current=next((p for p in options if p['number']==v.get('treating_patient')),None)
+            worst=min(options,key=lambda p:(p['percent'],p['number']),default=None)
+            if not worst:v.pop('treating_patient',None);continue
+            if current and now<v.get('care_switch_due',0) and worst['percent']+10>=current['percent']:chosen=current
+            else:
+                # Rotate between similarly urgent patients; a much worse patient
+                # always has priority over the rotation.
+                alternatives=[p for p in options if p is not current and p['percent']<=worst['percent']+15]
+                chosen=min(alternatives,key=lambda p:(p['percent'],p['number']),default=worst)
+                v['care_switch_due']=now+30
+            chosen['doctor']=v['id'];v['treating_patient']=chosen['number']
+
+    def doctor_demand(self,j):
+        scene=self.scene_patients(j);critical=sum(p['percent']<45 for p in scene)
+        # Shared care in this game: never one doctor resource per patient.
+        return min((len(scene)+5)//6,(critical+2)//3) if critical else 0
 
     def missing_carriers(self,j):
         if not j.get('patients'):return 0
@@ -60,7 +73,7 @@ class MultiplePatients:
         scene=[p for p in j['patients'] if self.patient_phase(j,p)=='scene']
         doctors=[u for u in self.state['vehicles'] if u.get('job')==j['id'] and u['type'] in ('NEF','NAH') and u['status'] not in ('transport','hospital','radio','out')]
         critical=sum(p['percent']<45 for p in scene)
-        if critical>len(doctors):self.raise_radio(j,v,'NEF',f'{critical} kritische Patienten am Berufungsort, {len(doctors)} Notarztmittel gebunden oder auf Anfahrt. Bitte ein weiteres Notarztmittel.',reason_initial=True)
+        if self.doctor_demand(j)>len(doctors):self.raise_radio(j,v,'NEF',f'{len(scene)} Patienten am Berufungsort, davon {critical} kritisch. Bitte ein weiteres Notarztmittel zur gemeinsamen Versorgung.',reason_initial=True)
         missing=self.missing_carriers(j)
         if missing:self.raise_radio(j,v,'RTW',f'{len(scene)} Patienten noch am Berufungsort. Es fehlen {missing} transportierende Rettungsmittel.',reason_initial=True)
 
@@ -70,9 +83,15 @@ class MultiplePatients:
         for p in j['patients']:p['phase']=self.patient_phase(j,p);p.setdefault('triage',triage(p['percent']))
         if os.environ.get('PATIENT_EVOLUTION','1')!='0' and now>=j.get('patients_next_change',now+60):
             transport_care=[p for p in j['patients'] if self.patient_phase(j,p)=='transport' and any(v['id']==p.get('doctor') and v.get('job')==j['id'] and v['status']=='transport' for v in self.state['vehicles'])]
+            present=[v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['type'] in ('NEF','NAH') and v['status']=='scene']
+            qualified=[v for v in present if v.get('assessment_due',0)<=now]
+            shared_rate=max(1,18*len(qualified)//max(1,len(scene))) if qualified else 0
             for p in scene+transport_care:
                 unit=next((u for u in self.state['vehicles'] if u['id']==p.get('carrier') and u.get('job')==j['id'] and u['status']=='scene' and u.get('assessment_due',0)<=now),None)
-                delta=random.randint(4,8) if p.get('doctor') else random.randint(-2,1) if unit else random.randint(-4,0)
+                if p in transport_care:delta=random.randint(4,8)
+                elif qualified:delta=shared_rate+(2 if p.get('doctor') else 0)
+                elif present:delta=0
+                else:delta=random.randint(-2,1) if unit else random.randint(-4,0)
                 p['percent']=max(0,min(100,p['percent']+delta));p['triage']=triage(p['percent'])
                 if p['percent']>=60:p['requires_doctor']=False
                 elif p['percent']<45:p['requires_doctor']=True
@@ -97,4 +116,4 @@ class MultiplePatients:
             if not p['delivered']:p['carrier']=None
         for p in j.get('patients',[]):
             if p.get('doctor')==v['id']:p['doctor']=None
-        v.pop('patient_index',None);v.pop('treating_patient',None);v.pop('escort_of',None)
+        v.pop('patient_index',None);v.pop('treating_patient',None);v.pop('care_switch_due',None);v.pop('escort_of',None)

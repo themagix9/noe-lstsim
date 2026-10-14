@@ -291,6 +291,7 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
             elif action=='fuel_radio':self.fuel_action(data)
             elif action=='fuel_request':self.request_fuel(self.get('vehicles',data['vehicle']))
             elif action=='radio':self.radio_action(data)
+            elif action=='radio_retry':self.retry_requests(data)
             elif action=='handoff':
                 if self.state['setup'].get('workflow')!='split':raise ValueError('Übergabe gehört zum getrennten Mehrspielermodus.')
                 j=self.get('jobs',data['job'])
@@ -304,7 +305,7 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
                 self.log(f'Einsatz {j["incident_number"]}: Calltaker hat den Auftrag zur Disposition übergeben. '+note,'Aufträge')
             elif action=='radio_generate':
                 j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])
-                self.raise_radio(j,v,data.get('kind','NEF'),data.get('reason'),bool(data.get('reason_initial')))
+                self.raise_radio(j,v,data.get('kind','NEF'),data.get('reason'),bool(data.get('reason_initial')),force=True)
             elif action=='carrier':self.choose_carrier(data)
             elif action=='ask_cpr':self.ask_cpr(data)
             elif action=='rtwc':self.configure_rtwc(data)
@@ -375,7 +376,7 @@ class Engine(SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, F
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None,turnout_due=None)
                 for v in vehicles:
-                    for key in ('support_job','support_request','patient_index','treating_patient','escort_of','transport_destination','transport_target','assessment_due','signal'):v.pop(key,None)
+                    for key in ('support_job','support_request','patient_index','treating_patient','care_switch_due','escort_of','transport_destination','transport_target','assessment_due','signal'):v.pop(key,None)
                 self.migrate_operations()
                 self.upgrade_support()
             else: raise ValueError('Unbekannte Aktion.')

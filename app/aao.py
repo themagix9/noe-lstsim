@@ -42,13 +42,13 @@ def recommend(engine,j):
         pending=[p for p in j['patients'] if not p['delivered'] and engine.patient_phase(j,p)=='scene']
         critical=sum(p['percent']<45 for p in pending)
         active=[v for v in assigned if v.get('job')==j['id'] and v['status'] in ('assigned','acknowledged','standby','enroute','scene')]
-        targets=[('Transportmittel',max(0,len(pending)-sum(v['type'] in transport_types+('NAH',) for v in active)),transporters),('Notarztmittel',max(0,critical-sum(v['type'] in ('NEF','NAH') for v in active)),[v for v in candidates if v['type'] in ('NEF','NAH')])]
+        targets=[('Transportmittel',max(0,len(pending)-sum(v['type'] in transport_types+('NAH',) for v in active)),transporters),('Notarztmittel',max(0,engine.doctor_demand(j)-sum(v['type'] in ('NEF','NAH') for v in active)),[v for v in candidates if v['type'] in ('NEF','NAH')])]
         used=set()
         for label,count,options in targets:
             options=sorted((v for v in options if v['id'] not in used),key=eta)
             for v in options[:count]:result['vehicles'].append(v['id']);used.add(v['id'])
             if len(options)<count:result['missing'].append(f'{count-len(options)} {label}')
-        result['warnings'].append('MANV-Übung: Ein Transportmittel je Patient; Notarztmittel nach kritischen Spielzuständen. Mannschaftsmeldung und Sichtung laufend prüfen.')
+        result['warnings'].append('MANV-Übung: Ein Transportmittel je Patient; Notarztmittel für gemeinsame Versorgung mehrerer Patienten. Mannschaftsmeldung und Sichtung laufend prüfen.')
         return result
     if j.get('code')=='RD-9E1':
         for typ in ('RTW-C','NEF'):
