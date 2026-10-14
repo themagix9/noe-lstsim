@@ -292,3 +292,6 @@ Betreiber-Abteilungsübersichten für 24 NÖ-Standorte sowie Klinik Landstraße 
 Für Erwachsenen-Traumatologie wird Baden im regionalen Umfeld bevorzugt. Mödling gilt hierfür laut Betreiberhinweis Mo–Fr 08–13 Uhr als verfügbar; Kinder bis zehn Jahre bleiben dort durchgehend im Übungsmodell versorgbar. Bei stabilen dermatologischen Befunden wird im regionalen Umfeld Landstraße bevorzugt. Das sind Simulationsregeln, keine reale Zuweisungsanweisung und keine Echtzeit-Auskunft über Betten, Sperren oder Aufnahmefähigkeit. Ungeprüfte Profile werden nicht als verifiziert ausgegeben.
 
 Die Nutzergrafiken vom 14.10.2026 sind Standard für RTW/RTW-C, NEF und Christophorus. Bereits individuell gewählte eigene Grafiken bleiben erhalten; explizite Icon-Zuordnungen sind auch beim RTW-C-Wechsel geschützt. Die Vordispositionsliste zeigt Heimatdienststelle und Entfernung zum Abholort, nach Entfernung aufsteigend.
+
+
+Kartenansicht entsprechend der vom Nutzer bereitgestellten LstSim-JavaScript-Referenz: Startzoom 13, Maximalzoom 18, kleinere Fahrzeugicons unter Zoom 12. Die ausgewählte Leitstellenregion wird zentriert; Live-Updates verändern den gewählten Ausschnitt nicht. Sichtbare Fahrzeugbeschriftungen enthalten die aktuelle Statuszahl (S2, S4, S6 oder S7).

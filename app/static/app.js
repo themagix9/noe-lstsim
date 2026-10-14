@@ -189,7 +189,8 @@ function renderMap(vehicles,jobs){
  if(!window.L){$('map').textContent='Kartenbibliothek nicht verfügbar.';return}
  const room=state.session.me;
  if(!leafletMap){
-  leafletMap=L.map('map',{scrollWheelZoom:true,minZoom:6,maxZoom:18}).setView([48.12,16.65],10);mapLayers=L.layerGroup().addTo(leafletMap);
+  leafletMap=L.map('map',{scrollWheelZoom:true,minZoom:6,maxZoom:18}).setView([48.12,16.65],13);mapLayers=L.layerGroup().addTo(leafletMap);
+  leafletMap.on('zoomend',()=>$('map').classList.toggle('map-icons-small',leafletMap.getZoom()<12));
   tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · Routing: OSRM/FOSSGIS · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Karte verbessern</a>'}).addTo(leafletMap);
   tiles.on('tileerror',()=>{$('map-note').textContent='Kartenkacheln nicht erreichbar · Ressourcen bleiben sichtbar.'});
   tiles.on('tileload',()=>{$('map-note').textContent='OpenStreetMap · Straßenrouting / NAH Flugstrecke'});
@@ -331,7 +332,7 @@ fetch('/api/codes').then(r=>r.json()).then(s=>{ampdsRules=s.rules;if(state){deta
 
 $('simulation-date').value=new Intl.DateTimeFormat('sv-SE',{timeZone:'Europe/Vienna'}).format(new Date());
 
-function fitMap(){if(!leafletMap||!state)return;leafletMap.invalidateSize({pan:false});const points=state.stations.filter(s=>!s.responder_area&&s.dispo===state.setup.dispo&&(!zone||s.zone===zone));if(points.length)leafletMap.fitBounds(points.map(s=>[s.lat,s.lon]),{padding:[18,18],maxZoom:12,animate:false})}
+function fitMap(){if(!leafletMap||!state)return;leafletMap.invalidateSize({pan:false});const points=state.stations.filter(s=>!s.responder_area&&s.dispo===state.setup.dispo&&(!zone||s.zone===zone));if(points.length){const anchor=points.find(s=>zone&&s.name==='RK '+zone)||points.find(s=>s.name.includes(state.setup.centre))||points.find(s=>s.id==='schwechat')||points[0];leafletMap.setView([anchor.lat,anchor.lon],13,{animate:false})}}
 window.addEventListener("resize",()=>requestAnimationFrame(()=>leafletMap?.invalidateSize({pan:false})));
 
 function renderRadio(){

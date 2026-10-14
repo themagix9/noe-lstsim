@@ -20,6 +20,8 @@ with tempfile.TemporaryDirectory() as data:
             browser=pw.chromium.launch(headless=True,args=['--no-sandbox']);context=browser.new_context(viewport={'width':1440,'height':1100})
             context.route('https://tile.openstreetmap.org/**',lambda r:r.abort());p=context.new_page();errors=[];requests=[]
             p.on('pageerror',lambda e:errors.append(str(e)));p.on('request',lambda r:requests.append(r.url));p.goto('http://127.0.0.1:8080');p.get_by_label('Dein Disponentenname').fill('Livetest');p.locator('#lobby-submit').click();expect(p.locator('#lobby')).to_be_hidden();start_session(p)
+            assert p.evaluate('leafletMap.getZoom()===13&&leafletMap.getMaxZoom()===18')
+            p.evaluate('leafletMap.setZoom(11)');expect(p.locator('#map')).to_have_class(__import__('re').compile('map-icons-small'));p.evaluate('leafletMap.setZoom(13)')
             p.locator('#pause').click();p.locator('#create-manual').click();expect(p.locator('#manual-code')).to_have_value('')
             p.get_by_label('Einsatzort / Adresse',exact=True).fill('Schwechat Testadresse');p.locator('#manual-form button.primary').click();expect(p.locator('#manual-dialog')).to_be_visible();assert p.evaluate('state.jobs.length')==0
             p.locator('#manual-code').select_option('RD-1A1');p.locator('#manual-form button.primary').click();expect(p.locator('#dispatch-dialog')).to_be_visible()
