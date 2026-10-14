@@ -14,10 +14,10 @@ class Radio:
         if any(c['job']==j['id'] and c['kind']==kind and c['state']!='closed' for c in self.state['radio_calls']):return
         if v['job']!=j['id'] or v['status']!='scene':raise ValueError('Mannschaft muss am Berufungsort sein.')
         if v.get('assessment_due',0)>self.state['clock']:raise ValueError('Mannschaft verschafft sich noch einen Überblick am Berufungsort.')
-        if kind not in ('NEF','RTW-C','RTW','Polizei','Feuerwehr'):raise ValueError('Unbekannte Nachforderung.')
+        if kind not in ('NEF','NAH','RTW-C','RTW','Polizei','Feuerwehr'):raise ValueError('Unbekannte Nachforderung.')
         if reason is not None and (not isinstance(reason,str) or len(reason)>300):raise ValueError('Nachforderungsgrund maximal 300 Zeichen.')
         if force:j.setdefault('request_denials',{}).pop(kind,None)
-        reason=reason or {'NEF':'Patientenzustand verschlechtert, Notarzt erforderlich.','RTW-C':'Notfallsanitäter zur weiteren Versorgung erforderlich.','RTW':'Weiterer Patient am Berufungsort.','Polizei':'Unterstützung zur Absicherung erforderlich.','Feuerwehr':'Technische Unterstützung beim Patiententransport erforderlich.'}[kind]
+        reason=reason or {'NAH':'Patiententransport unter laufender Reanimation, Notarzthubschrauber erforderlich.','NEF':'Patientenzustand verschlechtert, Notarzt erforderlich.','RTW-C':'Notfallsanitäter zur weiteren Versorgung erforderlich.','RTW':'Weiterer Patient am Berufungsort.','Polizei':'Unterstützung zur Absicherung erforderlich.','Feuerwehr':'Technische Unterstützung beim Patiententransport erforderlich.'}[kind]
         call={'id':uuid.uuid4().hex[:12],'job':j['id'],'vehicle':v['id'],'kind':kind,'reason':reason,'reason_initial':reason_initial,'state':'calling','created':self.state['clock'],'assigned':None}
         self.state['radio_calls'].append(call);self.state['radio_calls']=self.state['radio_calls'][-100:]
         self.log(f'LEO von {self.radio_name(v)}, kommen.','Funk');return call
@@ -60,11 +60,11 @@ class Radio:
             self.log(f'{self.radio_name(v)} von LEO, warten.','Funk');return
         if step=='repeat' and call['state'] in ('reason_needed','awaiting_dispatch'):
             self.log(f'{self.radio_name(v)} von LEO, wiederholen, kommen.','Funk')
-            request=('ein NEF' if kind=='NEF' else 'einen RTW-C' if kind=='RTW-C' else 'einen weiteren RTW' if kind=='RTW' else 'die '+kind)
+            request=('ein NEF' if kind=='NEF' else 'einen Notarzthubschrauber' if kind=='NAH' else 'einen RTW-C' if kind=='RTW-C' else 'einen weiteren RTW' if kind=='RTW' else 'die '+kind)
             self.log(f'Hier {self.radio_name(v)}, ich wiederhole: Bitte {request} zum Berufungsort. '+(call['reason']+' ' if call['state']=='awaiting_dispatch' else '')+'Kommen.','Funk');return
         if step=='listen' and call['state']=='calling':
             self.log('LEO hört.','Funk')
-            self.log(f'Hier {self.radio_name(v)}, bitte '+('ein NEF' if kind=='NEF' else 'einen RTW-C' if kind=='RTW-C' else 'einen weiteren RTW' if kind=='RTW' else 'die '+kind)+f' zum Berufungsort. '+(call['reason']+' ' if call['reason_initial'] else '')+'Kommen.','Funk')
+            self.log(f'Hier {self.radio_name(v)}, bitte '+('ein NEF' if kind=='NEF' else 'einen Notarzthubschrauber' if kind=='NAH' else 'einen RTW-C' if kind=='RTW-C' else 'einen weiteren RTW' if kind=='RTW' else 'die '+kind)+f' zum Berufungsort. '+(call['reason']+' ' if call['reason_initial'] else '')+'Kommen.','Funk')
             call['state']='awaiting_dispatch' if call['reason_initial'] else 'reason_needed'
             # Keep the crew at scene until the interactive request has been handled.
             v['phase_due']=None
@@ -95,6 +95,6 @@ class Radio:
 
     def retry_requests(self,data):
         j=self.get('jobs',data['job']);kind=data.get('kind')
-        if kind not in ('NEF','RTW-C','RTW','Polizei','Feuerwehr'):raise ValueError('Unbekannte Nachforderung.')
+        if kind not in ('NEF','NAH','RTW-C','RTW','Polizei','Feuerwehr'):raise ValueError('Unbekannte Nachforderung.')
         j.setdefault('request_denials',{}).pop(kind,None)
         self.log(f'Einsatz {j["incident_number"]}: automatische Nachforderungen {kind} wieder zugelassen.','System')

@@ -140,6 +140,8 @@ class Operations:
             if any(v['type']=='NAH' for v in selected):
                 if j['status'] in ('transport','hospital'):raise ValueError('eCPR-Flug vor Beginn des Patiententransports abstimmen.')
                 j['carrier']=next(v['id'] for v in selected if v['type']=='NAH');self.ecpr_precall(j)
+        if self.ecpr_trigger(j) and j.get('code')!='RD-9E1' and any(v['type']=='NAH' for v in selected):
+            j['carrier']=next(v['id'] for v in selected if v['type']=='NAH');self.ecpr_precall(j)
         if 'signal' in data:
             for unit in self.state['vehicles']:
                 if unit.get('job')==j['id'] and not isinstance(unit.get('signal'),bool):unit['signal']=bool(j.get('signal'))
@@ -191,6 +193,11 @@ class Operations:
         if self.agency_gate(j,'transport'):
             v.update(agency_transport_wait=True,phase_due=self.state['clock']+30);return
         if j.get('no_patient'):self.finish_without_patient(j);return
+        if v['type']!='NAH' and self.ongoing_cpr(j,v):
+            heli=next((u for u in self.state['vehicles'] if u.get('job')==j['id'] and u['type']=='NAH' and u['status'] in ('assigned','acknowledged','enroute','scene')),None)
+            if heli:j['carrier']=heli['id'];self.ecpr_precall(j)
+            else:self.raise_radio(j,v,'NAH','Transport unter laufender Reanimation vorgesehen, benötigen einen Notarzthubschrauber.',True)
+            v['phase_due']=self.state['clock']+60;return
         waiting=j.get('reinforcement_waiting')
         if waiting and not j.get('reinforcement_arrived'):
             unit=self.get('vehicles',waiting)
@@ -226,6 +233,10 @@ class Operations:
         from hospital_specialties import choose_target
         h=self.get('hospitals',j['crew_target']) if j.get('crew_target') else choose_target(self,j,v,'NÖ' if multi else None)
         j['requested_destination']=h['id']
+        if h.get('ecpr') and v['type']=='NAH' and j.get('cpr_confirmed'):
+            j.update(destination=h['id'],bed_state='ecpr_direct',case_number=None,bed_due=None)
+            self.log(f'eCPR AKH: direkter NAH-Transport zu Einsatz {j["incident_number"]} abgestimmt; keine Kasusnummer erforderlich.','eCPR')
+            self.start_transport(v);return
         if h['region']=='Wien':
             j['destination']=None;j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None
             self.log(f'{v["callsign"]} an Leitstelle: Patient transportbereit, benötigen ein Ziel in Wien, Wunsch {h["name"]}. Bitte Bettenmann verständigen.')
@@ -239,6 +250,8 @@ class Operations:
     def start_transport(self,v):
         j=self.get('jobs',v['job'])
         if v['type'] not in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'):raise ValueError('Diese Ressource kann keine Patienten transportieren.')
+        if self.ongoing_cpr(j,v) and v['type']!='NAH':raise ValueError('Transport unter laufender Reanimation nur durch einen NAH.')
+        if self.ongoing_cpr(j,v) and not j.get('cpr_confirmed'):raise ValueError('NAH-Transport unter laufender Reanimation zuerst über Funk abstimmen.')
         if self.agency_gate(j,'transport'):
             v.update(agency_transport_wait=True,phase_due=self.state['clock']+30);return
         if j.get('no_patient') or j.get('_scenario',{}).get('no_patient'):raise ValueError('Keine transportpflichtige Person in diesem Szenario.')

@@ -46,10 +46,11 @@ class AirStaffingTests(unittest.TestCase):
         self.e.ask_cpr({'job':j['id']});self.e.update_air(self.e.state['clock']+29);self.assertIsNone(j['cpr_confirmed'])
         self.e.update_air(self.e.state['clock']+30);self.assertTrue(j['cpr_confirmed']);self.assertEqual(j['requested_destination'],'kh-akh-ecpr')
         with self.assertRaises(ValueError):self.e.request_bed({'job':j['id'],'hospital':'kh-donaustadt'})
-    def test_ecpr_flight_after_case_to_single_carrier(self):
+    def test_ecpr_direct_flight_without_case_to_single_carrier(self):
         j,nah,rtw,nef=self.ecpr_job();self.e.ask_cpr({'job':j['id']});self.e.update_air(self.e.state['clock']+30)
-        self.e.request_bed({'job':j['id'],'hospital':'kh-akh-ecpr'});self.e.update_operations(self.e.state['clock']+30)
-        self.e.send_case({'job':j['id'],'channel':'ESApp'});self.assertEqual(nah['status'],'transport');self.assertNotEqual(rtw['status'],'transport')
+        self.assertEqual(j['bed_state'],'ecpr_direct');self.assertIsNone(j['case_number']);self.assertIsNone(j['bed_due'])
+        self.assertEqual(nah['status'],'transport');self.assertNotEqual(rtw['status'],'transport');self.assertEqual(j['ecpr_team']['status'],'ready')
+        self.assertFalse(any('SIM-W-' in m['text'] for m in self.e.state['messages']))
         self.e.advance(nah);self.assertEqual(nah['status'],'hospital');self.e.advance(nah);self.assertTrue(j['patient_delivered'])
     def test_no_cpr_no_ecpr_destination(self):
         j,nah,_,_=self.ecpr_job(False);self.e.ask_cpr({'job':j['id']});self.e.update_air(self.e.state['clock']+30)
@@ -58,3 +59,15 @@ class AirStaffingTests(unittest.TestCase):
         j=self.job();self.e.state['clock']=12*3600;nah=self.vehicle('C3');self.e.dispatch({'job':j['id'],'vehicles':[nah['id']]})
         self.e.depart(nah);self.e.advance(nah);j['crew_target']='kh-hainburg';self.e.advance(nah);self.assertEqual(nah['status'],'transport')
         self.e.advance(nah);self.e.advance(nah);self.assertEqual(j['status'],'done')
+
+    def test_ground_transport_of_ongoing_cpr_blocked(self):
+        j=self.job();rtw=self.vehicle('77/001');self.e.dispatch({'job':j['id'],'vehicles':[rtw['id']]})
+        self.e.depart(rtw);self.e.advance(rtw);j['patient_condition']['percent']=0
+        with self.assertRaisesRegex(ValueError,'nur durch einen NAH'):self.e.start_transport(rtw)
+        rtw['assessment_due']=0;self.e.crew_destination(rtw);self.assertEqual(rtw['status'],'scene')
+        self.assertTrue(any(c['kind']=='NAH' and c['job']==j['id'] for c in self.e.state['radio_calls']))
+    def test_rd9_code_alone_does_not_prevent_ground_transport(self):
+        j=self.job();self.e.edit_job({'job':j['id'],'code':'RD-9E1'});rtw=self.vehicle('77/001')
+        self.e.dispatch({'job':j['id'],'vehicles':[rtw['id']]});self.e.depart(rtw);self.e.advance(rtw)
+        j['patient_condition']['percent']=70;j['destination']='kh-hainburg';self.e.start_transport(rtw)
+        self.assertEqual(rtw['status'],'transport')

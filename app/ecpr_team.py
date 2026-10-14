@@ -2,11 +2,20 @@
 import re
 
 class EcprTeam:
+    def ecpr_trigger(self,j):
+        return bool(re.match(r'^(?:RD-)?9(?:[A-Z]|$)',j.get('code',''),re.I)) or bool(re.search(r'Reanimation|Wiederbelebung|Kreislaufstillstand',j.get('title',''),re.I))
+
+    def ongoing_cpr(self,j,v=None):
+        if j.get('cpr_confirmed') is not None and (not j.get('patients') or not v or j.get('carrier')==v['id']):return j['cpr_confirmed']
+        if j.get('exercise_cpr') is False:return False
+        patient=j['patients'][v['patient_index']] if v and j.get('patients') and v.get('patient_index') is not None else j.get('patient_condition') or {}
+        return patient.get('percent')==0
+
     def sync_ecpr_team(self,j):
         if j['status']=='done' or j.get('patient_delivered'):
             if j.pop('ecpr_team',None):self.log(f'eCPR AKH: Einsatz {j["incident_number"]} beendet, Team aus dem Auftrag entlassen.','eCPR')
             return
-        trigger=bool(re.match(r'^(?:RD-)?9(?:[A-Z]|$)',j.get('code',''),re.I)) or bool(re.search(r'Reanimation|Wiederbelebung|Kreislaufstillstand',j.get('title',''),re.I))
+        trigger=self.ecpr_trigger(j)
         if not trigger or j.get('dispatched_at') is None and not j.get('vehicles'):return
         if not j.get('ecpr_team'):
             j['ecpr_team']=dict(id='ecpr-akh-'+j['id'],name='eCPR AKH',status='alarmed',alarmed_at=self.state['clock'],virtual=True)

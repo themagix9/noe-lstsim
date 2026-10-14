@@ -12,10 +12,11 @@ class AirOps:
         if v not in active or v['type'] not in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH') or v['status'] not in ('assigned','acknowledged','enroute','scene'):raise ValueError('Eine alarmierte transportierende Ressource vor Transportbeginn wählen.')
         if any(u['status'] in ('transport','hospital') for u in active):raise ValueError('Patient ist bereits unterwegs.')
         if j.get('ecpr_state','none')!='none' and v['type']!='NAH':raise ValueError('eCPR-Szenario benötigt den vorgesehenen Hubschrauber.')
+        if v['type']!='NAH' and self.ongoing_cpr(j,v):raise ValueError('Transport unter laufender Reanimation nur durch einen NAH.')
         j['carrier']=v['id'];v['phase_due']=self.state['clock']+1 if v['status']=='scene' else v['phase_due'];self.log(f'Mannschaft / Leitstelle: Patiententransport durch {v["callsign"]} abgestimmt.','Funk')
 
     def ecpr_precall(self,j):
-        if j.get('code')!='RD-9E1' or j.get('ecpr_state','none')!='none':return
+        if not self.ecpr_trigger(j) or j.get('ecpr_state','none')!='none':return
         j.update(ecpr_state='prealerted',cpr_confirmed=None,cpr_due=None)
         j.setdefault('exercise_cpr',j['_scenario']['initial_percent']==0 if j.get('_scenario') else __import__('random').random()<.65)
         self.log(f'eCPR Wien: Voranmeldung für Einsatz {j["id"]}; Team bleibt im Krankenhaus, keine Anfahrt zum Einsatzort.','eCPR')
