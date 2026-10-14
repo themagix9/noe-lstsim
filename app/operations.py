@@ -113,7 +113,10 @@ class Operations:
         route=self.router.route(origin,target);v['route_state']=route['status']
         if route['status']!='ready':return
         now=self.state['clock'];duration=route['seconds']*leg.get('time_factor',1.0)
-        v.update(phase_due=now+duration,leg={**leg,'waiting':False,'start':now,'end':now+duration,'geometry':route['geometry'],'cumulative':route['cumulative'],'distance_m':route['distance_m']})
+        if route.get('recovered'):
+            v.update(lat=route['geometry'][0][0],lon=route['geometry'][0][1])
+            self.log(f'{v["callsign"]}: Straßen-Fallback, Position auf erreichbare Straße versetzt; Anfahrt wird fortgesetzt.','System')
+        v.update(phase_due=now+duration,leg={**leg,'waiting':False,'start':now,'end':now+duration,'geometry':route['geometry'],'cumulative':route['cumulative'],'distance_m':route['distance_m'],'recovered':bool(route.get('recovered')),'snap':route.get('snap')})
 
     def dispatch(self,data):
         j=self.get('jobs',data['job']);ids=data.get('vehicles',[])

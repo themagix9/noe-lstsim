@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import test_fleet as helpers
 from routing import Router,cumulative,position
 
@@ -69,3 +70,50 @@ class RouteTests(unittest.TestCase):
             def route(self,*args):return {'status':'pending'}
         self.e.router=Fake();self.e.update_operations(self.e.state['clock']+100)
         self.assertTrue(v['leg']['waiting']);self.assertEqual((v['lat'],v['lon']),origin);self.assertIsNone(v['phase_due'])
+
+    def test_no_route_recovers_using_connected_nearest_road(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths=[]
+            def fetch(path):
+                paths.append(path)
+                if path.startswith('/nearest'):
+                    start='16.0,48.0' in path
+                    return {'code':'Ok','waypoints':[
+                        {'location':[16.001 if start else 16.02,48.001 if start else 48.02],'distance':20,'hint':'isolated' if start else 'target'},
+                        {'location':[16.002 if start else 16.021,48.002 if start else 48.021],'distance':80,'hint':'connected' if start else 'other'}]}
+                if 'connected' not in path:return {'code':'NoRoute'}
+                return {'code':'Ok','routes':[{'duration':300,'distance':1500,'geometry':{'coordinates':[[16.002,48.002],[16.002,48.02],[16.02,48.02]]}}]}
+            router=Router(Path(directory)/'cache.db',enabled=False,fetcher=fetch);router.next_call=0
+            a={'lat':48.0,'lon':16.0};b={'lat':48.02,'lon':16.02};k='route|'+router.cachekey(a,b)
+            with patch('routing.time.sleep'):router.fetch_route(k,a,b)
+            route=router.items[k];self.assertTrue(route['recovered']);self.assertEqual(route['geometry'][0],[48.002,16.002])
+            self.assertEqual(router.cached_eta(a,b)['seconds'],300)
+            self.assertEqual(sum(p.startswith('/nearest') for p in paths),2)
+            v=self.vehicle('77/001');self.e.router=type('Ready',(),{'enabled':True,'route':lambda *args:route})()
+            self.e.drive(v,b,'enroute');self.assertEqual((v['lat'],v['lon']),(48.002,16.002))
+            self.assertIsNotNone(v['phase_due']);self.assertFalse(v['leg']['waiting']);self.assertTrue(v['leg']['recovered'])
+            router.db.close()
+
+    def test_unreachable_snaps_are_bounded_and_network_errors_not_teleported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths=[]
+            def fetch(path):
+                paths.append(path)
+                return {'code':'Ok','waypoints':[{'location':[16,48],'distance':5000}]} if path.startswith('/nearest') else {'code':'NoSegment'}
+            router=Router(Path(directory)/'cache.db',enabled=False,fetcher=fetch)
+            with patch('routing.time.sleep'),self.assertRaises(ValueError):router.fetch_route('x',{'lat':48,'lon':16},{'lat':48.1,'lon':16.1})
+            self.assertEqual(len(paths),3);self.assertNotIn('x',router.items)
+            paths.clear()
+            def offline(path):paths.append(path);raise OSError('offline')
+            router.fetcher=offline
+            with patch('routing.time.sleep'),self.assertRaises(OSError):router.fetch_route('x',{'lat':48,'lon':16},{'lat':48.1,'lon':16.1})
+            self.assertEqual(len(paths),1);self.assertNotIn('x',router.items);router.db.close()
+
+    def test_http_no_segment_reaches_recovery_instead_of_network_error(self):
+        import io,urllib.error
+        with tempfile.TemporaryDirectory() as directory:
+            router=Router(Path(directory)/'cache.db',enabled=False)
+            error=urllib.error.HTTPError('https://router/route',400,'Bad Request',{},io.BytesIO(b'{"code":"NoSegment"}'))
+            with patch('routing.urllib.request.urlopen',side_effect=error),patch('routing.time.sleep'):
+                self.assertEqual(router.request('/route')['code'],'NoSegment')
+            router.db.close()

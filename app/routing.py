@@ -12,9 +12,13 @@ import sqlite3
 import threading
 import time
 import urllib.request
+import urllib.error
+import urllib.parse
 
 PUBLIC='https://routing.openstreetmap.de/routed-car'
 _registry={};_registry_lock=threading.Lock()
+
+class RoadRouteError(ValueError):pass
 
 def point(p):return [round(float(p['lon']),5),round(float(p['lat']),5)]
 def key(a,b):return json.dumps([point(a),point(b)],separators=(',',':'))
@@ -56,8 +60,8 @@ class Router:
         while True:
             _,_,k,fn=self.tasks.get()
             try:fn()
-            except Exception:
-                with self.lock:self.items[k]={'status':'error','retry_at':time.time()+60,'error':'Routenserver nicht erreichbar'}
+            except Exception as error:
+                with self.lock:self.items[k]={'status':'error','retry_at':time.time()+60,'error':'Keine erreichbare Straßenverbindung nach Straßen-Fallback' if isinstance(error,RoadRouteError) else 'Routenserver nicht erreichbar'}
             finally:
                 with self.lock:self.pending.discard(k)
                 self.tasks.task_done()
@@ -66,8 +70,16 @@ class Router:
         time.sleep(max(0,self.next_call-time.monotonic()));self.next_call=time.monotonic()+1.1
         if self.fetcher:return self.fetcher(path)
         request=urllib.request.Request(self.url+path,headers={'User-Agent':'NOe-Dispo/0.5 (https://github.com/themagix9/noe-lstsim)','Accept':'application/json'})
-        with urllib.request.urlopen(request,timeout=8) as response:
-            raw=response.read(8_000_001)
+        try:
+            with urllib.request.urlopen(request,timeout=8) as response:raw=response.read(8_000_001)
+        except urllib.error.HTTPError as error:
+            # OSRM returns NoSegment with HTTP 400. Keep this distinct from an
+            # unavailable server so a valid nearest-road recovery can run.
+            if error.code!=400:raise
+            raw=error.read(8_000_001)
+            data=json.loads(raw)
+            if data.get('code') not in ('NoSegment','NoRoute'):raise
+            return data
         if len(raw)>8_000_000:raise ValueError('Routing response too large')
         return json.loads(raw)
     def route(self,a,b):
@@ -77,14 +89,44 @@ class Router:
         if result['status']=='ready' or result.get('retry_at',0)>time.time():return result
         self.enqueue(k,0,lambda:self.fetch_route(k,a.copy(),b.copy()))
         return {'status':'pending'}
-    def fetch_route(self,k,a,b):
+    def road_route(self,a,b,hints=None):
         coords=';'.join(','.join(map(str,point(p))) for p in (a,b))
-        data=self.request('/route/v1/driving/'+coords+'?overview=full&geometries=geojson&steps=false')
-        if data.get('code')!='Ok' or not data.get('routes'):raise ValueError('No road route')
+        options='overview=full&geometries=geojson&steps=false'
+        if hints:options+='&'+urllib.parse.urlencode({'hints':';'.join(hints)})
+        return self.request('/route/v1/driving/'+coords+'?'+options)
+
+    def nearest_roads(self,p):
+        coords=','.join(map(str,point(p)))
+        data=self.request('/nearest/v1/driving/'+coords+'?number=4')
+        if data.get('code')!='Ok':return []
+        result=[];seen=set()
+        for match in data.get('waypoints',[]):
+            lon,lat=map(float,match['location']);distance=float(match.get('distance',0))
+            if not all(map(math.isfinite,(lat,lon,distance))) or not -90<=lat<=90 or not -180<=lon<=180 or not 0<=distance<=2000:continue
+            fingerprint=(round(lat,7),round(lon,7),match.get('hint',''))
+            if fingerprint in seen:continue
+            seen.add(fingerprint);result.append(dict(lat=lat,lon=lon,distance_m=distance,hint=match.get('hint','')))
+        return result
+
+    def fetch_route(self,k,a,b):
+        data=self.road_route(a,b);snap=None
+        if data.get('code') in ('NoRoute','NoSegment') or data.get('code')=='Ok' and not data.get('routes'):
+            starts=self.nearest_roads(a);ends=self.nearest_roads(b)
+            pairs=sorted(((x,y) for x in starts for y in ends),key=lambda pair:pair[0]['distance_m']+pair[1]['distance_m'])
+            for x,y in pairs[:8]:
+                candidate=self.road_route(x,y,[x['hint'],y['hint']])
+                if candidate.get('code')=='Ok' and candidate.get('routes'):
+                    data=candidate;snap=dict(origin=x,destination=y);break
+        if data.get('code')!='Ok' or not data.get('routes'):raise RoadRouteError('No road route')
         r=data['routes'][0];geometry=[[float(lat),float(lon)] for lon,lat in r['geometry']['coordinates']]
         if not 2<=len(geometry)<=100000 or any(not -90<=a<=90 or not -180<=b<=180 for a,b in geometry):raise ValueError('Invalid route geometry')
         if not math.isfinite(r['duration']) or r['duration']<0 or not math.isfinite(r['distance']) or r['distance']<0:raise ValueError('Invalid route estimate')
-        self.save(k,{'status':'ready','seconds':max(1,r['duration']),'distance_m':r['distance'],'geometry':geometry,'cumulative':cumulative(geometry),'source':'OSRM · OpenStreetMap'})
+        record={'status':'ready','seconds':max(1,r['duration']),'distance_m':r['distance'],'geometry':geometry,'cumulative':cumulative(geometry),'source':'OSRM · OpenStreetMap'}
+        if snap:record.update(recovered=True,snap=snap,source='OSRM · OpenStreetMap · Straßen-Fallback')
+        self.save(k,record)
+        # An unreachable matrix entry may have started this recovery. Replace its
+        # provisional ETA when the actual drivable route has been found.
+        self.save('eta|'+self.cachekey(a,b),{name:value for name,value in record.items() if name not in ('geometry','cumulative')})
     def estimates(self,origins,target):
         if not self.enabled:return {v['id']:{'status':'disabled'} for v in origins}
         unique={self.cachekey(v,target):v.copy() for v in origins}
@@ -116,7 +158,10 @@ class Router:
         for i,v in enumerate(origins):
             duration=data['durations'][i][0];distance=data.get('distances',[[None]]*len(origins))[i][0]
             if duration is not None and (not math.isfinite(duration) or duration<0):raise ValueError('Invalid matrix duration')
-            record={'status':'ready','seconds':duration,'distance_m':distance,'source':'OSRM · OpenStreetMap'} if duration is not None else {'status':'error','retry_at':time.time()+60,'error':'Keine Straßenroute'}
+            record={'status':'ready','seconds':duration,'distance_m':distance,'source':'OSRM · OpenStreetMap'} if duration is not None else {'status':'error','retry_at':time.time()+60,'error':'Keine Straßenroute; Straßenanschluss wird geprüft'}
+            if duration is None:
+                road=self.route(v,target)
+                if road['status']=='ready':record={name:value for name,value in road.items() if name not in ('geometry','cumulative')}
             self.save('eta|'+self.cachekey(v,target),record)
     def cached_eta(self,v,j):
         with self.lock:return self.items.get('eta|'+self.cachekey(v,j))
