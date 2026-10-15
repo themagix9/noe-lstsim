@@ -32,7 +32,7 @@ from locations import ADDRESSES,ADDRESS_CITIES,upgrade_locations,choose_address
 
 GRAPHICS = [
     {'id':'helicopter','name':'Notarzthubschrauber · schematisch','url':'/graphics/helicopter.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
-    {'id':'responder','name':'First Responder · schematisch','url':'/graphics/responder.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
+    {'id':'responder','name':'First Responder · graues Auto ohne Sondersignal','url':'/graphics/responder.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
     {'id':'van','name':'Rettungswagen · Kastenwagen','url':'/graphics/van.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
     {'id':'box','name':'Rettungswagen · Kofferaufbau','url':'/graphics/box.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
     {'id':'car','name':'Notarzteinsatzfahrzeug · SUV','url':'/graphics/car.svg','author':'NÖ Dispo','source':'Eigene schematische SVG-Grafik','license':'Projektgrafik'},
@@ -40,7 +40,7 @@ GRAPHICS = [
 ]
 from user_graphics import GRAPHICS as USER_GRAPHICS
 GRAPHICS += USER_GRAPHICS
-DEFAULT_GRAPHIC = {'KTW':'van','KTW-B':'van','RTW':'user-rtw','RTW-C':'user-rtw','NEF':'user-nef','BEL':'command','BKTW':'van','FR':'responder','NAH':'user-nah'}
+DEFAULT_GRAPHIC = {'KTW':'user-ktw','KTW-B':'user-ktw','RTW':'user-rtw','RTW-C':'user-rtw','NEF':'user-nef','BEL':'command','BKTW':'user-ktw','FR':'responder','NAH':'user-nah'}
 
 TYPES = ['KTW', 'KTW-B', 'BKTW', 'RTW', 'RTW-C', 'NEF', 'NAH', 'FR', 'BEL']
 STATUSES = STATUS_LABELS

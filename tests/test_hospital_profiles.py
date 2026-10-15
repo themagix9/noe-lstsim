@@ -36,10 +36,24 @@ class HospitalProfileTests(unittest.TestCase):
         self.assertTrue(choose_target(self.e,j,self.vehicle('C9'))['helipad'])
     def test_user_graphics_and_custom_override_persist(self):
         self.assertEqual(self.vehicle('77/001')['graphic'],'user-rtw');self.assertEqual(self.vehicle('77/099')['graphic'],'user-nef');self.assertEqual(self.vehicle('C9')['graphic'],'user-nah')
-        for file in ('rtw-user.png','nef-user.png','christophorus-user.png'):
+        for file in ('rtw-user.png','nef-user.png','christophorus-user.png','ktw-user.png'):
             self.assertEqual((Path(__file__).resolve().parents[1]/'app/static/graphics'/file).read_bytes()[:8],b'\x89PNG\r\n\x1a\n')
+        self.assertEqual(self.vehicle('77/003')['graphic'],'user-ktw')
+        self.assertTrue(all(v['graphic']=='responder' for v in self.e.state['vehicles'] if v['type']=='FR'))
         v=self.vehicle('77/004');self.e.command('vehicle_graphic',{'vehicle':v['id'],'graphic':'box'});self.e.command('rtwc',{'vehicle':v['id']});self.assertEqual(v['graphic'],'box')
         self.e.db.close();from engine import Engine
         self.e=Engine(self.path);self.assertEqual(self.vehicle('77/004')['graphic'],'box')
+
+    def test_ktw_default_migration_preserves_custom_icons(self):
+        from user_graphics import upgrade
+        from types import SimpleNamespace
+        vehicles=[{'type':t,'graphic':'van'} for t in ('KTW','KTW-B','BKTW')]
+        vehicles += [{'type':'FR','graphic':'car'}, {'type':'KTW','graphic':'box','graphic_custom':True}]
+        old=SimpleNamespace(state={'vehicles':vehicles,'user_graphics_version':1})
+        upgrade(old)
+        self.assertEqual([v['graphic'] for v in vehicles],['user-ktw']*3+['responder','box'])
+        self.assertEqual(old.state['user_graphics_version'],2)
+        upgrade(old)
+        self.assertEqual(vehicles[-1]['graphic'],'box')
 
 if __name__=='__main__':unittest.main()
