@@ -400,3 +400,21 @@ Ein eigener lokal erzeugter Hinweiston ertönt beim erstmaligen offenen Bedarf, 
 ### Verfügbarkeit bei Vordisposition
 
 Neue Vordispositionen sind nur für besetzte lokale Transportmittel in **Status 1, 5 oder 6** möglich. In der Auswahlliste bleiben Fahrzeuge mit Status 2/3/4/7/8/9/0 sowie noch nicht quittierter Alarmierung sichtbar, sind jedoch deaktiviert. Ein Statuswechsel während der Auswahl sperrt auch die Vordisponieren-Taste; der Server prüft die Verfügbarkeit vor einer Änderung erneut. Eine abgelehnte Auswahl löst keine bestehende gültige Reservierung. Status 5 bleibt zulässig, die laufende Patientenübergabe wird wie bisher vor Abfahrt beendet.
+
+### Kartensymbole und schneller Straßen-Fallback
+
+Bodenfahrzeuge erscheinen mit 64 × 32 Pixeln, NAH mit 84 × 48 Pixeln. Unter Zoom 12 bleiben mindestens 56 × 28 bzw. 74 × 42 Pixel erhalten; weiteres Herauszoomen verkleinert sie nicht mehr. Polizei und Feuerwehr verwenden dieselbe größere Bodendarstellung.
+
+Routen für tatsächlich fahrende Ressourcen und ETA-Tabellen haben getrennte Hintergrundarbeiter. Eine langsame Tabelle blockiert damit keine Abfahrt; aktive Fahrten haben reservierten Platz in der Warteschlange. Beim Straßen-Fallback wird zuerst der nächste Start-Straßenpunkt gegen das unveränderte Ziel geprüft, bevor zusätzliche Zielpunkte und Kombinationen abgefragt werden. Straßenpunkte werden pro Router zwischengespeichert. Nach einer fehlgeschlagenen Fahrtroute wird nach fünf statt sechzig Sekunden erneut versucht; ein HTTP-Aufruf wartet höchstens vier Sekunden. Ein späterer Matrixfehler überschreibt keine bereits bestätigte Fahrtroute/ETA. Die Karte übernimmt den Straßenanschluss mit dem nächsten Live-Update, sobald die befahrbare Route bestätigt ist; Einsatzadresse und geometrische Begrenzung auf 2 km bleiben erhalten.
+
+Die öffentliche FOSSGIS-Instanz behält mindestens 1,1 Sekunden zwischen HTTP-Anfragen, gemeinsam für beide Arbeiter. Für einen eigenen Router wie `http://osrm:5000` entfällt diese künstliche Pause. Eine sofortige Teleportation ohne Routerantwort wird nicht vorgetäuscht; bei Ausfall des Routers bleibt die Fahrt wartend. OSRM-API-Grundlage: https://project-osrm.org/docs/v5.24.0/api/ (Nearest, Route, Hints).
+
+### Einheitlicher Sprechfunk
+
+Rettungsfunk verwendet **LEO** und das Schema **gerufene Stelle von rufender Stelle, Nachricht, kommen**. Beispiel eCPR-Abfrage: „Christophorus 9 von LEO, kommen.“ → „LEO von Christophorus 9, hört, kommen.“ → „Christophorus 9 von LEO, transportiert ihr unter laufender Reanimation? Kommen.“ → „LEO von Christophorus 9, laufende Reanimation, Transport unter laufender Reanimation vorgesehen. Kommen.“ → „Christophorus 9 von LEO, verstanden. Ende.“ Derselbe Aufbau gilt für Nachforderungen, Lage-/Zielmeldungen, Transportabstimmung, Tankfreigaben, Sondersignal und Storno. Die zentrale Textaufbereitung ergänzt fehlendes „Kommen“ und vereinheitlicht NAH-Kurznamen. Ausstehende alte Funktexte werden beim Ausspielen ebenfalls aufbereitet.
+
+SDS/ESApp bleiben Datenmeldungen, Statuswechsel eigene Statusmeldungen. Anruferdialoge und Telefonate mit anderen Organisationen bleiben getrennt vom Rettungsfunk. Die vorhandene Zwei-Sekunden-Warteschlange gilt weiter; die Simulation bildet keinen verbindlichen Echtfunk-Lehrgang ab.
+
+### Fahrzeug-Kontextmenü
+
+Klick/Rechtsklick auf eine Fahrzeugzeile oder Enter/Leertaste öffnet ein bei Live-Updates stabiles Menü. **Position auf Karte anzeigen** zentriert auf Zoom 14 und hebt den Ort fünf Sekunden hervor; stationäre Ressourcen erhalten dadurch keinen zusätzlichen Fahrzeugmarker. **Zur Wache einrücken** und **Standort halten** sind Funkaufträge für freie Ressourcen in Status 6 oder 7. Halten entfernt die aktive Fahrt und stoppt die Bewegung am aktuellen Standort; Zustand und Position bleiben über Neustarts erhalten. Einrücken bzw. eine neue Alarmierung hebt den Halt auf. Gebundene Fahrzeuge müssen zuerst über den Einsatz storniert werden; Patientenversorgung, Transporte und laufendes Tanken lassen sich damit nicht abbrechen. Im getrennten Mehrspielermodus darf nur der Disponent diese Bewegungsaufträge geben.

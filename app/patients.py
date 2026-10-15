@@ -25,8 +25,8 @@ class Patients:
         truth=j.get('_scenario',{})
         j['scene_report']={'text':truth.get('report',j.get('scene','Lage vor Ort erhoben.')),'time':self.state['clock']}
         if truth.get('no_patient'):
-            self.log(f'Hier {self.radio_name(v)}, '+j['scene_report']['text']+' Kommen.','Funk')
-            self.log('Hier LEO, verstanden, Ende.','Funk')
+            self.log(f'LEO von {self.radio_name(v)}, '+j['scene_report']['text']+' Kommen.','Funk')
+            self.radio_transmit('LEO',v,'verstanden. Ende.')
         self.discover_patients(j)
         if j.get('patients'):
             if self.is_manv(j):

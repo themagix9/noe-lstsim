@@ -83,7 +83,7 @@ class AgencyTests(unittest.TestCase):
         c=self.e.raise_scene_radio(j,nef);self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'})
         self.assertIn('Laufende Reanimation',c['report']);self.assertIn('77/002 bereits vor Ort',c['report']);self.assertEqual(c['cancel_candidates'],[extra['id']])
         self.e.radio_action({'job':j['id'],'call':c['id'],'step':'cancel_excess','vehicles':[extra['id']]});self.assertIsNone(extra['job']);self.assertEqual(nef['job'],j['id'])
-        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'});self.assertEqual(c['state'],'closed');self.assertEqual(self.e.state['logs'][0]['text'],'LEO verstanden, Ende.')
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'});self.assertEqual(c['state'],'closed');self.assertEqual(self.e.state['logs'][0]['text'],'NEF Schwechat von LEO, verstanden. Ende.')
 
     def test_support_permissions_and_persistence(self):
         j,r=self.request('police','safety');j['owner']='owner';unit=r['unit']

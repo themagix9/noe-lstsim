@@ -7,7 +7,7 @@ class RadioPacing:
     def flush_radio(self):
         pending=self.state.setdefault('radio_pending',[]);now=time.time();gap=max(0,float(os.environ.get('RADIO_INTERVAL','2')))
         if not pending or now<max(pending[0]['due'],self.state.get('radio_last_spoken',0)+gap):return False
-        row=pending.pop(0);self.state['logs'].insert(0,dict(id=row['id'],time=self.state['clock'],text=row['text'],channel='Funk'))
+        row=pending.pop(0);self.state['logs'].insert(0,dict(id=row['id'],time=self.state['clock'],text=self.radio_text(row['text']),channel='Funk'))
         self.state['logs']=self.state['logs'][:250];self.state['radio_last_spoken']=now
         for i,row in enumerate(pending):row['due']=now+(i+1)*gap
         return True

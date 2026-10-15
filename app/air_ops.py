@@ -14,7 +14,7 @@ class AirOps:
         if any(u['status'] in ('transport','hospital') for u in active):raise ValueError('Patient ist bereits unterwegs.')
         if j.get('ecpr_state','none')!='none' and v['type']!='NAH':raise ValueError('eCPR-Szenario benötigt den vorgesehenen Hubschrauber.')
         if v['type']!='NAH' and self.ongoing_cpr(j,v):raise ValueError('Transport unter laufender Reanimation nur durch einen NAH.')
-        j['carrier']=v['id'];v['phase_due']=self.state['clock']+1 if v['status']=='scene' else v['phase_due'];self.log(f'Mannschaft / Leitstelle: Patiententransport durch {v["callsign"]} abgestimmt.','Funk')
+        j['carrier']=v['id'];v['phase_due']=self.state['clock']+1 if v['status']=='scene' else v['phase_due'];self.radio_transmit('LEO',v,'kommen.');self.radio_transmit(v,'LEO','hört, kommen.');self.radio_transmit('LEO',v,'Patiententransport durch euch abgestimmt. Kommen.');self.radio_transmit(v,'LEO','Patiententransport übernommen, verstanden. Kommen.');self.log('LEO Ende.','Funk')
 
     def ecpr_precall(self,j):
         if not (self.ecpr_trigger(j) or self.ongoing_cpr(j)) or j.get('ecpr_state','none')!='none':return
@@ -26,7 +26,7 @@ class AirOps:
         j=self.get('jobs',data['job']);carrier=self.patient_carrier(j)
         if j.get('ecpr_state')!='awaiting_question' or not carrier or carrier['status']!='scene':raise ValueError('Mannschaft muss vor Ort transportbereit sein.')
         j.update(ecpr_state='question_sent',cpr_due=self.state['clock']+30)
-        self.log(f'Leitstelle an {carrier["callsign"]}: Transportiert ihr unter laufender Reanimation? Bitte Rückmeldung.','Funk')
+        self.radio_transmit('LEO',carrier,'kommen.');self.radio_transmit(carrier,'LEO','hört, kommen.');self.radio_transmit('LEO',carrier,'Transportiert ihr unter laufender Reanimation? Kommen.')
 
     def update_air(self,now):
         for j in self.state['jobs']:
@@ -36,5 +36,5 @@ class AirOps:
             if j.get('ecpr_state')=='question_sent' and now>=j['cpr_due']:
                 ongoing=j.get('exercise_cpr',True);j['cpr_confirmed']=ongoing;j['cpr_due']=None;j['ecpr_state']='confirmed' if ongoing else 'not_required'
                 carrier=self.patient_carrier(j)
-                self.log(f'{carrier["callsign"]} an Leitstelle: '+('Transport unter laufender Reanimation vorgesehen.' if ongoing else 'Kein Transport unter laufender Reanimation; kein eCPR-Ziel erforderlich.'),'Funk')
+                self.radio_transmit(carrier,'LEO','Laufende Reanimation, Transport unter laufender Reanimation vorgesehen. Kommen.' if ongoing else 'Kein Transport unter laufender Reanimation; kein eCPR-Ziel erforderlich. Kommen.');self.radio_transmit('LEO',carrier,'verstanden. Ende.')
                 j['bed_state']='none';j['crew_target']='kh-akh-ecpr' if ongoing else 'kh-donaustadt';self.crew_destination(carrier)

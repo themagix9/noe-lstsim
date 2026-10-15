@@ -75,7 +75,7 @@ class SignalTests(unittest.TestCase):
     def test_instruction_does_not_change_other_resources_and_persists(self):
         j,v=self.dispatched();other=self.vehicle('77/004');self.e.dispatch({'job':j['id'],'vehicles':[other['id']]})
         self.instruction(j,v,False);self.assertFalse(v['signal']);self.assertTrue(other['signal'])
-        self.assertEqual({m['channel'] for m in self.e.state['messages'] if 'Anweisung der Leitstelle' in m['text']},{'SDS','ESApp'})
+        self.assertEqual({m['channel'] for m in self.e.state['messages'] if 'Anweisung von LEO' in m['text']},{'SDS','ESApp'})
         self.e.save();self.e.db.close()
         from engine import Engine
         self.e=Engine(self.path);self.assertFalse(self.e.get('vehicles',v['id'])['signal'])

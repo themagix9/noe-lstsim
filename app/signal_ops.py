@@ -50,7 +50,7 @@ class SignalOps:
         if step=='cancel':call['state']='closed';self.log('LEO Ende.','Funk');return
         if v.get('job')!=j['id'] or v['status'] not in SIGNAL_STATES:raise ValueError('Ressource ist nicht mehr für diese Anweisung verfügbar.')
         if step=='answer' and call['state']=='calling':
-            self.log(f'Hier {self.radio_name(v)}, hört.','Funk');call['state']='awaiting_instruction';return
+            self.log(f'LEO von {self.radio_name(v)}, hört.','Funk');call['state']='awaiting_instruction';return
         if step!='confirm' or call['state']!='awaiting_instruction':raise ValueError('Zuerst die Antwort der Mannschaft abwarten.')
         enabled=call['signal'];mode='mit Sondersignal' if enabled else 'ohne Sondersignal'
         self.log(f'{self.radio_name(v)} von LEO, weitere Fahrt {mode} durchführen. Kommen.','Funk')
@@ -59,9 +59,9 @@ class SignalOps:
         convoy=[u for u in self.state['vehicles'] if u.get('job')==j['id'] and u['status'] in SIGNAL_STATES and (u['id']==v['id'] or u['id']==leader or u.get('escort_of')==leader)]
         for unit in convoy:
             self.set_unit_signal(unit,j,enabled)
-            text=f'Einsatz {j["incident_number"]}: weitere Fahrt {mode}. Anweisung der Leitstelle.'
+            text=f'Einsatz {j["incident_number"]}: weitere Fahrt {mode}. Anweisung von LEO.'
             for channel in ('SDS','ESApp'):
                 self.state['messages'].append({'job':j['id'],'vehicle':unit['id'],'channel':channel,'time':self.state['clock'],'text':text});self.log(f'{unit["callsign"]}: '+text,channel)
         self.state['messages']=self.state['messages'][-250:]
-        self.log(f'Hier {self.radio_name(v)}, weitere Fahrt {mode}, verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed'
+        self.log(f'LEO von {self.radio_name(v)}, weitere Fahrt {mode}, verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed'
         call['applied']=self.state['clock']

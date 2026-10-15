@@ -71,6 +71,22 @@ class Operations:
         v['reservation']=j['id'];j['reserved']=v['id']
         self.log(f'{v["callsign"]} für Transport {j["id"]} vordisponiert. Noch nicht an die Mannschaft gesendet.','Aufträge')
 
+    def vehicle_order(self,data):
+        v=self.get('vehicles',data['vehicle']);order=data.get('order')
+        if order not in ('return','hold'):raise ValueError('Unbekannter Fahrzeugauftrag.')
+        if v.get('job'):raise ValueError('Ressource ist an einen Einsatz gebunden. Zuerst Alarmierung über den Einsatz stornieren.')
+        if v.get('fueling'):raise ValueError('Laufenden Tankvorgang zuerst abschließen lassen.')
+        if v.get('support_request') or v['status'] not in ('radio','duty'):raise ValueError('Bewegungsauftrag nur an freie Ressourcen in Status 6 oder 7 möglich.')
+        self.radio_transmit('LEO',v,'kommen.');self.radio_transmit(v,'LEO','hört, kommen.')
+        if order=='return':
+            home=self.home(v);self.radio_transmit('LEO',v,'Bitte zur Heimatdienststelle einrücken. Kommen.')
+            self.drive(v,home,'radio');self.radio_transmit(v,'LEO','Einrücken zur Heimatdienststelle verstanden. Kommen.')
+        else:
+            self.radio_transmit('LEO',v,'Standort halten, für weitere Aufträge bereithalten. Kommen.')
+            v.update(holding=True,held_at=self.state['clock'],leg=None,phase_due=None,route_state='holding')
+            self.radio_transmit(v,'LEO','Standort halten verstanden. Kommen.')
+        self.log('LEO Ende.','Funk')
+
     def unreserve(self,data):
         j=self.get('jobs',data['job'])
         if j.get('reserved'):self.get('vehicles',j['reserved'])['reservation']=None
@@ -100,6 +116,7 @@ class Operations:
 
     def drive(self,v,target,status,minimum=120):
         from engine import distance
+        v.pop('holding',None);v.pop('held_at',None)
         now=self.state['clock']
         j=next((j for j in self.state['jobs'] if j['id']==v.get('job')),None)
         factor=self.response_factor(v,j) if status in ('enroute','transport') else self.response_factor(v,j) if v['type']=='NAH' else 1.0
@@ -163,6 +180,7 @@ class Operations:
             delay=seconds(self,v,j);now=self.state['clock']
             direct=v['type']=='FR' or random.random()<.25
             self.detach(v)
+            v.pop('holding',None);v.pop('held_at',None)
             v.update(signal=j['signal'],turnout_seconds=delay,turnout_due=max(now,handover or now)+delay,direct_departure=direct)
             v.update(status='standby' if data.get('standby') else 'assigned',alarm_from=previous,job=j['id'],phase_due=(now+random.randint(20,45) if data.get('standby') else v['turnout_due'] if direct else now+max(1,int(delay*.4))),ack_deadline=self.state['clock']+600,handover_due=handover,leg=None,manual_out=False)
             j['vehicles'].append(v['id']);j.setdefault('dispatched_at',now)
@@ -246,12 +264,12 @@ class Operations:
             self.start_transport(v);return
         if h['region']=='Wien':
             j['destination']=None;j.setdefault('bed_requested_at',self.state['clock']);j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None
-            self.log(f'{v["callsign"]} an Leitstelle: Patient transportbereit, benötigen ein Ziel in Wien, Wunsch {h["name"]}. Bitte Bettenmann verständigen.')
-            self.log('Hier LEO, verstanden, Ende.','Funk')
+            self.radio_transmit(v,'LEO',f'Patient transportbereit, benötigen ein Ziel in Wien, Wunsch {h["name"]}. Bitte Bettenmann verständigen. Kommen.')
+            self.radio_transmit('LEO',v,'verstanden. Ende.')
         else:
             j['destination']=h['id'];j['bed_state']='crew_selected'
-            self.log(f'{v["callsign"]} an Leitstelle: Transportziel {h["name"]}, von der Mannschaft vor Ort festgelegt.')
-            self.log('Hier LEO, verstanden, Ende.','Funk')
+            self.radio_transmit(v,'LEO',f'Transportziel {h["name"]}. Kommen.')
+            self.radio_transmit('LEO',v,'verstanden. Ende.')
             self.start_transport(v)
 
     def start_transport(self,v):
@@ -295,7 +313,7 @@ class Operations:
         if j.get('cpr_confirmed') and (not h.get('ecpr') or not h.get('helipad')):raise ValueError('Bestätigter Reanimationstransport benötigt eCPR-Ziel mit Heli-Landeplatz.')
         if h['region']!='Wien':raise ValueError('Beim Wiener Bettenmann ein Wiener Krankenhaus wählen.')
         j.update(destination=h['id'],bed_state='calling',bed_due=self.state['clock']+30)
-        self.log(f'Leitstelle NÖ an Bettenmann Wien: Zielanfrage {h["name"]}, Einsatz {j["id"]}, {j["title"]}.','Bettenmann')
+        self.log(f'LEO → Bettenmann Wien: Zielanfrage {h["name"]}, Einsatz {j["id"]}, {j["title"]}.','Bettenmann')
 
     def send_case(self,data):
         j=self.get('jobs',data['job']);channel=data.get('channel')
@@ -307,8 +325,8 @@ class Operations:
         for v in targets:
             text=f'Ziel {h["name"]}; Kasusnummer {j["case_number"]}. Bei der Aufnahme angeben.'
             self.state['messages'].append({'job':j['id'],'vehicle':v['id'],'channel':channel,'text':text,'time':self.state['clock']})
-            self.log(f'Leitstelle → {v["callsign"]}: {text}',channel)
-            self.log(f'{v["callsign"]}, {channel} erhalten, Kasusnummer {j["case_number"]} verstanden.')
+            self.log(f'LEO → {v["callsign"]}: {text}',channel)
+            self.radio_transmit(v,'LEO',f'{channel} erhalten, Kasusnummer {j["case_number"]} verstanden. Kommen.');self.log('LEO Ende.','Funk')
             self.start_transport(v)
         self.state['messages']=self.state['messages'][-250:]
 
@@ -394,6 +412,7 @@ class Operations:
         mapping={'0':'out','1':'ready','6':'radio','7':'duty','8':'standby'}
         if code not in mapping:raise ValueError('Ungültiger Statuswechsel.')
         if code!='0' and not self.in_shift(v):raise ValueError('Fahrzeug außerhalb der Dienstzeit oder unbesetzt.')
+        v.pop('holding',None);v.pop('held_at',None)
         v.update(status=mapping[code],phase_due=None,leg=None,manual_out=code=='0',ack_deadline=self.state['clock']+600 if code=='8' else None)
         if code=='1':home=self.station(v['station']);v.update(lat=home['lat'],lon=home['lon'])
         self.log(f'{v["callsign"]}, Statusmeldung {STATUS_LABELS[v["status"]]}.')

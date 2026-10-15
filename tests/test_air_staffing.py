@@ -7,6 +7,23 @@ class AirStaffingTests(unittest.TestCase):
     tearDown=helpers.FleetTests.tearDown
     vehicle=helpers.FleetTests.vehicle
     job=helpers.FleetTests.job
+    def test_ecpr_radio_uses_recipient_first_and_full_helicopter_name(self):
+        j,nah,_,_=self.ecpr_job();self.e.state['logs']=[]
+        self.e.ask_cpr({'job':j['id']});self.e.update_air(self.e.state['clock']+30)
+        messages=[l['text'] for l in reversed(self.e.state['logs']) if l['channel']=='Funk']
+        self.assertEqual(messages[0],'Christophorus 9 von LEO, kommen.')
+        self.assertEqual(messages[1],'LEO von Christophorus 9, hört, kommen.')
+        self.assertEqual(messages[2],'Christophorus 9 von LEO, Transportiert ihr unter laufender Reanimation? Kommen.')
+        self.assertIn('LEO von Christophorus 9, Laufende Reanimation, Transport unter laufender Reanimation vorgesehen. Kommen.',messages)
+        self.assertIn('Christophorus 9 von LEO, verstanden. Ende.',messages)
+        self.assertTrue(all('Leitstelle' not in text and 'C9' not in text for text in messages))
+
+    def test_old_queued_radio_uses_leo_and_recipient_first(self):
+        self.e.state['radio_pending']=[dict(id='old',due=0,text='Leitstelle an C9: Transport unter laufender Reanimation?')]
+        self.e.state['radio_last_spoken']=0;self.e.flush_radio()
+        self.assertEqual(self.e.state['logs'][0]['text'],'Christophorus 9 von LEO, Transport unter laufender Reanimation? Kommen.')
+        self.assertEqual(self.e.radio_text('C9 an Leitstelle: Laufende Reanimation.'),'LEO von Christophorus 9, Laufende Reanimation. Kommen.')
+
     def test_night_minimum_and_fixed_c(self):
         self.e.state['clock']=23*3600
         active=[v for v in self.e.state['vehicles'] if v['station']=='schwechat' and v['type'] in ('NEF','RTW-C','RTW','KTW') and self.e.in_shift(v)]

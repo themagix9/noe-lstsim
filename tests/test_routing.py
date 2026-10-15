@@ -125,5 +125,54 @@ class RouteTests(unittest.TestCase):
             a={'id':'a','lat':48,'lon':16};b={'id':'b','lat':48.01,'lon':16};target={'lat':48.1,'lon':16.1}
             with patch('routing.time.sleep'):router.fetch_matrix([a,b],target)
             self.assertEqual(len(router.tasks.queue),0)
-            self.assertEqual(router.route(a,target)['status'],'pending');self.assertEqual(len(router.tasks.queue),1)
+            self.assertEqual(router.route(a,target)['status'],'pending');self.assertEqual(len(router.journeys.queue),1)
+            router.db.close()
+
+    def test_origin_only_recovery_is_three_calls_and_reuses_nearest_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths=[]
+            def fetch(path):
+                paths.append(path)
+                if path.startswith('/nearest'):return {'code':'Ok','waypoints':[{'location':[16.001,48.001],'distance':20,'hint':'road'}]}
+                if '/16.0,48.0;' in path:return {'code':'NoRoute'}
+                lon,lat=map(float,path.split('?')[0].rsplit(';',1)[1].split(','))
+                return {'code':'Ok','routes':[{'duration':120,'distance':1000,'geometry':{'coordinates':[[16.001,48.001],[lon,lat]]}}]}
+            router=Router(Path(directory)/'db',url='http://local-router',enabled=False,fetcher=fetch)
+            a={'lat':48,'lon':16};b={'lat':48.02,'lon':16.02}
+            k='route|'+router.cachekey(a,b);router.fetch_route(k,a,b)
+            self.assertEqual(len(paths),3);self.assertTrue(router.items[k]['recovered'])
+            self.assertEqual(sum(p.startswith('/nearest') for p in paths),1)
+            b={'lat':48.03,'lon':16.03};router.fetch_route('second',a,b)
+            self.assertEqual(len(paths),5);self.assertEqual(sum(p.startswith('/nearest') for p in paths),1)
+            router.db.close()
+
+    def test_active_journey_is_not_blocked_by_slow_eta_matrix(self):
+        import threading
+        with tempfile.TemporaryDirectory() as directory:
+            entered=threading.Event();release=threading.Event();routed=threading.Event()
+            def fetch(path):
+                if path.startswith('/table'):
+                    entered.set();release.wait(3)
+                    raise OSError('late matrix timeout')
+                routed.set();return {'code':'Ok','routes':[{'duration':120,'distance':1000,'geometry':{'coordinates':[[16,48],[16.01,48.01]]}}]}
+            router=Router(Path(directory)/'db',url='http://local-router',enabled=True,fetcher=fetch)
+            a={'id':'one','lat':48,'lon':16};b={'lat':48.01,'lon':16.01}
+            try:
+                router.estimates([a],b);self.assertTrue(entered.wait(1))
+                router.route(a,b);self.assertTrue(routed.wait(1),'Driving must start while matrix is still blocked')
+                self.assertFalse(release.is_set())
+            finally:
+                release.set();router.tasks.join();router.journeys.join()
+                self.assertEqual(router.cached_eta(a,b)['status'],'ready','A late matrix timeout must not erase the completed route ETA')
+                router.db.close()
+
+    def test_private_router_has_no_artificial_delay_and_driving_has_reserved_queue_space(self):
+        with tempfile.TemporaryDirectory() as directory:
+            router=Router(Path(directory)/'db',url='http://osrm:5000',enabled=False,fetcher=lambda path:{'code':'Ok'})
+            self.assertEqual(router.min_interval,0)
+            with patch('routing.time.sleep') as sleep:
+                router.request('/one');router.request('/two');sleep.assert_not_called()
+            router.pending={str(i) for i in range(200)};router.enabled=True
+            router.route({'lat':48,'lon':16},{'lat':48.1,'lon':16.1})
+            self.assertEqual(len(router.journeys.queue),1);self.assertEqual(len(router.tasks.queue),0)
             router.db.close()

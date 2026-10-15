@@ -15,7 +15,7 @@ class WorkflowCleanupTests(unittest.TestCase):
         self.assertEqual(j['status'],'done');self.assertEqual(j['vehicles'],[])
         self.e.command('radio',{'job':j['id'],'call':call['id'],'step':'end'})
         self.assertEqual(call['state'],'closed');self.assertEqual(v['status'],'radio')
-        self.assertIn('Hier LEO, verstanden, Ende.',[l['text'] for l in self.e.state['logs']])
+        self.assertIn('77/002 von LEO, verstanden. Ende.',[l['text'] for l in self.e.state['logs']])
 
     def test_end_resumes_scene_and_preserves_other_owner(self):
         j=self.job();v=self.vehicle('77/002');self.e.dispatch({'job':j['id'],'vehicles':[v['id']]});v.update(status='scene',assessment_due=0)
@@ -60,7 +60,7 @@ class WorkflowCleanupTests(unittest.TestCase):
         j=self.job();v=self.vehicle('77/002');v.update(job=j['id'],status='scene');j['vehicles']=[v['id']];j['patient_condition'].update(percent=90,notarzt_required=False,reported=False)
         self.e.patient_report(j,v);c=self.e.state['radio_calls'][-1];self.assertEqual(c['kind'],'Lagemeldung');self.assertEqual(c['state'],'calling')
         self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'});self.assertEqual(c['state'],'awaiting_end')
-        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'});self.assertEqual(self.e.state['logs'][0]['text'],'LEO verstanden, Ende.')
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'});self.assertEqual(self.e.state['logs'][0]['text'],'77/002 von LEO, verstanden. Ende.')
 
     def test_explicit_vienna_exercise_always_has_a_patient(self):
         for _ in range(4):

@@ -35,7 +35,7 @@ class SceneRadio:
     def scene_radio_action(self,j,c,v,data):
         step=data.get('step')
         if step=='end':
-            self.log('LEO verstanden, Ende.','Funk');c['state']='closed'
+            self.radio_transmit('LEO',v,'verstanden. Ende.');c['state']='closed'
             if v.get('job')==j['id'] and v['status']=='scene' and v.get('phase_due') is None:v['phase_due']=self.state['clock']+120
             return
         if c.get('manv') and step in ('manv_confirm','manv_unavailable') and c['state']=='awaiting_end':
@@ -44,10 +44,10 @@ class SceneRadio:
             if step=='manv_unavailable':
                 for kind,count in needs.items():
                     if count:j.setdefault('request_denials',{})[kind]={'time':self.state['clock'],'reason':'Keine weiteren Kräfte verfügbar.'}
-            self.log('Hier LEO, '+('negativ, derzeit keine weiteren Kräfte verfügbar.' if step=='manv_unavailable' else 'benötigte Kräfte sind disponiert.')+' Kommen.','Funk')
-            self.log(f'Hier {self.radio_name(v)}, verstanden.','Funk');self.log('LEO Ende.','Funk');c['state']='closed';return
+            self.log(f'{self.radio_name(v)} von LEO, '+('negativ, derzeit keine weiteren Kräfte verfügbar.' if step=='manv_unavailable' else 'benötigte Kräfte sind disponiert.')+' Kommen.','Funk')
+            self.log(f'LEO von {self.radio_name(v)}, verstanden.','Funk');self.log('LEO Ende.','Funk');c['state']='closed';return
         if step=='listen' and c['state']=='calling':
-            self.log('Hier LEO.','Funk');condition=j.get('patient_condition') or {}
+            self.radio_transmit('LEO',v,'hört, kommen.');condition=j.get('patient_condition') or {}
             text='Laufende Reanimation.' if condition.get('percent')==0 or j.get('code')=='RD-9E1' else j.get('scene_report',{}).get('text','')
             if not text or text.startswith('Mannschaft vor Ort'):
                 text='Patient kritisch, notärztliche Versorgung läuft.' if condition.get('notarzt_required') and v['type'] in ('NEF','NAH') else 'Patient wird von uns versorgt, Zustand derzeit stabil.' if not condition.get('notarzt_required') else 'Patient kritisch, weitere Versorgung am Berufungsort.'
@@ -58,7 +58,7 @@ class SceneRadio:
             c['cancel_candidates']=self.excess_units(j,v)
             if c['cancel_candidates']:text+=' Weitere anfahrende Kräfte können storniert werden.'
             c.update(state='awaiting_end',report=text)
-            self.log(f'Hier {self.radio_name(v)}, {text} Kommen.','Funk');return
+            self.log(f'LEO von {self.radio_name(v)}, {text} Kommen.','Funk');return
         if step=='cancel_excess' and c['state']=='awaiting_end':
             ids=data.get('vehicles',[]);allowed=set(self.excess_units(j,v))&set(c.get('cancel_candidates',[]))
             if not ids or not isinstance(ids,list) or any(id not in allowed for id in ids):raise ValueError('Nur aktuell entbehrliche anfahrende Kräfte auswählen.')

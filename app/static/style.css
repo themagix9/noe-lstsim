@@ -185,3 +185,18 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 .radio-busy{padding:7px 10px;background:#edf3fc;color:#526b8d}
 
 .job-additional{display:block;margin:5px 0 7px;font-size:14px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Vehicle sizes stop shrinking below zoom 12; helicopters remain larger. */
+.resource-marker img{width:64px;height:32px;margin-left:10px}
+.resource-marker span{left:42px;font-size:12px}
+.resource-marker.resource-helicopter img{width:84px;height:48px;margin-left:0}
+.map-icons-small .resource-marker img{width:56px;height:28px;margin-left:14px}
+.map-icons-small .resource-marker.resource-helicopter img{width:74px;height:42px;margin-left:5px}
+.map-icons-small .resource-marker span{font-size:11px}
+.map-icons-small .resource-marker span small{font-size:10px}
+.resource-marker.blue-response::before{left:24px}
+.resource-marker.blue-response::after{left:52px}
+
+.map-icons-small .resource-marker .map-status-number{font-size:10px;line-height:14px}
+#fleet-table tr[data-fleet-vehicle]{cursor:pointer}#fleet-table tr[data-fleet-vehicle]:focus{outline:2px solid #2563eb;outline-offset:-2px}
+.vehicle-menu{position:fixed;z-index:3000;width:290px;max-width:calc(100vw - 16px);padding:10px;background:#fff;border:1px solid #becbd9;border-radius:9px;box-shadow:0 7px 28px #12243b44;display:grid;gap:6px}.vehicle-menu[hidden]{display:none}.vehicle-menu button{text-align:left}.vehicle-menu p{margin:4px 0;font-size:12px;color:#596c82}

@@ -73,6 +73,18 @@ with tempfile.TemporaryDirectory() as data:
             expect(p.locator('#reserve-vehicle option[value="'+reserve_id+'"]').first).to_be_enabled()
             p.locator('#reserve-vehicle').select_option(reserve_id);expect(p.locator('#reserve')).to_be_enabled()
             p.locator('#reserve-vehicle').select_option('');expect(p.locator('#reserve')).to_be_disabled()
+            # Fleet context menu survives live snapshots and issues paced radio orders.
+            p.locator('#close-dispatch').click()
+            p.evaluate("id=>command('vehicle_status',{vehicle:id,status:'6'})",reserve_id)
+            row=p.locator('[data-fleet-vehicle="'+reserve_id+'"]');row.locator('td').first.click()
+            expect(p.locator('#vehicle-menu')).to_be_visible();p.wait_for_timeout(1200);expect(p.locator('#vehicle-menu')).to_be_visible()
+            p.locator('[data-vehicle-menu-action=position]').click();assert p.evaluate('leafletMap.getZoom()===14')
+            row.locator('td').first.click();p.locator('[data-vehicle-menu-action=hold]').click()
+            p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/005').holding===true")
+            expect(row).to_contain_text('Standort halten')
+            row.locator('td').first.click();p.locator('[data-vehicle-menu-action=return]').click()
+            p.wait_for_function("state.vehicles.find(v=>v.callsign==='77/005').leg!=null&&!state.vehicles.find(v=>v.callsign==='77/005').holding")
+            p.evaluate('openDispatch(selected)');on_tab(p,'disposition')
             # Actual browser audio graph: three bell partials, once despite live updates.
             p.evaluate("()=>{window.gongTones=0;const original=AudioContext.prototype.createOscillator;AudioContext.prototype.createOscillator=function(){window.gongTones++;return original.call(this)}}")
             p.locator('#close-dispatch').click();p.locator('#pause').click();p.wait_for_function('window.gongTones===3');p.wait_for_timeout(1200);assert p.evaluate('window.gongTones')==3

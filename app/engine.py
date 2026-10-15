@@ -165,7 +165,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
 
     def log(self, text, channel='Funk'):
         if channel=='Funk' and re.search(r'Status\s*(?:\d|meldung)',text,re.I):channel='Status'
-        if channel=='Funk':self.queue_radio(text)
+        if channel=='Funk':self.queue_radio(self.radio_text(text))
         else:self.state['logs'].insert(0, {'time':self.state['clock'],'text':text,'channel':channel})
         self.state['logs']=self.state['logs'][:250]
 
@@ -268,7 +268,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
                 if j.get('owner') and j['owner']!=actor['id']:
                     raise ValueError('Dieser Einsatz wird bereits von einem anderen Disponenten betreut.')
                 # Claim only after a successful operation below.
-            if actor and action=='vehicle_status':
+            if actor and action in ('vehicle_status','vehicle_order'):
                 vehicle=self.get('vehicles',data.get('vehicle'))
                 if vehicle['job']:
                     job=self.get('jobs',vehicle['job'])
@@ -317,6 +317,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
             elif action=='support_cancel':self.cancel_support(data)
             elif action=='cancel_radio':self.cancellation_action(data)
             elif action=='fuel_radio':self.fuel_action(data)
+            elif action=='vehicle_order':self.vehicle_order(data)
             elif action=='fuel_request':self.request_fuel(self.get('vehicles',data['vehicle']))
             elif action=='radio':self.radio_action(data)
             elif action=='radio_retry':self.retry_requests(data)
@@ -406,7 +407,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
                 for v in vehicles:
                     s=self.home(v); v.update(job=None,phase_due=None,status=self.idle_status(v),lat=s['lat'],lon=s['lon'],reservation=None,ack_deadline=None,manual_out=False,leg=None,turnout_due=None)
                 for v in vehicles:
-                    for key in ('support_job','support_request','patient_index','treating_patient','care_switch_due','escort_of','transport_destination','transport_target','assessment_due','signal','fr_number','agency_assessment_wait','agency_transport_wait'):v.pop(key,None)
+                    for key in ('support_job','support_request','patient_index','treating_patient','care_switch_due','escort_of','transport_destination','transport_target','assessment_due','signal','fr_number','agency_assessment_wait','agency_transport_wait','holding','held_at'):v.pop(key,None)
                 self.migrate_operations()
                 self.upgrade_support()
                 self.upgrade_agencies()

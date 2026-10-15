@@ -17,6 +17,11 @@ class SplitTests(unittest.TestCase):
     def ask(self):
         self.s.command(self.ct,'accept',{'id':self.j['id']})
         for q in self.j['call']['questions']:self.s.command(self.ct,'call_question',{'job':self.j['id'],'question':q['key']})
+    def test_vehicle_orders_are_dispatcher_only(self):
+        v=next(v for v in self.e.state['vehicles'] if v['callsign']=='77/002');v['status']='radio'
+        with self.assertRaises(PermissionError):self.s.command(self.ct,'vehicle_order',{'vehicle':v['id'],'order':'hold'})
+        self.s.command(self.dispo,'vehicle_order',{'vehicle':v['id'],'order':'hold'});self.assertTrue(v['holding'])
+
     def test_roles_and_draft_are_enforced_on_server(self):
         self.assertEqual(self.s.snapshot(self.ct)['session']['role'],'calltaker')
         with self.assertRaises(PermissionError):self.s.command(self.dispo,'accept',{'id':self.j['id']})

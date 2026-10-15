@@ -29,7 +29,7 @@ class OSRM(BaseHTTPRequestHandler):
 root=Path(__file__).resolve().parents[1]
 routes=ThreadingHTTPServer(('127.0.0.1',0),OSRM);threading.Thread(target=routes.serve_forever,daemon=True).start()
 with tempfile.TemporaryDirectory() as data:
-    proc=subprocess.Popen([sys.executable,'app/server.py'],cwd=root,env={**os.environ,'DATA_DIR':data,'RADIO_INTERVAL':'0','ROUTING_ENABLED':'1','ROUTING_URL':f'http://127.0.0.1:{routes.server_port}','REINFORCEMENTS_AUTO':'0'},stdout=subprocess.DEVNULL)
+    proc=subprocess.Popen([sys.executable,'app/server.py'],cwd=root,env={**os.environ,'DATA_DIR':data,'RADIO_INTERVAL':'0','ROUTING_ENABLED':'1','ROUTING_URL':f'http://127.0.0.1:{routes.server_port}','REINFORCEMENTS_AUTO':'0','PATIENT_EVOLUTION':'0'},stdout=subprocess.DEVNULL)
     try:
         for _ in range(60):
             try:urllib.request.urlopen('http://127.0.0.1:8080/api/health',timeout=.5);break
@@ -48,6 +48,9 @@ with tempfile.TemporaryDirectory() as data:
             assert p.evaluate("mapLayers.getLayers().some(l=>l instanceof L.Polyline&&!(l instanceof L.CircleMarker)&&l.getLatLngs().length===3)")
             p.evaluate("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id).layer.fire('click')")
             assert p.evaluate("![...mapObjects.keys()].some(k=>k.startsWith('route:'))")
+            # Images retain a readable floor when zooming out; NAH are larger.
+            sizes=p.evaluate("""()=>{const image=mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id).layer.getElement().querySelector('img');const size=()=>({width:parseFloat(getComputedStyle(image).width),height:parseFloat(getComputedStyle(image).height)});leafletMap.setZoom(13,{animate:false});const normal=size();leafletMap.setZoom(11,{animate:false});const floor=size();leafletMap.setZoom(8,{animate:false});const far=size();leafletMap.setZoom(13,{animate:false});return {normal,floor,far}}""")
+            assert sizes['normal']['width']>=64 and sizes['floor']['width']>=56 and sizes['floor']==sizes['far'],sizes
             p.wait_for_function("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id)?.layer.getElement()?.querySelector('.map-status-number')?.textContent==='S2'")
             # Smooth map motion has many frames within a single server clock tick.
             p.evaluate("command('control',{paused:false,speed:1})")
@@ -99,6 +102,9 @@ with tempfile.TemporaryDirectory() as data:
             p.wait_for_function("state.jobs.some(j=>j.support_requests?.some(r=>r.state==='accepted'))",timeout=15000)
             p.evaluate("()=>command('control',{paused:true})")
             assert p.evaluate("state.vehicles.find(v=>v.callsign==='C15').job===selected")
+            p.evaluate("async()=>{const v=state.vehicles.find(v=>v.callsign==='C15');if(['assigned','acknowledged','standby'].includes(v.status))await command('vehicle_status',{vehicle:v.id,status:'2'})}")
+            p.wait_for_function("mapObjects.has('vehicle:'+state.vehicles.find(v=>v.callsign==='C15').id)")
+            assert p.evaluate("parseFloat(getComputedStyle(mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='C15').id).layer.getElement().querySelector('img')).width)>=84")
             assert p.evaluate("['SDS','ESApp'].every(channel=>state.messages.some(m=>m.vehicle===state.vehicles.find(v=>v.callsign==='C15').id&&m.channel===channel&&m.job===selected))")
             p.locator('#close-dispatch').click()
             # Scene resources collapse into coloured counts on the incident marker.
@@ -142,7 +148,7 @@ with tempfile.TemporaryDirectory() as data:
             assert p.evaluate('document.documentElement.scrollHeight<=innerHeight+1')
             p.screenshot(path='/tmp/noe-ui-qa/manv-triage.png')
             # One first-arriving unit handles both situation and resource needs.
-            on_tab(p,'kommunikation');p.locator('#radio-detail').get_by_role('button',name='Hier LEO',exact=True).click()
+            on_tab(p,'kommunikation');p.locator('#radio-detail').get_by_role('button',name='LEO hört',exact=True).click()
             p.wait_for_function("state.radio_calls.some(c=>c.job===manvId&&c.manv&&c.state==='awaiting_end')")
             p.locator('#radio-detail [data-radio][data-step=manv_unavailable]').click()
             p.wait_for_function("state.jobs.find(j=>j.id===manvId).request_denials?.RTW")

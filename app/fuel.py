@@ -19,13 +19,13 @@ class Fuel:
         if v['status']!='radio' or v.get('job') or v.get('reservation'):
             call['state']='closed';raise ValueError('Ressource ist inzwischen gebunden; Tankwunsch entfällt.')
         if step=='listen' and call['state']=='calling':
-            call.update(state='awaiting_permission',owner=actor);self.log('LEO hört.','Funk')
-            self.log(f'Hier {self.radio_name(v)}, wir müssen tanken. Ist das möglich? Kommen.','Funk')
+            call.update(state='awaiting_permission',owner=actor);self.radio_transmit('LEO',v,'hört, kommen.')
+            self.log(f'LEO von {self.radio_name(v)}, wir müssen tanken. Ist das möglich? Kommen.','Funk')
         elif step=='repeat' and call['state']=='awaiting_permission':
-            self.log(f'{self.radio_name(v)} von LEO, wiederholen, kommen.','Funk');self.log(f'Hier {self.radio_name(v)}, wir bitten um Freigabe zum Tanken. Kommen.','Funk')
+            self.log(f'{self.radio_name(v)} von LEO, wiederholen, kommen.','Funk');self.log(f'LEO von {self.radio_name(v)}, wir bitten um Freigabe zum Tanken. Kommen.','Funk')
         elif step in ('allow','deny') and call['state']=='awaiting_permission':
             allowed=step=='allow';self.log(f'{self.radio_name(v)} von LEO, '+('Tanken zugelassen, melden Sie sich anschließend frei.' if allowed else 'Derzeit nicht möglich, bitte einsatzbereit bleiben.')+' Kommen.','Funk')
-            self.log(f'Hier {self.radio_name(v)}, verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed';v['next_fuel_check']=self.state['clock']+3600
+            self.log(f'LEO von {self.radio_name(v)}, verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed';v['next_fuel_check']=self.state['clock']+3600
             if allowed:
                 v.update(status='duty',leg=None,phase_due=self.state['clock']+300,fueling=True)
                 self.log(f'{v["callsign"]}, Status 7: simulierte Tankpause (5 Minuten).','Status')

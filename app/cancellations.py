@@ -15,7 +15,7 @@ class Cancellations:
         v=self.get('vehicles',call['vehicle'])
         if v.get('job')!=j['id'] or v['status'] not in ('assigned','standby','acknowledged','enroute','scene'):raise ValueError('Ressource ist inzwischen gebunden oder transportiert; Storno nicht mehr möglich.')
         if data.get('step')=='answer' and call['state']=='calling':
-            self.log(f'Hier {self.radio_name(v)}, hört.','Funk');call['state']='awaiting_cancel';return
+            self.log(f'LEO von {self.radio_name(v)}, hört.','Funk');call['state']='awaiting_cancel';return
         if data.get('step')!='cancel' or call['state']!='awaiting_cancel':raise ValueError('Zuerst Mannschaft anfunken und Antwort abwarten.')
         reason=str(data.get('reason') or call['reason']).strip()
         if len(reason)>250:raise ValueError('Stornogrund maximal 250 Zeichen.')
@@ -24,7 +24,7 @@ class Cancellations:
             self.state['messages'].append({'job':j['id'],'vehicle':v['id'],'channel':channel,'time':self.state['clock'],'text':text});self.log(f'{v["callsign"]}: '+text,channel)
         self.state['messages']=self.state['messages'][-250:]
         self.log(f'{self.radio_name(v)} von LEO, Einsatz {j["incident_number"]} für Sie storniert. {reason} Kommen.','Funk')
-        self.log(f'Hier {self.radio_name(v)}, Einsatzstorno verstanden.','Funk');self.log('LEO Ende.','Funk')
+        self.log(f'LEO von {self.radio_name(v)}, Einsatzstorno verstanden.','Funk');self.log('LEO Ende.','Funk')
         previous=v['status'];self.detach(v);j['vehicles']=[id for id in j['vehicles'] if id!=v['id']]
         v.pop('assessment_due',None);v['ack_deadline']=None
         for c in self.state['radio_calls']:

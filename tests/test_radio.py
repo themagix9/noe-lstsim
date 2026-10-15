@@ -17,7 +17,7 @@ class RadioTests(unittest.TestCase):
         with self.assertRaises(ValueError):action('confirm')
         nef=self.vehicle('77/099');self.e.dispatch({'job':j['id'],'vehicles':[nef['id']]});action('confirm');self.assertEqual(c['state'],'closed')
         text='\n'.join(l['text'] for l in reversed(self.e.state['logs']))
-        for phrase in ['LEO von 77/001, kommen.','LEO hört.','Grund der Nachforderung?','Laufende Reanimation.','NEF Schwechat kommt ab Wache.','NEF Schwechat, verstanden.','LEO Ende.']:self.assertIn(phrase,text)
+        for phrase in ['LEO von 77/001, kommen.','77/001 von LEO, hört, kommen.','Grund der Nachforderung?','Laufende Reanimation.','NEF Schwechat kommt ab Wache.','NEF Schwechat, verstanden.','LEO Ende.']:self.assertIn(phrase,text)
         self.assertEqual(j['vehicles'],[v['id'],nef['id']])
     def test_reason_already_provided_and_external_support(self):
         j,v=self.scene();c=self.e.raise_radio(j,v,'Feuerwehr',reason_initial=True)
