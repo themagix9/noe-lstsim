@@ -57,7 +57,7 @@ class WorkflowCleanupTests(unittest.TestCase):
         self.e.detach(nearest);self.assertNotIn('fr_number',nearest)
 
     def test_automatic_patient_report_is_acknowledged_without_request(self):
-        j=self.job();v=self.vehicle('77/002');v.update(job=j['id'],status='scene');j['vehicles']=[v['id']];j['patient_condition'].update(percent=90,notarzt_required=False,reported=False)
+        j=self.job();j['routine_radio_roll']=0;v=self.vehicle('77/002');v.update(job=j['id'],status='scene');j['vehicles']=[v['id']];j['patient_condition'].update(percent=90,notarzt_required=False,reported=False)
         self.e.patient_report(j,v);c=self.e.state['radio_calls'][-1];self.assertEqual(c['kind'],'Lagemeldung');self.assertEqual(c['state'],'calling')
         self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'});self.assertEqual(c['state'],'awaiting_end')
         self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'});self.assertEqual(self.e.state['logs'][0]['text'],'77/002 von LEO, verstanden. Ende.')

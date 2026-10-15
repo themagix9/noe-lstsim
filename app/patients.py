@@ -70,7 +70,7 @@ class Patients:
                 c.update(reported=True,last_report=self.state['clock']);self.raise_scene_radio(j,v,force=force)
             return
         if c['reported'] and not force:
-            if v['type'] in ('NEF','NAH'):self.raise_scene_radio(j,v)
+            if v['type'] in ('NEF','NAH') or self.multiple_radio_resources(j):self.raise_scene_radio(j,v)
             return
         c.update(reported=True,last_report=self.state['clock'],next_change=self.state['clock']+300)
         present=any(self.get('vehicles',id)['job']==j['id'] and self.get('vehicles',id)['type'] in ('NEF','NAH') for id in j['vehicles'])

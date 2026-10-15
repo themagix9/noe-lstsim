@@ -34,7 +34,7 @@ class TransportLiveTests(unittest.TestCase):
         self.assertEqual(self.e.state['radio_calls'][-1]['kind'],'NEF')
         self.assertTrue(j['patient_condition']['reported']);self.assertIn('keine medizinische',j['patient_condition']['model'])
     def test_stable_patient_reports_no_doctor_required(self):
-        j=self.job();v=self.vehicle('77/002');v.update(job=j['id'],status='scene');j['vehicles']=[v['id']]
+        j=self.job();j['routine_radio_roll']=0;v=self.vehicle('77/002');v.update(job=j['id'],status='scene');j['vehicles']=[v['id']]
         j['patient_condition'].update(percent=90,notarzt_required=False)
         self.e.patient_report(j,v);self.assertEqual([c['kind'] for c in self.e.state['radio_calls']],['Lagemeldung'])
         self.assertTrue(any(l['text'].startswith('LEO von ') for l in self.e.state['logs']))

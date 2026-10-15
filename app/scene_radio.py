@@ -1,12 +1,31 @@
 """Crew-initiated situation reports and dispatcher-approved excess-unit cancellation."""
 import uuid
+import random
+import re
 
 class SceneRadio:
+    def multiple_radio_resources(self,j):
+        units=sum(v.get('job')==j['id'] for v in self.state['vehicles'])
+        agencies=sum(r.get('status') in ('alarmed','enroute','working','onscene') for r in j.get('agency_requests',[]))
+        return units+agencies>1
+
+    def routine_radio_enabled(self,j):
+        if self.is_manv(j) or self.multiple_radio_resources(j):return True
+        if (j.get('patient_condition') or {}).get('notarzt_required'):return True
+        if j['kind']=='transport':chance=.03
+        else:
+            match=re.search(r'-\d+([ABCDE])',j.get('code',''))
+            level=match[1] if match else 'D' if j.get('priority')=='hoch' else 'B'
+            chance={'A':.10,'B':.25,'C':.60,'D':1.0,'E':1.0}[level]
+        if 'routine_radio_roll' not in j:j['routine_radio_roll']=random.random()
+        return j['routine_radio_roll']<chance
+
     def raise_scene_radio(self,j,v,force=False):
         if j.get('no_patient') or v['type']=='FR':return
         if self.is_manv(j):
             leader=self.ensure_triage_leader(j)
             if not leader or leader['id']!=v['id']:return
+        if not force and not self.routine_radio_enabled(j):return
         if any(c['vehicle']==v['id'] and c['job']==j['id'] and c['kind']=='Lagemeldung' and c['state']!='closed' for c in self.state['radio_calls']):return
         if v['id'] in j.get('lage_reported',[]) and not force:return
         j.setdefault('lage_reported',[]).append(v['id'])

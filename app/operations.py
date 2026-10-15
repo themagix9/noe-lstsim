@@ -268,8 +268,9 @@ class Operations:
             self.radio_transmit('LEO',v,'verstanden. Ende.')
         else:
             j['destination']=h['id'];j['bed_state']='crew_selected'
-            self.radio_transmit(v,'LEO',f'Transportziel {h["name"]}. Kommen.')
-            self.radio_transmit('LEO',v,'verstanden. Ende.')
+            if self.routine_radio_enabled(j):
+                self.radio_transmit(v,'LEO',f'Transportziel {h["name"]}. Kommen.')
+                self.radio_transmit('LEO',v,'verstanden. Ende.')
             self.start_transport(v)
 
     def start_transport(self,v):
