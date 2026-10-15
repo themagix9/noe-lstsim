@@ -60,6 +60,19 @@ with tempfile.TemporaryDirectory() as data:
             p.locator('#create-manual').click();p.locator('#manual-kind').select_option('transport');expect(p.locator('#manual-code')).to_have_value('');p.locator('#manual-search').fill('Dialyse');expect(p.locator('#manual-code option[value="KTR-93Y2"]')).to_have_count(1);p.locator('#manual-code').select_option('KTR-93Y2');p.get_by_label('Einsatzort / Adresse',exact=True).fill('Transportadresse Schwechat');p.locator('#manual-form button.primary').click()
             expect(p.locator('#reserve-vehicle option').filter(has_text='77/050')).to_contain_text('RK Himberg');expect(p.locator('#reserve-vehicle option').filter(has_text='77/050')).to_contain_text('km Luftlinie');expect(p.locator('#detail')).to_contain_text('Abholzeit');assert on_tab(p, 'einsatz').locator('#job-pickup').get_attribute('step')=='1800';expect(p.locator('.job.transport .pickup-time.urgent')).to_be_visible();on_tab(p, 'disposition').locator('[data-filter="KTW"]').click();assert p.evaluate("[...document.querySelectorAll('.resource-row')].every(e=>['KTW','KTW-B','BKTW'].includes(state.vehicles.find(v=>v.id===e.dataset.resourceId).type))")
             on_tab(p, 'disposition').locator('#resource-sort').select_option('status');on_tab(p, 'disposition').locator('#resource-direction').select_option('asc');p.wait_for_timeout(1500);expect(on_tab(p, 'disposition').locator('#resource-sort')).to_have_value('status');expect(p.locator('#manual-dialog')).not_to_be_visible()
+            # Vordisposition permits only S1/S5/S6; live status changes revoke selection.
+            reserve_id=p.evaluate("state.vehicles.find(v=>v.callsign==='77/005').id")
+            assert p.evaluate("(()=>{const v=state.vehicles.find(v=>v.callsign==='77/005'),j=state.jobs.find(j=>j.id===selected);return ['ready','hospital','radio'].every(status=>canReserve({...v,status},j))&&['enroute','scene','transport','duty','standby','acknowledged','out','assigned'].every(status=>!canReserve({...v,status},j))})()")
+            p.evaluate("id=>command('vehicle_status',{vehicle:id,status:'6'})",reserve_id)
+            p.locator('#reserve-vehicle').select_option(reserve_id);expect(p.locator('#reserve')).to_be_enabled()
+            for status in ['7','0','8']:
+                p.evaluate("({id,status})=>command('vehicle_status',{vehicle:id,status})",{'id':reserve_id,'status':status})
+                expect(p.locator('#reserve-vehicle option[value="'+reserve_id+'"]').first).to_be_disabled()
+                expect(p.locator('#reserve')).to_be_disabled()
+            p.evaluate("id=>command('vehicle_status',{vehicle:id,status:'1'})",reserve_id)
+            expect(p.locator('#reserve-vehicle option[value="'+reserve_id+'"]').first).to_be_enabled()
+            p.locator('#reserve-vehicle').select_option(reserve_id);expect(p.locator('#reserve')).to_be_enabled()
+            p.locator('#reserve-vehicle').select_option('');expect(p.locator('#reserve')).to_be_disabled()
             # Actual browser audio graph: three bell partials, once despite live updates.
             p.evaluate("()=>{window.gongTones=0;const original=AudioContext.prototype.createOscillator;AudioContext.prototype.createOscillator=function(){window.gongTones++;return original.call(this)}}")
             p.locator('#close-dispatch').click();p.locator('#pause').click();p.wait_for_function('window.gongTones===3');p.wait_for_timeout(1200);assert p.evaluate('window.gongTones')==3

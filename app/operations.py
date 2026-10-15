@@ -65,6 +65,7 @@ class Operations:
         if self.support_required(v):raise ValueError('Externe Ressourcen über Unterstützung anfordern.')
         if not self.eligible(v,j):raise ValueError('Eine transportierende Ressource wählen.')
         if v.get('reservation') and v['reservation']!=j['id']:raise ValueError('Ressource bereits für einen anderen Auftrag reserviert.')
+        if v['status'] not in ('ready','hospital','radio') or not self.in_shift(v) or v.get('support_request'):raise ValueError('Vordisposition nur bei Status 1, 5 oder 6 und besetzter Ressource möglich.')
         old=j.get('reserved')
         if old and old!=v['id']:self.get('vehicles',old)['reservation']=None
         v['reservation']=j['id'];j['reserved']=v['id']

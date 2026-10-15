@@ -73,12 +73,14 @@ class OperationsTests(unittest.TestCase):
         other=next(v for v in self.e.state['vehicles'] if v['type']=='RTW')
         self.dispatch(j,other);self.assertIsNone(self.v['reservation']);self.assertIsNone(j['reserved'])
 
-    def test_busy_reservation_waits_for_status5_then_sends(self):
+    def test_busy_reservation_rejected_then_status5_can_reserve_and_send(self):
         a=self.job();self.dispatch(a);self.e.command('vehicle_status',{'vehicle':self.v['id'],'status':'2'})
-        b=self.job();self.e.command('reserve',{'job':b['id'],'vehicle':self.v['id']})
+        b=self.job()
+        with self.assertRaises(ValueError):self.e.command('reserve',{'job':b['id'],'vehicle':self.v['id']})
         with self.assertRaises(ValueError):self.dispatch(b)
         for _ in range(3):self.advance()
         self.assertEqual(self.v['status'],'hospital');handover_due=self.v['phase_due']
+        self.e.command('reserve',{'job':b['id'],'vehicle':self.v['id']})
         self.dispatch(b);self.assertEqual(a['status'],'done');self.assertEqual(self.v['alarm_from'],'hospital');self.e.command('vehicle_status',{'vehicle':self.v['id'],'status':'2'})
         self.assertEqual(self.v['status'],'acknowledged');self.assertEqual(self.v['phase_due'],handover_due)
         self.advance();self.assertEqual(self.v['status'],'enroute');self.assertEqual(self.v['job'],b['id'])
@@ -116,7 +118,7 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(other['status'],'radio');self.assertEqual(j['destination'],'kh-hainburg')
 
     def test_pending_bed_and_reservations_persist(self):
-        j,v=self.scene();self.e.command('bed_request',{'job':j['id'],'hospital':'kh-donaustadt'});t=self.job();self.e.command('reserve',{'job':t['id'],'vehicle':self.v['id']})
+        j,v=self.scene();self.e.command('bed_request',{'job':j['id'],'hospital':'kh-donaustadt'});t=self.job();free=next(v for v in self.e.state['vehicles'] if v['type']=='KTW' and v['status']=='ready' and v['id']!=self.v['id']);self.e.command('reserve',{'job':t['id'],'vehicle':free['id']})
         reopened=Engine(self.path);self.assertEqual(self.e.snapshot(),reopened.snapshot());reopened.db.close()
     def test_reset_clears_reservations_but_keeps_fleet(self):
         j=self.job();self.e.command('reserve',{'job':j['id'],'vehicle':self.v['id']});self.e.command('reset',{})
@@ -125,6 +127,22 @@ class OperationsTests(unittest.TestCase):
         j=self.job();self.e.command('reserve',{'job':j['id'],'vehicle':self.v['id']})
         with self.assertRaises(ValueError):self.e.command('delete_vehicle',{'id':self.v['id']})
         with self.assertRaises(ValueError):self.e.command('vehicle',copy.deepcopy(self.v))
+
+    def test_reservation_status_allowlist_and_atomic_rejection(self):
+        first=self.job();second=self.job();self.e.reserve({'job':first['id'],'vehicle':self.v['id']})
+        other=next(v for v in self.e.state['vehicles'] if v['type']=='KTW' and v['id']!=self.v['id']);other['staffed']=True
+        for status in ['enroute','scene','transport','duty','standby','acknowledged','out','assigned']:
+            with self.subTest(status=status):
+                other['status']=status
+                with self.assertRaises(ValueError):self.e.reserve({'job':first['id'],'vehicle':other['id']})
+                self.assertEqual(first['reserved'],self.v['id']);self.assertEqual(self.v['reservation'],first['id']);self.assertIsNone(other['reservation'])
+        for status in ['ready','hospital','radio']:
+            with self.subTest(status=status):
+                other['status']=status;self.e.reserve({'job':second['id'],'vehicle':other['id']})
+                self.assertEqual(second['reserved'],other['id']);self.e.unreserve({'job':second['id']})
+        other.update(status='ready',staffed=False)
+        with self.assertRaises(ValueError):self.e.reserve({'job':second['id'],'vehicle':other['id']})
+        self.assertIsNone(second['reserved'])
 
 class ModeTests(unittest.TestCase):
     def test_singleplayer_has_no_code_and_cannot_be_joined(self):
@@ -141,3 +159,4 @@ class ModeTests(unittest.TestCase):
             s.command(h,'dispatch',{'job':j['id'],'vehicles':[v['id']]})
             with self.assertRaises(ValueError):s.command(g,'vehicle_status',{'vehicle':v['id'],'status':'2'})
             s.close()
+
