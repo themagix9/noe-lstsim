@@ -35,7 +35,7 @@ function station(id){return state.stations.find(x=>x.id===id)}
 function unitClass(v){return 'unit-'+({NEF:'doctor',NAH:'doctor',KTW:'ktw','KTW-B':'ktw',BKTW:'ktw',RTW:'rtw','RTW-C':'rtwc'}[v?.type]||'other')}
 function resourceName(v){if(v.type==='FR'&&v.fr_name)return v.fr_name+(v.fr_number?' '+v.fr_number:'');return v.type==='NAH'?({c3:'99/003 Christophorus 3',c9:'99/009 Christophorus 9',c15:'99/015 Christophorus 15',c16:'99/016 Christophorus 16'}[v.station]||v.callsign):v.callsign.replace(/^FR-SCH-/,'FR-SW-').replace(/^FR-FIS-/,'FR-FS-')}
 function homeLabel(v){return ({schwechat:'SW','fr-fischamend':'FS'}[v.station]||station(v.station)?.name?.replace(/^RK\s+/, '')||'Unbekannt')}
-function mapVisible(v){return ['enroute','transport','radio','duty'].includes(v.status)||v.alarm_from==='radio'&&['assigned','acknowledged'].includes(v.status)}
+function mapVisible(v){return v.status==='acknowledged'&&!!v.leg&&!v.leg.waiting||['enroute','transport','radio','duty'].includes(v.status)||v.alarm_from==='radio'&&['assigned','acknowledged'].includes(v.status)}
 function hospitalMapVisible(h){return Number.isFinite(h.lat)&&Number.isFinite(h.lon)&&['Wien','NÖ','Niederösterreich'].includes(h.region)&&(h.sector==='Akutversorgung'||!h.sector&&h.emergency===true)&&!/rehabilitation|rehazentrum|pflegeheim|pflegeanstalt|kurzentrum|gesundheitsresort|therapiezentrum/i.test(h.name)}
 function externalSupport(v){const home=station(v.station);return !!(home?.support_only||home?.dispo!==state.setup.dispo)}
 function relevant(v){const home=station(v.station);if(externalSupport(v))return !!v.support_job;return home?.dispo===state.setup.dispo&&(!zone||home?.zone===zone)&&(!home.external||v.job||shift(v)&&['ready','radio','fr_ready'].includes(v.status))}
@@ -238,7 +238,7 @@ function renderMap(vehicles,jobs){
  });
  const overlaps={};vehicles.filter(mapVisible).forEach(v=>{
   const key=v.lat.toFixed(5)+','+v.lon.toFixed(5),n=overlaps[key]||0;overlaps[key]=n+1;
-  const response=state.jobs.find(j=>j.id===v.job),blue=!!response&&!!(v.signal??response.signal)&&['enroute','scene','transport'].includes(v.status)&&!['FR','NAH'].includes(v.type);
+  const response=state.jobs.find(j=>j.id===v.job),blue=!!response&&!!(v.signal??response.signal)&&['enroute','scene','transport','acknowledged'].includes(v.status)&&!['FR','NAH'].includes(v.type);
   const icon=L.divIcon({className:'resource-marker'+(v.type==='NAH'?' resource-helicopter':'')+(blue?' blue-response':''),html:`<img src="${esc(graphic(v).url)}" alt=""><span class="${unitClass(v)}">${esc(v.type)} ${esc(resourceName(v))} <b class="map-status-number status-${v.status}" title="${esc(statusName(v))}">S${statusNumber(v)}</b><small>${esc(homeLabel(v))}</small></span>`,iconSize:[84,76],iconAnchor:[42-n*8,(v.type==='NAH'?24:16)-n*5]});
   const movingMarker=mapMarker('vehicle:'+v.id,()=>L.marker([v.lat,v.lon]).on('click',()=>{routeVehicle=routeVehicle===v.id?null:v.id;renderMap(state.vehicles.filter(relevant),state.jobs.filter(j=>j.status!=='done'))}),resourceMotion.point(v),icon,`<b>${esc(v.type)} ${esc(resourceName(v))}</b><br>Heimatdienststelle: ${esc(station(v.station)?.name)}<br>${esc(statusName(v))}<br>ETA: ${esc(unitEta(v))}${v.reservation?'<br>Vordisponiert':''}`);
   resourceMotion.attach(v,movingMarker);

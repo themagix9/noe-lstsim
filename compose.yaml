@@ -4,9 +4,12 @@ services:
     ports:
       - "127.0.0.1:8088:8080"
     environment:
-      ROUTING_URL: ${ROUTING_URL:-https://routing.openstreetmap.de/routed-car}
+      ROUTING_URL: ${ROUTING_URL:-http://osrm:5000}
       ROUTING_BACKUP_URL: ${ROUTING_BACKUP_URL:-https://router.project-osrm.org}
       ROUTING_ENABLED: ${ROUTING_ENABLED:-1}
+    depends_on:
+      osrm:
+        condition: service_started
     volumes:
       - simulation-data:/data
     restart: unless-stopped
@@ -14,5 +17,62 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+  osm-download:
+    image: curlimages/curl:latest
+    user: "0:0"
+    entrypoint: /bin/sh
+    command:
+      - -ec
+      - |
+        if [ ! -s /data/austria.osm.pbf ]; then
+          curl --fail --location --retry 4 https://download.geofabrik.de/europe/austria-latest.osm.pbf --output /data/austria.osm.pbf.partial
+          mv /data/austria.osm.pbf.partial /data/austria.osm.pbf
+        fi
+    volumes:
+      - routing-data:/data
+    restart: "no"
+
+  osm-prepare:
+    configs:
+      - source: noe-car-profile
+        target: /opt/noe-car.lua
+    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}
+    entrypoint: /bin/sh
+    command:
+      - -ec
+      - |
+        version="$$(osrm-routed --version):$$(sha256sum /opt/noe-car.lua | cut -d' ' -f1)"
+        if [ ! -f /data/ready ] || [ "$$(cat /data/ready)" != "$$version" ]; then
+          osrm-extract -p /opt/noe-car.lua /data/austria.osm.pbf
+          osrm-partition /data/austria.osrm
+          osrm-customize /data/austria.osrm
+          printf '%s' "$$version" > /data/ready
+        fi
+    depends_on:
+      osm-download:
+        condition: service_completed_successfully
+    volumes:
+      - routing-data:/data
+    restart: "no"
+
+  osrm:
+    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}
+    command: osrm-routed --algorithm mld --max-table-size 100 /data/austria.osrm
+    depends_on:
+      osm-prepare:
+        condition: service_completed_successfully
+    volumes:
+      - routing-data:/data:ro
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 volumes:
   simulation-data:
+  routing-data:
+
+configs:
+  noe-car-profile:
+    file: ./routing/noe-car.lua

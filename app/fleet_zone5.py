@@ -15,7 +15,7 @@ PHOTO = 'LstSim-Bestandsfoto des Nutzers vom 11.10.2026 (historische Daten, ausd
 
 # Coordinates are town-level simulation points, not verified garage entrances.
 STATIONS = [
- ('baden','RK Baden','Baden',48.002,16.246,'Rotes Kreuz-Gasse 6, 2500 Baden'),
+ ('baden','RK Baden','Baden',48.00147,16.25389,'Rotes Kreuz-Gasse 6, 2500 Baden'),
  ('kottingbrunn','RK Kottingbrunn','Baden',47.951,16.228,'Dammgasse 1, 2542 Kottingbrunn'),
  ('alland','RK Alland','Baden',48.058,16.079,None),
  ('oberwaltersdorf','RK Oberwaltersdorf','Baden',47.977,16.324,None),
@@ -28,7 +28,7 @@ STATIONS = [
  ('asb-traiskirchen','ASB Traiskirchen–Trumau','Baden',48.014,16.292,'Karl-Adlitzer-Straße 4, 2514 Traiskirchen'),
  ('asb-steinfelden','ASB Steinfelden–Schönau–Leobersdorf','Baden',47.943,16.260,None),
  ('asb-ebreichsdorf','ASB Ebreichsdorf','Baden',47.962,16.404,None),
- ('moedling','RK Mödling','Mödling',48.079,16.284,'Neusiedler Straße 20, 2340 Mödling'),
+ ('moedling','RK Mödling','Mödling',48.08133,16.28427,'Neusiedler Straße 20, 2340 Mödling'),
  ('wiener-neudorf','RK Wiener Neudorf','Mödling',48.083,16.321,None),
  ('guntramsdorf','RK Guntramsdorf','Mödling',48.049,16.309,None),
  ('biedermannsdorf','RK Biedermannsdorf','Mödling',48.082,16.345,None),

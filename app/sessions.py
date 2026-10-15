@@ -109,6 +109,23 @@ class Sessions:
             self.db.execute('UPDATE members SET last_seen=? WHERE id=?',(time.time(),member['id']));self.db.commit();return True
 
     def command(self,member,action,data):
+        plans=None
+        if action=='dispatch':
+            with self.lock:
+                engine=self.engine(member['room_id'])
+                with engine.lock:
+                    job=engine.get('jobs',data.get('job'))
+                    if job.get('owner') and job['owner']!=member['id']:raise ValueError('Einsatz wird von einem anderen Disponenten betreut.')
+                    if engine.state['setup'].get('workflow')=='split' and (member.get('role')!='dispatcher' or not job.get('handoff')):raise PermissionError('Die Abfrage muss zuerst an die Disposition übergeben werden.')
+                    selected=[engine.get('vehicles',id) for id in data.get('vehicles',[])]
+                    selected=[engine.nearest_responder(v,job) if v['type']=='FR' and not v.get('job') else v for v in selected]
+                    journeys=[(v['id'],{'lat':v['lat'],'lon':v['lon']},{'lat':job['lat'],'lon':job['lon']}) for v in selected if v['type']!='NAH'] if engine.router.enabled else []
+                    # Reject ineligible units before doing any network work.
+                    for v in selected:
+                        if not engine.sendable(v,job):raise ValueError('Ressource für diesen Auftrag nicht verfügbar.')
+            if journeys:
+                routes=engine.router.wait_routes(journeys)
+                plans={id:{'origin':a,'target':b,'route':routes[id]} for id,a,b in journeys}
         with self.lock:
             if action in ('vehicle','vehicle_graphic','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc','travel_settings','event_settings','hospital') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
             engine=self.engine(member['room_id'])
@@ -132,7 +149,7 @@ class Sessions:
                     # Under the room lock, disconnected owners can be replaced safely.
                     job['owner']=None
             if action=='upload_graphic':self.upload_graphic(member,data)
-            else:engine.command(action,{**data,'_actor':member})
+            else:engine.command(action,{**data,'_actor':member,'_planned_routes':plans})
             return self.snapshot(member)
 
     def upload_graphic(self,member,data):

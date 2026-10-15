@@ -30,3 +30,7 @@ motion.sync({clock:100,speed:1,paused:false,session:{me:'two'}});frame(9210);ass
 const mixed={...leg,time_cumulative:[0,36,130]};
 assert.deepEqual(Array.from(position(mixed,36/130)),[0,10]);
 assert(position(mixed,.5)[0]>0);
+
+// Acknowledged road journeys are supported as movement, too.
+motion.sync({clock:100,speed:1,paused:false,session:{me:'ack'}});
+motion.attach({...vehicle,status:'acknowledged'},layer);const ackStart=drawn[1];frame(now+200);assert(drawn[1]>ackStart);motion.clear();

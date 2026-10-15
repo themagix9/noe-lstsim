@@ -3,6 +3,8 @@ import json
 import os
 from pathlib import Path
 import socket
+import sys
+from unittest.mock import patch
 import subprocess
 import tempfile
 import time
@@ -45,6 +47,47 @@ def main():
                 assert abs(speed-expected)<2,(i,expected,speed)
                 matrix=query(f'/table/v1/driving/{start},48;{end},48?sources=0&destinations=1')['durations'][0][0]
                 assert abs(matrix-route['duration'])<1,(matrix,route['duration'])
+            sys.path.insert(0,str(ROOT/'app'))
+            from engine import Engine
+            from routing import Router
+            with patch.dict(os.environ,{'ROUTING_ENABLED':'0','REINFORCEMENTS_AUTO':'0','PATIENT_EVOLUTION':'0','CALL_AUTO':'0'}):
+                engine=Engine(str(data/'simulation'))
+            router=Router(data/'routes',url=f'http://127.0.0.1:{port}',enabled=True,backup_url='')
+            engine.router=router
+            v=next(v for v in engine.state['vehicles'] if v['callsign']=='77/002')
+            # 110 metres off the residential road; the chosen road is reachable.
+            v.update(lat=48.001,lon=16.045,status='radio')
+            job=engine.new_job('transport',manual=True);job.update(accepted=True,lat=48.0007,lon=16.075)
+            a={k:v[k] for k in ('lat','lon')};b={k:job[k] for k in ('lat','lon')}
+            start=time.monotonic();planned=router.wait_routes([('car',a,b)],timeout=3)['car']
+            assert time.monotonic()-start<3
+            assert planned['status']=='ready' and planned['recovered']
+            engine.dispatch({'job':job['id'],'vehicles':[v['id']],'_planned_routes':{v['id']:{'origin':a,'target':b,'route':planned}}})
+            with patch.object(router,'route',side_effect=AssertionError('Departure requested another route')):
+                engine.acknowledge(v);assert v['leg']['geometry']
+                assert abs(v['lat']-48)<.00001
+                clock=engine.state['clock'];before=(v['lat'],v['lon'])
+                engine.update_operations(clock+1);assert (v['lat'],v['lon'])!=before
+                engine.advance(v);assert v['status']=='enroute' and v['leg']['start']==clock
+            for status in ('enroute','transport','radio','duty','acknowledged'):
+                v.update(lat=48.001,lon=16.045)
+                router.wait_routes([('car',v,b)],timeout=3)
+                engine.drive(v,b,status)
+                assert v['leg'].get('geometry') and not v['leg'].get('waiting'),status
+                before=(v['lat'],v['lon']);engine.update_operations(engine.state['clock']+1)
+                assert (v['lat'],v['lon'])!=before,status
+            # Real cancellation path: signal off, cached road return reaches home.
+            home=engine.home(v);home.update(lat=48,lon=16.045)
+            v.update(lat=48.0007,lon=16.075,status='enroute',signal=True)
+            router.wait_routes([('home',v,home)],timeout=3)
+            engine.command('resource_call',{'job':job['id'],'vehicle':v['id']});call=engine.state['radio_calls'][-1]
+            engine.command('cancel_radio',{'job':job['id'],'call':call['id'],'step':'answer'})
+            engine.command('cancel_radio',{'job':job['id'],'call':call['id'],'step':'cancel'})
+            assert v['status']=='radio' and not v['signal'] and v['leg']['geometry']
+            engine.state['clock']=v['leg']['end']+1;engine.update_operations(engine.state['clock']);engine.advance(v)
+            assert v['status']=='ready' and abs(v['lon']-home['lon'])<.00001
+            router.journeys.join();router.tasks.join();router.db.close();engine.db.close()
+            print('Actual OSRM: off-road snap, preflight, no second departure request, motion in 2/4/6/7/9, cancellation return passed.')
             print('Actual OSRM profile: A=130, S=100, urban=50, limit=30, rural=100; route and matrix agree.')
         finally:subprocess.run(['docker','rm','-f',name],check=False)
 

@@ -19,6 +19,9 @@ class Routing(BaseHTTPRequestHandler):
     def do_GET(self):
         query=parse_qs(urlsplit(self.path).query);n=len(query.get('sources',['0'])[0].split(';'))
         body=json.dumps({'code':'Ok','durations':[[120] for _ in range(n)],'distances':[[1500] for _ in range(n)]}).encode()
+        if self.path.startswith('/route'):
+            a,b=[list(map(float,p.split(','))) for p in urlsplit(self.path).path.rsplit('/',1)[1].split(';')]
+            body=json.dumps({'code':'Ok','routes':[{'duration':120,'distance':1500,'geometry':{'coordinates':[a,[a[0],b[1]],b]}}]}).encode()
         self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(body)
 router=ThreadingHTTPServer(('127.0.0.1',0),Routing);threading.Thread(target=router.serve_forever,daemon=True).start()
 with tempfile.TemporaryDirectory() as data:

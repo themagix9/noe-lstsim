@@ -1,66 +1,6 @@
-# Optional self-hosted routing; combine with compose.portainer.yaml.
-# docker compose -f compose.portainer.yaml -f compose.routing.yaml up -d
+# Compatibility override: self-hosted routing is included in the main stack now.
 services:
   noe-lstsim:
     environment:
       ROUTING_URL: http://osrm:5000
       ROUTING_ENABLED: "1"
-
-  osm-download:
-    image: curlimages/curl:latest
-    user: "0:0"
-    entrypoint: /bin/sh
-    command:
-      - -ec
-      - |
-        if [ ! -s /data/austria.osm.pbf ]; then
-          curl --fail --location --retry 4 https://download.geofabrik.de/europe/austria-latest.osm.pbf --output /data/austria.osm.pbf.partial
-          mv /data/austria.osm.pbf.partial /data/austria.osm.pbf
-        fi
-    volumes:
-      - routing-data:/data
-    restart: "no"
-
-  osm-prepare:
-    configs:
-      - source: noe-car-profile
-        target: /opt/noe-car.lua
-    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}
-    entrypoint: /bin/sh
-    command:
-      - -ec
-      - |
-        version="$$(osrm-routed --version):$$(sha256sum /opt/noe-car.lua | cut -d' ' -f1)"
-        if [ ! -f /data/ready ] || [ "$$(cat /data/ready)" != "$$version" ]; then
-          osrm-extract -p /opt/noe-car.lua /data/austria.osm.pbf
-          osrm-partition /data/austria.osrm
-          osrm-customize /data/austria.osrm
-          printf '%s' "$$version" > /data/ready
-        fi
-    depends_on:
-      osm-download:
-        condition: service_completed_successfully
-    volumes:
-      - routing-data:/data
-    restart: "no"
-
-  osrm:
-    image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}
-    command: osrm-routed --algorithm mld --max-table-size 100 /data/austria.osrm
-    depends_on:
-      osm-prepare:
-        condition: service_completed_successfully
-    volumes:
-      - routing-data:/data:ro
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-
-volumes:
-  routing-data:
-
-configs:
-  noe-car-profile:
-    file: ./routing/noe-car.lua

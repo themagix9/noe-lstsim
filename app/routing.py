@@ -51,13 +51,31 @@ def segment_times(route,geometry):
     for duration in durations:sums.append(sums[-1]+duration)
     return sums
 
+def rebase_route(route,origin,planned_origin):
+    if cumulative([[origin['lat'],origin['lon']],[planned_origin['lat'],planned_origin['lon']]])[-1]<5:return copy.deepcopy(route)
+    coords=route['geometry'];best=None;scale=math.cos(math.radians(origin['lat']))
+    for i,(a,b) in enumerate(zip(coords,coords[1:])):
+        dx=(b[1]-a[1])*scale;dy=b[0]-a[0];den=dx*dx+dy*dy
+        f=max(0,min(1,((origin['lon']-a[1])*scale*dx+(origin['lat']-a[0])*dy)/den)) if den else 0
+        q=[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]
+        d=math.hypot(q[0]-origin['lat'],(q[1]-origin['lon'])*scale)*111200
+        if best is None or d<best[0]:best=(d,i,f,q)
+    d,i,f,q=best
+    if d>150:raise ValueError('Fahrzeugposition hat sich während der Routenberechnung geändert; bitte erneut alarmieren.')
+    result=copy.deepcopy(route);weights=route.get('time_cumulative') or route['cumulative'];offset=weights[i]+f*(weights[i+1]-weights[i]);total=weights[-1]
+    result.update(geometry=[q]+coords[i+1:],seconds=max(1,route['seconds']*(1-offset/total)) if total else 1)
+    result['cumulative']=cumulative(result['geometry']);result['distance_m']=result['cumulative'][-1]
+    if route.get('time_cumulative'):result['time_cumulative']=[0]+[max(0,t-offset) for t in weights[i+1:]]
+    result.update(recovered=True,snap={'origin':{'lat':q[0],'lon':q[1]}})
+    return result
+
 class Router:
     def __init__(self,path,url=None,enabled=None,fetcher=None,backup_url=None):
         self.url=(url or os.environ.get('ROUTING_URL',PUBLIC)).rstrip('/')
         self.backup_url=(os.environ.get('ROUTING_BACKUP_URL',BACKUP if self.url==PUBLIC and not fetcher else '') if backup_url is None else backup_url).rstrip('/')
         self.backup=None;self.unavailable_until=0
         self.enabled=(os.environ.get('ROUTING_ENABLED','1')!='0') if enabled is None else enabled
-        self.fetcher=fetcher;self.lock=threading.RLock();self.items={};self.pending=set();self.tasks=queue.PriorityQueue();self.journeys=queue.PriorityQueue();self.sequence=0;self.next_call=0;self.request_lock=threading.Lock();self.nearest_cache={}
+        self.fetcher=fetcher;self.lock=threading.RLock();self.changed=threading.Condition(self.lock);self.items={};self.pending=set();self.tasks=queue.PriorityQueue();self.journeys=queue.PriorityQueue();self.sequence=0;self.next_call=0;self.request_lock=threading.Lock();self.nearest_cache={}
         public=urllib.parse.urlparse(self.url).hostname in ('routing.openstreetmap.de','router.project-osrm.org')
         self.min_interval=1.1 if public else 0.0
         self.path=str(path);self.db=sqlite3.connect(self.path,check_same_thread=False);self.db.execute('PRAGMA busy_timeout=5000')
@@ -65,7 +83,7 @@ class Router:
         for k,value in self.db.execute('SELECT key,value FROM routes WHERE stored>?',(time.time()-7*86400,)):
             self.items[k]=json.loads(value)
         if self.enabled:
-            for n in range(2):threading.Thread(target=self.worker,args=(self.journeys,),daemon=True,name=f'road-journeys-{n}').start()
+            for n in range(2 if public else 6):threading.Thread(target=self.worker,args=(self.journeys,),daemon=True,name=f'road-journeys-{n}').start()
             threading.Thread(target=self.worker,args=(self.tasks,),daemon=True,name='road-etas').start()
     def cachekey(self,a,b):return self.url+'|segment-times-v1|'+key(a,b)
     def save(self,k,result):
@@ -76,6 +94,7 @@ class Router:
             self.items[k]=result
             if result['status']=='ready':
                 self.db.execute('INSERT OR REPLACE INTO routes VALUES (?,?,?)',(k,json.dumps(result),time.time()));self.db.commit()
+            self.changed.notify_all()
     def enqueue(self,k,priority,fn):
         with self.lock:
             if k in self.pending or len(self.pending)>=(400 if priority==0 else 200):return
@@ -88,7 +107,7 @@ class Router:
             except Exception as error:
                 with self.lock:self.items[k]={'status':'error','retry_at':time.time()+(5 if k.startswith('route|') else 60),'error':'Keine erreichbare Straßenverbindung nach Straßen-Fallback' if isinstance(error,RoadRouteError) else 'Routenserver nicht erreichbar'}
             finally:
-                with self.lock:self.pending.discard(k)
+                with self.changed:self.pending.discard(k);self.changed.notify_all()
                 tasks.task_done()
     def request(self,path):
         # Global to this server/process, including matrix and individual route requests.
@@ -117,9 +136,28 @@ class Router:
         if result['status']=='ready' or result.get('retry_at',0)>time.time():return result
         self.enqueue(k,0,lambda:self.fetch_route(k,a.copy(),b.copy()))
         return {'status':'pending'}
+    def wait_routes(self, journeys, timeout=10):
+        """Preflight outside simulation locks. All routes start concurrently.
+
+        A dispatch is only committed once every road leg is available; no false
+        alarm followed by an indefinitely motionless unit. Workers/cache are
+        shared with normal movement and ETA requests.
+        """
+        deadline=time.monotonic()+timeout;results={}
+        for id,a,b in journeys:results[id]=self.route(a,b)
+        with self.changed:
+            while True:
+                results={id:copy.deepcopy(self.items.get('route|'+self.cachekey(a,b),results[id])) for id,a,b in journeys}
+                if all(r['status']=='ready' for r in results.values()):return results
+                failed=next((r for r in results.values() if r['status']=='error'),None)
+                remaining=deadline-time.monotonic()
+                if failed or remaining<=0:
+                    raise ValueError('Alarmierung noch nicht gesendet: Straßenroute nicht verfügbar. Routenservice prüfen und erneut alarmieren.')
+                self.changed.wait(remaining)
+
     def road_route(self,a,b,hints=None):
         coords=';'.join(','.join(map(str,point(p))) for p in (a,b))
-        options='overview=full&geometries=geojson&steps=false&annotations=duration,distance'
+        options='overview=full&geometries=geojson&steps=false&annotations=duration,distance&continue_straight=false'
         if hints:options+='&'+urllib.parse.urlencode({'hints':';'.join(hints)})
         return self.request('/route/v1/driving/'+coords+'?'+options)
 
@@ -192,6 +230,8 @@ class Router:
         record={'status':'ready','seconds':max(1,r['duration']),'distance_m':r['distance'],'geometry':geometry,'cumulative':cumulative(geometry),'source':'OSRM · OpenStreetMap'}
         times=segment_times(r,geometry)
         if times:record['time_cumulative']=times
+        if not snap and cumulative([[a['lat'],a['lon']],geometry[0]])[-1]>15:
+            snap={'origin':{'lat':geometry[0][0],'lon':geometry[0][1]},'destination':{'lat':geometry[-1][0],'lon':geometry[-1][1]}}
         if snap:record.update(recovered=True,snap=snap,source='OSRM · OpenStreetMap · Straßen-Fallback')
         self.save(k,record)
         # An unreachable matrix entry may have started this recovery. Replace its

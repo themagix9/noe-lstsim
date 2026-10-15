@@ -34,7 +34,8 @@ class TurnoutTests(unittest.TestCase):
                 self.assertEqual(v['turnout_due'],start+delay)
                 while self.e.state['clock']<start+delay:
                     self.assertIn(v['status'],('assigned','acknowledged'))
-                    self.assertIsNone(v['leg'])
+                    if v['leg']:self.assertEqual(v['leg']['start'],start+delay)
+                    if v['leg']:self.assertGreaterEqual(v['leg']['start'],self.e.state['clock'])
                     self.e.state['clock']+=1
                     if self.e.state['clock']>=v['phase_due']:self.e.advance(v)
                 self.assertEqual(v['status'],'enroute')

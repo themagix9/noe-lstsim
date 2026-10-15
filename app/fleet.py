@@ -4,8 +4,8 @@ import datetime as dt
 from zoneinfo import ZoneInfo
 SOURCE='Nutzerbestätigung 11.10.2026; Bodendienstzeiten noch unbestätigt (24h Übungsannahme)'
 STATIONS=[
- {'id':'nef-baden','name':'NEF Baden · Stützpunktlage prüfen','lat':48.002,'lon':16.246,'address':'Baden · ungeprüfter Übungsstartpunkt','external':True},
- {'id':'nef-moedling','name':'NEF Mödling · Stützpunktlage prüfen','lat':48.087,'lon':16.286,'address':'Mödling · ungeprüfter Übungsstartpunkt','external':True},
+ {'id':'nef-baden','name':'NEF Baden','lat':48.00147,'lon':16.25389,'address':'Rotes Kreuz-Gasse 6, 2500 Baden','external':False},
+ {'id':'nef-moedling','name':'NEF Mödling','lat':48.08133,'lon':16.28427,'address':'Neusiedler Straße 20, 2340 Mödling','external':False},
  {'id':'schwechat','name':'RK Schwechat','lat':48.1384,'lon':16.4802,'address':'Bruck-Hainburger Straße 27, 2320 Schwechat'},
  {'id':'goetzendorf','name':'RK Götzendorf','lat':48.0133,'lon':16.5866,'address':'Dr. Heudrich Gasse 6, 2434 Götzendorf'},
  {'id':'himberg','name':'RK Himberg','lat':48.0835,'lon':16.4372,'address':'Wiener Straße 9, 2325 Himberg'},

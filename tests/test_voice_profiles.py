@@ -17,7 +17,7 @@ class VoiceProfileTests(unittest.TestCase):
         v={'id':'vehicle-1','callsign':'77/001','status':'ready'};expected=resource_profile(v)
         v.update(callsign='77/099',status='scene')
         self.assertEqual(resource_profile(v),expected)
-        self.assertTrue(0<=expected['speaker_id']<236)
+        self.assertEqual(expected['speaker_id'],0);self.assertEqual(expected['model'],'clear')
         self.assertNotEqual(expected,resource_profile({'id':'vehicle-2'}))
     def test_address_reply_uses_structured_facts_without_changing_postcode(self):
         job={'address':'Hauptplatz 6, 2563 Pottenstein','address_point':{'street':'Hauptplatz','house_number':'6','postcode':'2563','city':'Pottenstein'}}
@@ -31,3 +31,9 @@ class VoiceProfileTests(unittest.TestCase):
         self.assertEqual(address_reply({'address':'Hauptstraße 6a, 2320 Schwechat'}),'Ja, wir sind in der Hauptstraße Nummer 6a in 2320 Schwechat.')
         self.assertEqual(speech_text('LEO von 77/001, kommen.'),'LEO von siebenundsiebzig null null eins, kommen.')
         self.assertEqual(number(26),'sechsundzwanzig');self.assertEqual(number(21),'einundzwanzig')
+
+    def test_saved_mls_call_is_migrated_before_audio_preparation(self):
+        job={'id':'old-call','call':{'voice_profile':{'model':'mls','speaker_id':183,'identity':'caller:old-call'}}}
+        expected=caller_profile(job)
+        self.assertEqual(expected,profile('caller:old-call'))
+        self.assertEqual(caller_profile(job),expected)

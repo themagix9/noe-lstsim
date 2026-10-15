@@ -37,5 +37,6 @@ with tempfile.TemporaryDirectory() as directory,patch.dict('os.environ',{'ROUTIN
     sample=speech.synthesize('LEO von siebenundsiebzig null null zwei, kommen.',v['callsign'],identity)
     assert sample.startswith(b'RIFF') and len(sample)>1000
     assert speech.synthesize('LEO von siebenundsiebzig null null zwei, kommen.',v['callsign'],identity)==sample
-    assert 'leo' in speech.voices and 'mls' in speech.voices
+    assert list(speech.voices)==['clear-model']
+    assert j['call']['voice_profile']['model']=='clear' and j['call']['voice_profile']['speaker_id']==0
     engine.db.close()

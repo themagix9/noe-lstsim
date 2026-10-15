@@ -212,7 +212,7 @@ Fensterlayout: Seite bleibt auf die Bildschirmhöhe begrenzt; Ressourcen, Auftr�
 
 „Zur Startseite“ verlässt die Simulation, schließt offene Dialoge und ermöglicht die gespeicherte Sitzung fortzusetzen. Singleplayer wird beim Verlassen pausiert; Multiplayer läuft für die übrigen Disponenten weiter.
 
-Dienststellenadressen Schwechat, Götzendorf, Himberg, Leopoldsdorf, Bruck und Hainburg anhand öffentlicher RK-Seiten geprüft (11.10.2026); Quellenlink im Datensatz. Kartenpunkte bleiben ausdrücklich angenähert und sind noch nicht gebäudegenau verifiziert. NEF Baden/Mödling weiterhin als ungeprüfte Stützpunktlage markiert.
+Dienststellenadressen Schwechat, Götzendorf, Himberg, Leopoldsdorf, Bruck und Hainburg anhand öffentlicher RK-Seiten geprüft (11.10.2026); Quellenlink im Datensatz. Kartenpunkte bleiben ausdrücklich angenähert und sind noch nicht gebäudegenau verifiziert. RK und NEF Mödling/Baden sind seit 15.10.2026 jeweils am gemeinsamen Betreiberstandort hinterlegt; Prüfhinweise wurden entfernt.
 
 ## v0.5: Straßenrouten, echte Adresspunkte, ETA und Funk-Nachforderungen
 
@@ -222,9 +222,20 @@ Krankenhausadressen nach offiziellen Betreiberseiten. Mödling und Hainburg verw
 
 Bodenfahrzeuge erhalten OSRM-Straßenrouten, deren Geometrie für die Kartenbewegung verwendet wird. ETA und Straßenkilometer erscheinen im Ressourcenmodal; ETA enthält eine Ausrückzeit und gegebenenfalls die verbleibende Übergabezeit. Bereits fahrende Ressourcen zeigen ihre Restfahrzeit. NAH bleiben direkte Flugstrecken. Die AAO sortiert nach Routingzeit, sobald diese vorliegt; bis dahin ist der Vorschlag ausdrücklich vorläufig. Es gibt keine Live-Verkehrsdaten und keinen verifizierten Blaulicht-Fahrzeitfaktor.
 
-Standard für kleine private Übungen: `ROUTING_URL=https://routing.openstreetmap.de/routed-car`. Nutzungsbedingungen: https://routing.openstreetmap.de/about.html und https://www.fossgis.de/ — maximal eine Anfrage pro Sekunde, keine starke Nutzung. Der Server bündelt ETA-Abfragen über die Table-API, nutzt einen gemeinsamen Hintergrundworker und persistente SQLite-Caches (7 Tage) und hält mindestens 1,1 Sekunden zwischen Anfragen. Nur Koordinaten werden übermittelt, keine Patientendaten. Die UI enthält OSM-/Routing-Hinweise und „Karte verbessern“. Für dauerhafte oder größere Multiplayer-Nutzung den eigenen OSRM-Dienst verwenden. Wenn Routing nicht erreichbar ist, wartet die Ressource sichtbar; keine unmarkierte Fahrt querfeldein. `ROUTING_ENABLED=0` ist ausschließlich ein ausdrücklich deaktivierter Übungs-/Testmodus mit bisheriger schematischer Bewegung.
+Standard im Docker-/Portainer-Stack ist jetzt der eigene OSRM unter `http://osrm:5000`.
+Der Österreich-Auszug von Geofabrik wird einmalig geladen und vorbereitet; Daten bleiben
+im separaten Volume. Die App startet nach Abschluss der Datenvorbereitung und Start des
+Routers. Dieser große Import wird in CI nicht vollständig ausgeführt; das echte OSRM-Profil
+und die Fahrzeugbewegung werden dort auf einem kleinen Straßennetz geprüft.
+`OSRM_IMAGE` wählt ein gemeinsames Image für Vorbereitung und Router.
 
-Eigener OSRM: `compose.routing.yaml` zusätzlich zu `compose.portainer.yaml` verwenden. Download-, Vorbereitung- und Routingdienste sind enthalten; `ROUTING_URL` wird intern auf `http://osrm:5000` gesetzt. Einmalige Österreich-PBF-Datei von Geofabrik und OSRM-Vorbereitung können lange dauern und benötigen mehrere GB Speicher/RAM. Der Simulator startet bereits und meldet wartendes Routing, bis OSRM bereit ist. Routingdaten bleiben im separaten Volume. `OSRM_IMAGE` kann auf einen festen OSRM-Tag gesetzt werden; Vorbereitung und Server müssen dasselbe Image verwenden. Dieser optionale große Österreich-Import wird in CI nur als Compose-Konfiguration geprüft, nicht vollständig ausgeführt.
+Bei bewusst konfigurierten öffentlichen Diensten gelten deren Nutzungsbedingungen:
+https://routing.openstreetmap.de/about.html und https://www.fossgis.de/ — maximal eine
+Anfrage pro Sekunde, keine starke Nutzung. Öffentliche Router werden weiter auf mindestens
+1,1 Sekunden Anfragenabstand begrenzt. Nur Koordinaten werden übermittelt. ETA-Abfragen
+werden gebündelt; Straßenrouten werden sieben Tage in SQLite zwischengespeichert.
+Die UI behält die OSM-/Routing-Hinweise. `ROUTING_ENABLED=0` ist ausschließlich ein
+expliziter Übungs-/Testmodus mit schematischer Bewegung.
 
 Funkdialog: Mannschaften können vor Ort NEF, RTW-C, weitere RTW, Polizei oder Feuerwehr nachfordern. „LEO von 77/001, kommen“ → „LEO hört“ → Nachforderung → falls nötig „Verstanden, Grund der Nachforderung? Kommen“ → Begründung → benötigte Ressource zum bestehenden Einsatz dazubuchen → Anfahrt bestätigen → Mannschaft quittiert → „LEO Ende“. Ohne verfügbares Rettungsmittel ist eine Zwischenmeldung möglich. Automatische NEF-Nachforderungen werden aus dem simulierten Zustand bzw. einer Verschlechterung ausgelöst; `REINFORCEMENTS_AUTO=0` deaktiviert nur diesen Zufallsteil. Offene Funkdialoge halten die Mannschaft am Berufungsort und werden gespeichert. Einsatzbetreuung schützt die Bedienung im Multiplayer. Kein Sprachmodell und kein medizinisches Entscheidungsmodell erzeugen die Funktexte; es sind nachvollziehbare Übungssituationen.
 
@@ -496,22 +507,24 @@ unterdrückt auch die zusätzliche Verbesserung durch telefonische Anleitung.
 ### Anrufergespräch mit lokaler deutscher Sprachausgabe
 
 Das Docker-Image enthält **Piper TTS 1.3.0** und die deutsche Stimme
-**de_DE-thorsten-high** für LEO sowie **de_DE-mls-medium** mit 236 Sprecher-IDs
-für Anrufer und Ressourcen. Kein API-Schlüssel und kein externer Sprachdienst sind
+**de_DE-thorsten-high** für LEO, Anrufer und Ressourcen. Der frühere MLS-Pool
+wurde wegen unverständlicher Sprecherstimmen entfernt. Alle verwenden vorerst
+dieselbe klare Grundstimme; der Telefonfilter unterscheidet den Anrufer akustisch. Kein API-Schlüssel und kein externer Sprachdienst sind
 nötig. Sprache wird auf der CPU im Container erzeugt; begrenzter gemeinsamer
 Audio-Cache und zwei ONNX-Rechenthreads begrenzen Speicher und CPU-Belastung.
 Folgende Beiträge werden während des laufenden Gesprächs vorbereitet, damit
 Wiedergabe nicht auf die Synthese der nächsten Zeile warten muss.
 LEO hat eine feste eigene Stimme. Jeder Anrufer erhält einmal pro Telefonat eine
-gespeicherte Sprecher-ID; jede Ressource hat eine aus ihrer unveränderlichen ID
-abgeleitete feste Sprecher-ID. Status- oder Funkkennungswechsel verändern sie nicht.
+gespeicherte Identität; jede Ressource behält ihre feste Identität. Aktuell verwenden
+alle Sprecher-ID 0 des klaren Modells, ohne zufällige Stimmvarianten. Alte MLS-Zuordnungen
+werden auch in bestehenden Sitzungen ersetzt. Status- oder Funkkennungswechsel verändern sie nicht.
 In den Ressourcen-Einstellungen kann die Stimme probegehört werden. Dies bereitet
 die Funksprachausgabe vor; laufende Funkgespräche werden noch nicht vorgelesen.
 Es gibt keine Tonhöhenverschiebung und keine zeitliche Anpassung einzelner Zeilen. Der Anrufer kann
 zusätzlich einen Telefonfilter (300–3.400 Hz und Kompression) bekommen.
 In den Einstellungen lassen sich Stimme, Telefonklang und Lautstärke ändern.
 `TTS_ENABLED=0` schaltet die Synthese serverseitig ab; `TTS_MODEL` erlaubt einen
-eigenen kompatiblen LEO-Modellpfad, `TTS_CREW_MODEL` den MLS-Modellpfad.
+eigenen kompatiblen deutschen Einzelsprecher-Modellpfad. `TTS_CREW_MODEL` wird nicht mehr verwendet.
 
 Für kurze Gespräche bleibt 30–45 Sekunden das Ziel. Die Dauer entsteht durch
 kürzere, szenariogerechte Formulierungen, nicht durch Veränderung der
@@ -536,7 +549,8 @@ sehen denselben Verlauf, nur der betreuende Spieler steuert und hört den Anruf.
 
 Quellen und Lizenzen: [Piper Quellcode, GPL-3.0](https://github.com/OHF-Voice/piper1-gpl/tree/v1.3.0)
 , [Thorsten Modellkarte, CC0-Datensatz](https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/thorsten/high/MODEL_CARD)
-und [MLS-Modellkarte](https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/mls/medium/MODEL_CARD).
+Historische Quelle des inzwischen entfernten MLS-Modells:
+[MLS-Modellkarte](https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/mls/medium/MODEL_CARD).
 MLS basiert auf Multilingual LibriSpeech von Vineel Pratap, Qiantong Xu, Anuroop
 Sriram, Gabriel Synnaeve und Ronan Collobert (2020), LibriVox-Aufnahmen,
 [OpenSLR 94](https://www.openslr.org/94/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
@@ -571,3 +585,34 @@ Luftlinien als angebliche Straßenrouten ausgegeben. Sind beide Routendienste
 ausgefallen und fehlt eine passende Cache-Route, bleibt die Fahrt bis zu einer
 erreichbaren Straßenroute wartend. Bereits gespeicherte Routen funktionieren
 weiter ohne Netz.
+
+
+### Routing ab 15.10.2026: eigener Straßenrouter im Standard-Stack
+
+`compose.portainer.yaml` und `compose.yaml` enthalten jetzt `osm-download`,
+`osm-prepare` und `osrm`. Beim ersten Start wird der Österreich-OSM-Auszug von
+Geofabrik geladen und mit dem österreichischen Geschwindigkeitsprofil vorbereitet.
+Dieser einmalige Schritt benötigt Zeit, freien Speicher und RAM; die Daten bleiben
+im Volume `routing-data` erhalten. Die Initialisierung steht in den Containerlogs.
+`compose.routing.yaml` bleibt als kompatible Überschreibung bestehender Setups erhalten.
+
+**In Portainer die Stack-Datei aus Git aktualisieren und den Stack neu bereitstellen.**
+Ein reiner Austausch des App-Images legt die neuen Routing-Services nicht an.
+Alte `ROUTING_URL`-Umgebungsvariablen gegebenenfalls auf `http://osrm:5000` ändern
+oder entfernen. Der öffentliche Ersatzrouter bleibt ein Notbehelf für Ausfälle.
+
+Vor einer manuellen Alarmierung berechnet der Server die vollständigen Straßenrouten
+aller ausgewählten Bodenfahrzeuge parallel, ohne die Simulation oder andere Sitzungen
+zu sperren. Erst dann werden Alarmierung und SDS/ESApp gemeinsam übernommen. Scheitert
+die Berechnung, erscheint eine Fehlermeldung und es wird keine Alarmierung vorgetäuscht.
+Die vorbereitete Route wird bei Quittierung/Ausrücken wiederverwendet. Bei Fahrzeugen
+in Status 6 wird eine inzwischen fortgeschrittene Position auf derselben Route berücksichtigt;
+eine nicht mehr passende Route wird vor der Alarmierung zurückgewiesen.
+
+Startpunkte abseits der Straße werden auf einen erreichbaren Straßenanschluss gesetzt.
+Status 9 kann bereits eine vorbereitete Fahrstrecke enthalten; die simulierte Ausrückzeit
+und eine noch laufende Patientenübergabe bleiben berücksichtigt. Straßenbewegung wird
+in 2/4/6/7/9 dargestellt. Standort halten, Tankvorgang und Spielpause bleiben absichtliche
+Stopps. Verlorene Fahrstrecken alter Spielstände werden für Anfahrt, Transport und
+freie Rückfahrt wiederhergestellt. Bekannte Ziel- und Rückfahrten werden während Versorgung
+und Übergabe vorab angefragt. Es gibt weiterhin keine erfundene Querfeldein-Straßenroute.

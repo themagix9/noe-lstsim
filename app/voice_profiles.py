@@ -1,12 +1,16 @@
-"""Stable synthetic voice identities, independent of wording, status and callsign."""
-import hashlib
+"""Stable identities using the intelligible single-speaker German model.
 
+The former MLS pool is intentionally retired: arbitrary speaker IDs produced
+unintelligible calls. Identity remains stable, but is not a promise of a unique
+human voice for every resource. Telephone filtering distinguishes callers.
+"""
 def profile(identity):
-    if identity=='LEO':return {'model':'leo','speaker_id':0,'identity':'LEO'}
-    number=int.from_bytes(hashlib.sha256(str(identity).encode()).digest()[:8],'big')%236
-    return {'model':'mls','speaker_id':number,'identity':str(identity)}
+    return {'model':'leo' if identity=='LEO' else 'clear','speaker_id':0,'identity':str(identity)}
 
 def caller_profile(job):
-    return job['call'].setdefault('voice_profile',profile('caller:'+job['id']))
+    current=job['call'].get('voice_profile')
+    if not current or current.get('model')!='clear' or current.get('speaker_id')!=0:
+        job['call']['voice_profile']=profile('caller:'+job['id'])
+    return job['call']['voice_profile']
 
 def resource_profile(vehicle):return profile('resource:'+vehicle['id'])

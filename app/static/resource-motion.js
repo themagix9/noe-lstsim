@@ -1,7 +1,7 @@
 'use strict';
 // Draw along the server's route between live snapshots, without rendering forms.
 (function(root){
- const moving=new Set(['enroute','transport','radio','duty']);
+ const moving=new Set(['enroute','transport','radio','duty','acknowledged']);
  function position(leg,fraction){
   const f=Math.max(0,Math.min(1,fraction)),coords=leg.geometry,weights=leg.time_cumulative||leg.cumulative;
   if(coords?.length>=2&&weights?.length===coords.length&&weights.at(-1)>0){

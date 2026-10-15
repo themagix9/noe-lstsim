@@ -43,8 +43,8 @@ class HTTPTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as error:self.req('/api/resource_voice?vehicle=x')
         self.assertEqual(error.exception.code,503)
         vehicle=json.load(self.req('/api/state'))['vehicles'][0]
-        self.assertEqual(vehicle['voice_profile']['model'],'mls')
-        self.assertTrue(0<=vehicle['voice_profile']['speaker_id']<236)
+        self.assertEqual(vehicle['voice_profile']['model'],'clear')
+        self.assertEqual(vehicle['voice_profile']['speaker_id'],0)
     def test_unknown_route(self):
         with self.assertRaises(urllib.error.HTTPError) as err:self.req('/missing')
         self.assertEqual(err.exception.code,404)

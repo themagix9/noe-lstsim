@@ -94,7 +94,7 @@ class Operations:
 
     def detach(self,v):
         if not v['job']:return
-        v.pop('signal',None);v.pop('fr_number',None)
+        v.pop('signal',None);v.pop('fr_number',None);v.pop('prepared_route',None)
         v.pop('transport_destination',None);v.pop('transport_target',None)
         old=self.get('jobs',v['job'])
         if v['status']=='hospital' and v['type'] not in ('NEF','FR'):self.delivered_patient(old,v)
@@ -119,7 +119,7 @@ class Operations:
         v.pop('holding',None);v.pop('held_at',None)
         now=self.state['clock']
         j=next((j for j in self.state['jobs'] if j['id']==v.get('job')),None)
-        factor=self.response_factor(v,j) if status in ('enroute','transport') else self.response_factor(v,j) if v['type']=='NAH' else 1.0
+        factor=self.response_factor(v,j) if status in ('enroute','transport','acknowledged') else self.response_factor(v,j) if v['type']=='NAH' else 1.0
         if v['type']=='NAH' or not self.router.enabled:
             duration=max(60 if v['type']=='NAH' else minimum,distance(v,target)*(1 if v['type']=='NAH' else 1.25)/(v.get('flight_speed',220) if v['type']=='NAH' else 45)*3600*factor)
             v.update(status=status,route_state='flight' if v['type']=='NAH' else 'disabled',phase_due=now+duration,leg={'start':now,'end':now+duration,'lat':v['lat'],'lon':v['lon'],'target_lat':target['lat'],'target_lon':target['lon'],'time_factor':factor})
@@ -129,13 +129,19 @@ class Operations:
 
     def resolve_route(self,v):
         leg=v['leg'];origin={'lat':leg['lat'],'lon':leg['lon']};target={'lat':leg['target_lat'],'lon':leg['target_lon']}
-        route=self.router.route(origin,target);v['route_state']=route['status']
+        prepared=v.get('prepared_route')
+        if prepared and all(abs(prepared['target'][name]-target[name])<.00001 for name in ('lat','lon')):
+            route=prepared['route'];v.pop('prepared_route',None)
+        else:route=self.router.route(origin,target)
+        v['route_state']=route['status']
         if route['status']!='ready':return
         now=self.state['clock'];duration=route['seconds']*leg.get('time_factor',1.0)
         if route.get('recovered'):
             v.update(lat=route['geometry'][0][0],lon=route['geometry'][0][1])
             self.log(f'{v["callsign"]}: Straßen-Fallback, Position auf erreichbare Straße versetzt; Anfahrt wird fortgesetzt.','System')
+        transition=v.get('phase_due') if v['status']=='acknowledged' else None
         v.update(phase_due=now+duration,leg={**leg,'waiting':False,'start':now,'end':now+duration,'geometry':route['geometry'],'cumulative':route['cumulative'],'time_cumulative':route.get('time_cumulative'),'distance_m':route['distance_m'],'recovered':bool(route.get('recovered')),'snap':route.get('snap')})
+        if transition is not None:v['phase_due']=transition
 
     def dispatch(self,data):
         j=self.get('jobs',data['job']);ids=data.get('vehicles',[])
@@ -150,6 +156,12 @@ class Operations:
         for v in selected:
             if not self.sendable(v,j):raise ValueError(f'{v["callsign"]} kann den Auftrag noch nicht erhalten (Status 1, 5 oder 6 erforderlich).')
             if v['status']=='hospital' and j['kind']!='transport':raise ValueError('Während der Übergabe nur Transportaufträge senden.')
+        plans=data.get('_planned_routes')
+        if plans is not None:
+            if any(any(abs(plan['target'][name]-j[name])>.00001 for name in ('lat','lon')) for plan in plans.values()):raise ValueError('Einsatzort hat sich während der Routenberechnung geändert; bitte erneut alarmieren.')
+            from routing import rebase_route
+            plans={id:{**plan,'route':rebase_route(plan['route'],self.get('vehicles',id),plan['origin'])} for id,plan in plans.items()}
+            if any(v['type']!='NAH' and v['id'] not in plans for v in selected):raise ValueError('Ressourcenauswahl hat sich geändert; bitte erneut alarmieren.')
         if 'signal' in data:
             if not isinstance(data['signal'],bool):raise ValueError('Signalfahrt ein- oder ausschalten.')
         if j.get('call',{}).get('state')=='connected' and not j['call'].get('automatic'):raise ValueError('Notruf zuerst vollständig abfragen.')
@@ -183,6 +195,11 @@ class Operations:
             v.pop('holding',None);v.pop('held_at',None)
             v.update(signal=j['signal'],turnout_seconds=delay,turnout_due=max(now,handover or now)+delay,direct_departure=direct)
             v.update(status='standby' if data.get('standby') else 'assigned',alarm_from=previous,job=j['id'],phase_due=(now+random.randint(20,45) if data.get('standby') else v['turnout_due'] if direct else now+max(1,int(delay*.4))),ack_deadline=self.state['clock']+600,handover_due=handover,leg=None,manual_out=False)
+            if plans and v['id'] in plans:
+                v['prepared_route']=plans[v['id']];v['route_state']='ready'
+            elif self.router.enabled and v['type']!='NAH':
+                # Internal support/legacy dispatch also starts routing at alarm time.
+                self.router.route(v,j)
             j['vehicles'].append(v['id']);j.setdefault('dispatched_at',now)
             if v.get('reservation')==j['id']:v['reservation']=None;j['reserved']=None
             self.log(f'{v["type"]} {v["callsign"]}: '+('Bereitschaft' if data.get('standby') else 'Alarmiert auf Wache' if previous=='ready' else 'Alarmiert über Funk')+'.','Status')
@@ -200,7 +217,12 @@ class Operations:
         v['ack_deadline']=None
         if direct:self.depart(v)
         else:
-            v.update(status='acknowledged',phase_due=max(self.state['clock'],v.get('turnout_due') or self.state['clock']+15,v.get('handover_due') or 0))
+            due=max(self.state['clock'],v.get('turnout_due') or self.state['clock']+15,v.get('handover_due') or 0)
+            if v.get('alarm_from')=='radio':due=max(self.state['clock'],v.get('handover_due') or 0)
+            self.drive(v,self.get('jobs',v['job']),'acknowledged')
+            if v.get('leg') and not v['leg'].get('waiting'):
+                delay=due-self.state['clock'];v['leg']['start']+=delay;v['leg']['end']+=delay
+            v.update(phase_due=due)
             self.log(f'{v["callsign"]}, Status 9: alarmiert und quittiert.')
 
     def depart(self,v):
@@ -208,7 +230,10 @@ class Operations:
             v.update(status='acknowledged',phase_due=v['handover_due']);return
         self.number_responder(v)
         v['turnout_due']=None;v['ack_deadline']=None
-        j=self.get('jobs',v['job']);self.drive(v,j,'enroute')
+        j=self.get('jobs',v['job'])
+        if v.get('leg') and v['status']=='acknowledged':
+            v['status']='enroute';v['phase_due']=v['leg'].get('end')
+        else:self.drive(v,j,'enroute')
         self.log(f'{v["callsign"]}, Status 2: zum Berufungsort {j["place"]}.')
 
     def crew_destination(self,v):
@@ -341,7 +366,19 @@ class Operations:
                 self.log(f'Bettenmann Wien: {self.get("hospitals",j["destination"])["name"]}, Kasusnummer {j["case_number"]}.','Bettenmann')
         for v in self.state['vehicles']:
             leg=v.get('leg')
-            if v['status']=='transport' and v.get('job') and not leg:
+            if not leg and v['status']=='enroute' and v.get('job'):
+                self.drive(v,self.get('jobs',v['job']),'enroute');leg=v.get('leg')
+            if not leg and v['status'] in ('radio','duty') and not v.get('job') and not v.get('holding') and not v.get('fueling') and not v.get('phase_due'):
+                from engine import distance
+                if distance(v,self.home(v))>.02:self.drive(v,self.home(v),v['status']);leg=v.get('leg')
+            if self.router.enabled and v['type']!='NAH' and v['status'] in ('scene','hospital'):
+                # Prepare the next known leg during treatment / the 3-minute handover.
+                target=self.home(v) if v['status']=='hospital' else v.get('transport_target')
+                if not target and v.get('job'):
+                    job=self.get('jobs',v['job'])
+                    if job.get('destination'):target=self.get('hospitals',job['destination'])
+                if target:self.router.route(v,target)
+            if v['status']=='transport'  and v.get('job') and not leg:
                 # Recover older persisted transports which lost their active route.
                 j=self.get('jobs',v['job']);h=v.get('transport_target') or __import__('hospitals').destination(self,j)
                 from engine import distance
@@ -363,7 +400,8 @@ class Operations:
                 self.log(f'{v["callsign"]}: Quittierungsfrist von 10 Minuten überschritten. Mannschaft nachfragen.','System');v['ack_deadline']=None
 
     def advance(self,v):
-        now=self.state['clock'];home=self.home(v);status=v['status'];v['leg']=None
+        now=self.state['clock'];home=self.home(v);status=v['status']
+        if status!='acknowledged':v['leg']=None
         if status in ('assigned','standby'):self.acknowledge(v,direct=status=='assigned' and v.get('direct_departure',False));return
         if status=='acknowledged':self.depart(v);return
         if status=='enroute':
