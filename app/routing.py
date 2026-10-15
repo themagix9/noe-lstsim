@@ -30,11 +30,25 @@ def cumulative(coords):
     return sums
 
 def position(leg,fraction):
-    coords=leg['geometry'];weights=leg['cumulative'];target=max(0,min(1,fraction))*weights[-1]
+    coords=leg['geometry'];weights=leg.get('time_cumulative') or leg['cumulative'];target=max(0,min(1,fraction))*weights[-1]
     import bisect
     i=min(len(coords)-2,max(0,bisect.bisect_right(weights,target)-1))
     f=(target-weights[i])/(weights[i+1]-weights[i]) if weights[i+1]>weights[i] else 0
     return {name:coords[i][n]+(coords[i+1][n]-coords[i][n])*f for n,name in enumerate(('lat','lon'))}
+
+def segment_times(route,geometry):
+    """Annotation durations share full-geometry segments; fall back on bad data.
+
+    OSRM excludes turn penalties from annotations. Normalize their sum to the
+    complete route duration when interpolating, keeping ETA and arrival equal.
+    """
+    durations=[value for leg in route.get('legs',[]) for value in leg.get('annotation',{}).get('duration',[])]
+    if len(durations)!=len(geometry)-1 or any(not isinstance(x,(int,float)) or not math.isfinite(x) or x<0 for x in durations):return None
+    total=sum(durations)
+    if total<=0:return None
+    sums=[0.0]
+    for duration in durations:sums.append(sums[-1]+duration)
+    return sums
 
 class Router:
     def __init__(self,path,url=None,enabled=None,fetcher=None):
@@ -50,12 +64,12 @@ class Router:
         if self.enabled:
             threading.Thread(target=self.worker,args=(self.journeys,),daemon=True,name='road-journeys').start()
             threading.Thread(target=self.worker,args=(self.tasks,),daemon=True,name='road-etas').start()
-    def cachekey(self,a,b):return self.url+'|'+key(a,b)
+    def cachekey(self,a,b):return self.url+'|segment-times-v1|'+key(a,b)
     def save(self,k,result):
         with self.lock:
             if k.startswith('eta|') and result['status']!='ready':
                 road=self.items.get('route|'+k[4:],{})
-                if road.get('status')=='ready':result={name:value for name,value in road.items() if name not in ('geometry','cumulative')}
+                if road.get('status')=='ready':result={name:value for name,value in road.items() if name not in ('geometry','cumulative','time_cumulative')}
             self.items[k]=result
             if result['status']=='ready':
                 self.db.execute('INSERT OR REPLACE INTO routes VALUES (?,?,?)',(k,json.dumps(result),time.time()));self.db.commit()
@@ -102,7 +116,7 @@ class Router:
         return {'status':'pending'}
     def road_route(self,a,b,hints=None):
         coords=';'.join(','.join(map(str,point(p))) for p in (a,b))
-        options='overview=full&geometries=geojson&steps=false'
+        options='overview=full&geometries=geojson&steps=false&annotations=duration,distance'
         if hints:options+='&'+urllib.parse.urlencode({'hints':';'.join(hints)})
         return self.request('/route/v1/driving/'+coords+'?'+options)
 
@@ -147,11 +161,13 @@ class Router:
         if not 2<=len(geometry)<=100000 or any(not -90<=a<=90 or not -180<=b<=180 for a,b in geometry):raise ValueError('Invalid route geometry')
         if not math.isfinite(r['duration']) or r['duration']<0 or not math.isfinite(r['distance']) or r['distance']<0:raise ValueError('Invalid route estimate')
         record={'status':'ready','seconds':max(1,r['duration']),'distance_m':r['distance'],'geometry':geometry,'cumulative':cumulative(geometry),'source':'OSRM · OpenStreetMap'}
+        times=segment_times(r,geometry)
+        if times:record['time_cumulative']=times
         if snap:record.update(recovered=True,snap=snap,source='OSRM · OpenStreetMap · Straßen-Fallback')
         self.save(k,record)
         # An unreachable matrix entry may have started this recovery. Replace its
         # provisional ETA when the actual drivable route has been found.
-        self.save('eta|'+self.cachekey(a,b),{name:value for name,value in record.items() if name not in ('geometry','cumulative')})
+        self.save('eta|'+self.cachekey(a,b),{name:value for name,value in record.items() if name not in ('geometry','cumulative','time_cumulative')})
     def estimates(self,origins,target):
         if not self.enabled:return {v['id']:{'status':'disabled'} for v in origins}
         unique={self.cachekey(v,target):v.copy() for v in origins}
@@ -189,7 +205,7 @@ class Router:
                 # hundreds of recovery routes from one ETA matrix: only an
                 # actual journey starts recovery, at driving priority.
                 with self.lock:road=self.items.get('route|'+self.cachekey(v,target),{})
-                if road.get('status')=='ready':record={name:value for name,value in road.items() if name not in ('geometry','cumulative')}
+                if road.get('status')=='ready':record={name:value for name,value in road.items() if name not in ('geometry','cumulative','time_cumulative')}
             self.save('eta|'+self.cachekey(v,target),record)
     def cached_eta(self,v,j):
         with self.lock:return self.items.get('eta|'+self.cachekey(v,j))

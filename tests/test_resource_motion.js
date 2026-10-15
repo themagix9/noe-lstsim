@@ -25,3 +25,8 @@ motion.sync({clock:100,speed:60,paused:false,session:{me:'two'}});motion.attach(
 motion.sync({clock:100,speed:1,paused:false,session:{me:'two'}});motion.attach(vehicle,layer);const start=drawn[1];frame(9110);assert(drawn[1]>start);
 // Duplicate snapshots from form commands do not restart the interpolation clock.
 motion.sync({clock:100,speed:1,paused:false,session:{me:'two'}});frame(9210);assert(drawn[1]>start+.3);motion.clear();
+
+// Mixed road classes: annotation time, rather than equal distance, sets progress.
+const mixed={...leg,time_cumulative:[0,36,130]};
+assert.deepEqual(Array.from(position(mixed,36/130)),[0,10]);
+assert(position(mixed,.5)[0]>0);

@@ -12,6 +12,19 @@ class RouteTests(unittest.TestCase):
     tearDown=helpers.FleetTests.tearDown
     vehicle=helpers.FleetTests.vehicle
     job=helpers.FleetTests.job
+    def test_segment_times_drive_server_position_by_time_not_distance(self):
+        from routing import segment_times
+        geometry=[[48,16],[48,16.01],[48,16.02]]
+        route={'duration':150,'legs':[{'annotation':{'duration':[36,94]}}]}
+        times=segment_times(route,geometry)
+        self.assertEqual(times,[0,36,130])
+        leg={'geometry':geometry,'cumulative':cumulative(geometry),'time_cumulative':times}
+        self.assertAlmostEqual(position(leg,36/130)['lon'],16.01)
+        self.assertGreater(position(leg,.5)['lon'],16.01)
+        self.assertIsNone(segment_times({'legs':[{'annotation':{'duration':[10]}}]},geometry))
+        self.assertIsNone(segment_times({'legs':[{'annotation':{'duration':[float('nan'),1]}}]},geometry))
+        self.assertIsNone(segment_times({'legs':[{'annotation':{'duration':[0,0]}}]},geometry))
+
     def test_eta_pending_has_deadline_even_when_queue_is_full(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as directory:
@@ -55,11 +68,11 @@ class RouteTests(unittest.TestCase):
             def fetch(path):
                 responses.append(path)
                 if path.startswith('/table'):return {'code':'Ok','durations':[[120],[360]],'distances':[[1400],[5100]]}
-                return {'code':'Ok','routes':[{'duration':120,'distance':1400,'geometry':{'coordinates':[[16,48],[16,48.01],[16.01,48.01]]}}]}
+                return {'code':'Ok','routes':[{'duration':120,'distance':1400,'geometry':{'coordinates':[[16,48],[16,48.01],[16.01,48.01]]},'legs':[{'annotation':{'duration':[20,100]}}]}]}
             router=Router(Path(directory)/'cache.db',enabled=False,fetcher=fetch)
             a={'id':'a','lat':48,'lon':16};b={'id':'b','lat':48.02,'lon':16.04};target={'lat':48.01,'lon':16.01}
             k='route|'+router.cachekey(a,target);router.fetch_route(k,a,target);router.fetch_matrix([a,b],target)
-            self.assertEqual(router.items[k]['geometry'][1],[48.01,16]);self.assertEqual(router.cached_eta(b,target)['seconds'],360)
+            self.assertEqual(router.items[k]['geometry'][1],[48.01,16]);self.assertEqual(router.items[k]['time_cumulative'],[0,20,120]);self.assertEqual(router.cached_eta(b,target)['seconds'],360)
             router.db.close();router=Router(Path(directory)/'cache.db',enabled=False)
             self.assertEqual(router.items[k]['seconds'],120);router.db.close()
             self.assertIn('geometries=geojson',responses[0]);self.assertIn('sources=0;1&destinations=2',responses[1])

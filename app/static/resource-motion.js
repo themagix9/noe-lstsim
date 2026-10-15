@@ -3,7 +3,7 @@
 (function(root){
  const moving=new Set(['enroute','transport','radio','duty']);
  function position(leg,fraction){
-  const f=Math.max(0,Math.min(1,fraction)),coords=leg.geometry,weights=leg.cumulative;
+  const f=Math.max(0,Math.min(1,fraction)),coords=leg.geometry,weights=leg.time_cumulative||leg.cumulative;
   if(coords?.length>=2&&weights?.length===coords.length&&weights.at(-1)>0){
    const distance=f*weights.at(-1);let low=0,high=weights.length-1;
    while(low+1<high){const middle=(low+high)>>1;if(weights[middle]<=distance)low=middle;else high=middle}

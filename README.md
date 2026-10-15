@@ -422,3 +422,30 @@ Klick/Rechtsklick auf eine Fahrzeugzeile oder Enter/Leertaste öffnet ein bei Li
 ### Funkhäufigkeit nach Einsatzart
 
 Routine-Krankentransporte erzeugen nur sehr selten eine automatische Lagemeldung (3 % Spielwahrscheinlichkeit pro Auftrag). Die Patientenaufnahme/Status 4 bleibt eine Statusmeldung, kein Funkgespräch. Einfache RD-Einsätze erzeugen weniger Routinefunk: A 10 %, B 25 %, C 60 %, D/E immer. Die Zufallsentscheidung bleibt pro Einsatz gespeichert und wird nicht bei jedem Update erneut gewürfelt. Bei mehreren gebundenen RD-/Unterstützungsressourcen, MANV oder kritischem Patientenzustand wird die Lagemeldung unabhängig davon angeboten. Notwendige Nachforderungen, Fehlfahrten, Wiener Zielabklärung und bewusst ausgelöste Funkaufträge bleiben erhalten. Stille Routine-Zielmeldungen aktualisieren das Transportziel weiterhin korrekt. Dies sind abstimmbare Spielwerte, keine empirischen Häufigkeiten.
+
+
+### Straßengeschwindigkeiten und Abschnittsbewegung
+
+Der optionale eigene OSRM-Dienst verwendet `routing/noe-car.lua`: Basis Autobahn
+130 km/h, Schnellstraße (auch als Autobahn erfasste S-Referenzen) 100 km/h,
+Ortsstraßen 50 km/h. Explizite OSM-Tempolimits wie 30 km/h, `AT:urban` und
+`AT:rural` sowie langsamere Rampen, Zufahrten und Oberflächen berücksichtigt das
+OSRM-Profil weiterhin. Nicht eindeutig gekennzeichnete normale Straßen fallen
+auf 50 km/h zurück; dies ersetzt keine vollständige Ortsgebietsabgrenzung.
+Abbiegezeiten kommen hinzu. Der vorhandene Blaulicht-Fahrzeitfaktor wird genau
+einmal auf die normale Fahrzeit angewendet, nicht auf die Ausrückzeit; Faktor
+0,85 bedeutet 15 % kürzere Fahrzeit. FR erhalten keinen Blaulichtbonus,
+Hubschrauber behalten ihr Flugmodell.
+
+Für dieses Profil beide Compose-Dateien verwenden. Der Profilhash löst auch bei
+bestehenden Routing-Volumes einen erneuten Österreich-Import aus. Beim eigenen
+Portainer-Git-Stack muss `routing/noe-car.lua` neben den Compose-Dateien verfügbar
+sein. Ein öffentlicher OSRM-Server bleibt bei seinem Betreiberprofil; die
+Simulation kann dessen Geschwindigkeiten nicht umkonfigurieren.
+
+Routen fordern OSRM-Abschnittszeiten an. Kartenanimation und Serverposition
+verwenden dieselbe zeitliche Verteilung statt gleichmäßiger Kilometer pro
+Sekunde auf der gesamten Route. Ohne gültige Annotationen bleibt die bisherige
+Interpolation erhalten. Alte Routen-Caches werden für neue Fahrten nicht
+weiterverwendet; bereits laufende Fahrten bleiben erhalten. Es gibt keine
+Live-Stau-, Ampel- oder Beschleunigungssimulation.

@@ -22,14 +22,17 @@ services:
     restart: "no"
 
   osm-prepare:
+    configs:
+      - source: noe-car-profile
+        target: /opt/noe-car.lua
     image: ${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}
     entrypoint: /bin/sh
     command:
       - -ec
       - |
-        version=$$(osrm-routed --version)
+        version="$$(osrm-routed --version):$$(sha256sum /opt/noe-car.lua | cut -d' ' -f1)"
         if [ ! -f /data/ready ] || [ "$$(cat /data/ready)" != "$$version" ]; then
-          osrm-extract -p /opt/car.lua /data/austria.osm.pbf
+          osrm-extract -p /opt/noe-car.lua /data/austria.osm.pbf
           osrm-partition /data/austria.osrm
           osrm-customize /data/austria.osrm
           printf '%s' "$$version" > /data/ready
@@ -57,3 +60,7 @@ services:
 
 volumes:
   routing-data:
+
+configs:
+  noe-car-profile:
+    file: ./routing/noe-car.lua
