@@ -1,5 +1,6 @@
 import os
 os.environ.setdefault("RADIO_INTERVAL","0")
+os.environ.setdefault("CALL_AUTO","0")
 import copy
 import datetime as dt
 from pathlib import Path

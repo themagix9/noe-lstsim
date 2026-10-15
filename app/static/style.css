@@ -200,3 +200,14 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 .map-icons-small .resource-marker .map-status-number{font-size:10px;line-height:14px}
 #fleet-table tr[data-fleet-vehicle]{cursor:pointer}#fleet-table tr[data-fleet-vehicle]:focus{outline:2px solid #2563eb;outline-offset:-2px}
 .vehicle-menu{position:fixed;z-index:3000;width:290px;max-width:calc(100vw - 16px);padding:10px;background:#fff;border:1px solid #becbd9;border-radius:9px;box-shadow:0 7px 28px #12243b44;display:grid;gap:6px}.vehicle-menu[hidden]{display:none}.vehicle-menu button{text-align:left}.vehicle-menu p{margin:4px 0;font-size:12px;color:#596c82}
+
+/* Full chronological phone dialogue; only the transcript scrolls, Weiter stays visible. */
+#dispatch-dialog #detail-panel-kommunikation.call-panel:not([hidden]){display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden;gap:8px}
+#dispatch-dialog .call-panel #radio-detail{flex:0 1 auto;min-height:0;max-height:40%;overflow:auto}
+#dispatch-dialog .call-panel #radio-detail:empty{display:none}
+#dispatch-dialog .call-panel>.destination-card{flex:0 0 auto;margin:0;padding:8px}
+#dispatch-dialog .call-panel .call-dialogue{display:flex;flex-direction:column;flex:1 1 0;min-height:140px;overflow:hidden;margin:0;padding:12px}
+#dispatch-dialog .call-panel .call-transcript{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;max-height:none}
+#dispatch-dialog .call-panel .phone-line{flex:0 0 auto}
+#dispatch-dialog .call-panel .call-dialogue>h3,#dispatch-dialog .call-panel #call-progress,#dispatch-dialog .call-panel #call-continue{flex:0 0 auto}
+#dispatch-dialog .call-panel #call-continue{width:100%;margin-top:6px}

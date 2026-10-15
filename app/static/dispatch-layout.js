@@ -7,7 +7,7 @@ window.DispatchLayout=(()=>{
   scheduled=false;const dialog=document.getElementById('dispatch-dialog');
   if(!dialog?.open)return;
   const panel=dialog.querySelector('[role="tabpanel"]:not([hidden])');if(!panel)return;
-  if(panel.id==='detail-panel-disposition')return;
+  if(panel.id==='detail-panel-disposition'||panel.matches('.call-panel'))return;
   const key=(document.getElementById('detail').dataset.job||'')+':'+panel.id;
   panel.querySelectorAll('.dispatch-page-hidden').forEach(e=>e.classList.remove('dispatch-page-hidden'));
   let nav=panel.querySelector(':scope > .dispatch-page-nav');nav?.remove();

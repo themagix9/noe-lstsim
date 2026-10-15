@@ -27,3 +27,9 @@ def start_session(page):
     page.evaluate("command('control',{paused:true})")
     expect(page.locator('#playback-title')).to_have_text('Spiel pausiert')
     if not (previews/'pause-screen.png').exists():page.screenshot(path=str(previews/'pause-screen.png'))
+
+def wait_for_auto_call(page, job=None):
+    page.wait_for_function("id=>{const j=state.jobs.find(j=>j.id===(id||selected));return j?.call?.state==='ended'}",arg=job,timeout=45000)
+    from playwright.sync_api import expect
+    expect(page.locator('#call-next')).to_have_count(0)
+    expect(page.locator('#call-continue')).to_be_enabled()

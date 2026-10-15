@@ -11,7 +11,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit,parse_qs
 from playwright.sync_api import sync_playwright,expect
-from browser_helpers import on_tab, choose_code, start_session
+from browser_helpers import on_tab, choose_code, start_session, wait_for_auto_call
 
 root=Path(__file__).resolve().parents[1]
 class Routing(BaseHTTPRequestHandler):
@@ -37,10 +37,14 @@ with tempfile.TemporaryDirectory() as data:
                 assert not p.evaluate("document.getElementById('dispatch-dialog').matches(':modal')")
                 expect(p.locator('#pause')).to_be_enabled();p.locator('#pause').click();expect(p.locator('#running')).to_have_text('SIMULATION LÄUFT')
                 p.locator('#accept').tap();expect(p.locator('.call-dialogue')).to_contain_text('Rettungsleitstelle Niederösterreich, wo genau ist der Notfallort?');expect(p.locator('#dispatch')).to_be_disabled()
-                for _ in range(3):
-                    with p.expect_response(lambda r:r.url.endswith('/api/call_question')) as answer:p.locator('#call-next').tap()
-                    assert answer.value.ok,answer.value.text()
-                expect(p.locator('#call-finish')).to_be_visible();p.locator('#call-finish').tap();expect(p.locator('.call-dialogue')).to_contain_text('Telefonat beendet');expect(p.locator('.call-dialogue')).to_contain_text('Wir schicken jemanden zu Ihnen.')
+                expect(p.locator('#call-continue')).to_be_disabled()
+                wait_for_auto_call(p,job)
+                expect(p.locator('.call-dialogue')).to_contain_text('Wir schicken jemanden zu Ihnen.')
+                expect(p.locator('.call-transcript .phone-line')).to_have_count(10)
+                assert p.locator('.call-transcript .phone-line[hidden]').count()==0
+                lines=p.evaluate("state.jobs.find(j=>j.id===selected).call.transcript")
+                assert all(b['spoken_at']-a['spoken_at']>=2 for a,b in zip(lines,lines[1:])),lines
+                p.locator('#call-continue').tap();assert p.evaluate("detailTab==='disposition'")
                 on_tab(p, 'disposition');expect(p.locator('#detail > .job-top')).not_to_contain_text('RD-');p.locator('#job-search').fill('VU');expect(p.locator('#job-code-results')).to_be_visible();expect(p.locator('#job-code-results')).to_contain_text('RD-29');p.locator('#job-search').fill('RD-17B1');choose_code(p, 'RD-17B1');on_tab(p, 'disposition').locator('[data-filter="RTW"]').tap()
                 row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('km Straße',timeout=15000);row.locator('b').tap();expect(row.locator('input')).to_be_checked();p.wait_for_timeout(1500);expect(row.locator('input')).to_be_checked()
                 row.locator('b').tap();expect(row.locator('input')).not_to_be_checked();row.locator('input').tap();expect(row.locator('input')).to_be_checked();p.wait_for_timeout(1200);expect(row.locator('input')).to_be_checked()

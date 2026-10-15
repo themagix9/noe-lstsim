@@ -119,6 +119,7 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
             self.sync_ecpr_team(j)
             self.ensure_triage_leader(j)
         self.sync_telenotarzt()
+        self.resume_calls()
         self.save()
 
     def save(self):
@@ -127,7 +128,8 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
 
     def snapshot(self):
         with self.lock:
-            if self.flush_radio():self.save()
+            calls_changed=self.flush_calls()
+            if self.flush_radio() or calls_changed:self.save()
             result=copy.deepcopy(self.state)
             for name in ('scenario_rotation','scenario_pool','last_scenario','address_rotation','address_pool','last_address_city','last_address_id'):result.pop(name,None)
             result['support_catalog']=self.support_catalog()
@@ -233,6 +235,7 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
 
     def tick(self, real_seconds=1):
         with self.lock:
+            if self.flush_calls():self.save()
             if self.state['paused']: return
             self.state['clock']+=real_seconds*self.state['speed']
             now=self.state['clock']

@@ -7,7 +7,7 @@ import time
 import urllib.request
 from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
-from browser_helpers import on_tab,choose_code,start_session
+from browser_helpers import on_tab,choose_code,start_session,wait_for_auto_call
 
 root=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as data:
@@ -25,11 +25,11 @@ with tempfile.TemporaryDirectory() as data:
             d.locator('#lobby-join-tab').click();d.get_by_label('Dein Disponentenname').fill('Disposition');d.get_by_label('Sitzungscode',exact=True).fill(code);d.locator('#role-select').select_option('dispatcher');d.locator('#lobby-submit').click();expect(d.locator('#lobby')).to_be_hidden();start_session(d)
             expect(c.locator('#mode-label')).to_have_text('CALLTAKER');expect(d.locator('#mode-label')).to_have_text('DISPONENT')
             c.locator('#demo').click();c.locator('#new-call').click();expect(c.locator('#accept')).to_be_visible();c.locator('#accept').click()
-            expect(d.locator('.job.emergency')).to_contain_text('Abfrage läuft beim Calltaker');d.locator('.job.emergency').click();on_tab(d,'kommunikation');expect(d.locator('.call-dialogue')).to_contain_text('wo genau ist der Notfallort');expect(d.locator('#call-next')).to_be_disabled()
-            for _ in range(3):
-                with c.expect_response(lambda r:r.url.endswith('/api/call_question')) as response:c.locator('#call-next').click()
-                assert response.value.ok,response.value.text()
-            c.locator('#handoff-note').fill('Zugang über die Seitentür.');c.locator('#handoff-job').click();expect(c.locator('#dispatch-dialog')).to_be_hidden()
+            expect(d.locator('.job.emergency')).to_contain_text('Abfrage läuft beim Calltaker');d.locator('.job.emergency').click();on_tab(d,'kommunikation');expect(d.locator('.call-dialogue')).to_contain_text('wo genau ist der Notfallort');expect(d.locator('#call-continue')).to_be_disabled()
+            c.locator('#handoff-note').fill('Zugang über die Seitentür.')
+            wait_for_auto_call(c)
+            expect(c.locator('#handoff-note')).to_have_value('Zugang über die Seitentür.')
+            c.locator('#call-continue').click();expect(c.locator('#dispatch-dialog')).to_be_hidden()
             expect(d.locator('.job.emergency')).to_contain_text('Bereit zur Disposition');expect(d.locator('#detail-panel-kommunikation')).to_contain_text('Zugang über die Seitentür.');expect(d.locator('.call-dialogue')).to_contain_text('Telefonat beendet')
             choose_code(d,'RD-17B1');on_tab(d,'disposition').locator('.resource-row').filter(has_text='77/002').locator('input').check()
             Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);d.screenshot(path='/tmp/noe-ui-qa/split-disposition.png');c.screenshot(path='/tmp/noe-ui-qa/split-calltaker.png')

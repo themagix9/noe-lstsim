@@ -29,7 +29,7 @@ class OSRM(BaseHTTPRequestHandler):
 root=Path(__file__).resolve().parents[1]
 routes=ThreadingHTTPServer(('127.0.0.1',0),OSRM);threading.Thread(target=routes.serve_forever,daemon=True).start()
 with tempfile.TemporaryDirectory() as data:
-    proc=subprocess.Popen([sys.executable,'app/server.py'],cwd=root,env={**os.environ,'DATA_DIR':data,'RADIO_INTERVAL':'0','ROUTING_ENABLED':'1','ROUTING_URL':f'http://127.0.0.1:{routes.server_port}','REINFORCEMENTS_AUTO':'0','PATIENT_EVOLUTION':'0'},stdout=subprocess.DEVNULL)
+    proc=subprocess.Popen([sys.executable,'app/server.py'],cwd=root,env={**os.environ,'DATA_DIR':data,'RADIO_INTERVAL':'0','ROUTING_ENABLED':'1','ROUTING_URL':f'http://127.0.0.1:{routes.server_port}','REINFORCEMENTS_AUTO':'0','PATIENT_EVOLUTION':'0','CALL_AUTO':'0'},stdout=subprocess.DEVNULL)
     try:
         for _ in range(60):
             try:urllib.request.urlopen('http://127.0.0.1:8080/api/health',timeout=.5);break

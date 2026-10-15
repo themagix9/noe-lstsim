@@ -492,3 +492,24 @@ ständige Wiederholung derselben Anfrage; sie lässt sich unter Nachforderung
 wieder freigeben. Laufende Reanimation und das bestehende eCPR-Verfahren bleiben
 separat. Die Automatik beachtet `REINFORCEMENTS_AUTO=0`; `PATIENT_EVOLUTION=0`
 unterdrückt auch die zusätzliche Verbesserung durch telefonische Anleitung.
+
+### Automatische Anrufabfrage und Weiter zur Disposition
+
+Nach **Annehmen** führt der Server das fiktive Abfrageschema automatisch aus.
+Zwischen jedem LEO-/Anruferbeitrag liegen mindestens zwei echte Sekunden,
+unabhängig von Simulationsgeschwindigkeit und Spielpause. Die bisherigen drei
+zusammengefassten Themenblöcke bleiben erhalten. Nach „Wir schicken jemanden zu
+Ihnen“ und der Schlussantwort wird aufgelegt; bis dahin bleibt die Alarmierung
+gesperrt. Ein Rückstand bei Neuladen/Verbindungsunterbrechung wird nicht auf einmal
+ausgegeben. Gesprächsfortschritt und noch ausstehende Beiträge sind gespeichert;
+alle Mitspieler lesen denselben serverseitigen Verlauf.
+
+Das Anruferprotokoll zeigt sämtliche Beiträge chronologisch untereinander, ohne
+Zwei-Zeilen-Umschalter. Bei Bedarf scrollt nur der Protokollbereich. Neue Beiträge
+führen die Ansicht weiter, solange der Nutzer unten mitliest; manuelles
+Zurückscrollen bleibt erhalten. Der feste Button **Weiter** öffnet nach
+Gesprächsende den Dispositionsreiter. Im getrennten Calltaker-Modus übergibt er
+stattdessen den Einsatz mit der eingetragenen Notiz an den Disponenten. AMPDS
+bleibt eine manuelle Auswahl. Bereits angenommene alte Gespräche werden beim
+Neustart automatisch mit den noch offenen Themen fortgesetzt. `CALL_AUTO=0`
+bleibt ausschließlich für die alten manuellen API-Regressionsfixtures erhalten.

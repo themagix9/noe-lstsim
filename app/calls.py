@@ -1,5 +1,7 @@
-"""Fictional button-driven caller dialogue, not an AMPDS interrogation protocol."""
+"""Fictional automatically paced caller dialogue, not an AMPDS interrogation protocol."""
 import random
+import os
+import time
 
 class Calls:
     def prepare_call(self,j):
@@ -22,16 +24,62 @@ class Calls:
         call=j['call'];call['transcript'].append({'speaker':speaker,'text':text,'time':self.state['clock']})
         self.log(speaker+': '+text,'Telefon')
 
+    def automatic_calls_enabled(self):
+        return os.environ.get('CALL_AUTO','1')!='0'
+
+    def schedule_call(self,j,intro=None):
+        call=j['call'];pending=[]
+        if intro:pending.append({'speaker':'Anrufer','text':intro})
+        groups=[(('location','event'),'Wo genau sind Sie, und was ist passiert?'),(('patient','consciousness','breathing'),'Wer ist betroffen? Sind die Personen ansprechbar, und wie atmen sie?'),(('access',),'Wie kommen wir zu Ihnen? Bleiben Sie unter dieser Nummer erreichbar?')]
+        for keys,question in groups:
+            batch=[q for q in call['questions'] if q['key'] in keys and q['key'] not in call['answered']]
+            if batch:
+                pending.append({'speaker':'LEO','text':question})
+                pending.append({'speaker':'Anrufer','text':' '.join(q['answer'] for q in batch),'answered_keys':[q['key'] for q in batch]})
+        pending.extend([{'speaker':'LEO','text':'Wir schicken jemanden zu Ihnen.'},{'speaker':'Anrufer','text':'Okay, danke! Bitte kommen Sie bald.','ends_call':True}])
+        call.update(automatic=True,state='connected',pending=pending,next_line_at=time.time()+2)
+
+    def resume_calls(self):
+        if not self.automatic_calls_enabled():return
+        for j in self.state['jobs']:
+            call=j.get('call')
+            if call and not call.get('automatic') and call['state'] in ('connected','ready') and j['status']!='done':self.schedule_call(j)
+
+    def flush_calls(self):
+        now=time.time();changed=False
+        for j in self.state['jobs']:
+            call=j.get('call')
+            if not call or not call.get('automatic') or call['state']!='connected':continue
+            if j['status']=='done':call.update(state='ended',pending=[]);changed=True;continue
+            pending=call.get('pending',[])
+            if not pending or now<call.get('next_line_at',now+2):continue
+            row=pending.pop(0);self.phone_line(j,row['speaker'],row['text'])
+            call['transcript'][-1]['spoken_at']=now
+            keys=row.get('answered_keys',[])
+            if keys:
+                call['transcript'][-1]['answered_keys']=keys
+                call['answered'].extend(key for key in keys if key not in call['answered'])
+                if len(call['answered'])==len(call['questions']):j['asked']=True;j['asked_at']=self.state['clock']
+            call['next_line_at']=now+2
+            if row.get('ends_call'):
+                call.update(state='ended',ended_at=self.state['clock'],pending=[]);call.pop('next_line_at',None);self.log('Telefonat beendet.','Telefon')
+            changed=True
+        return changed
+
     def accept_call(self,j):
         self.prepare_call(j);j['accepted']=True;j['call']['state']='connected'
         self.phone_line(j,'LEO','Rettungsleitstelle Niederösterreich, wo genau ist der Notfallort?')
-        if j.get('fire') and j.get('_scenario',{}).get('no_patient'):
-            self.phone_line(j,'Anrufer',f'Feuerwehr-Einsatzleitung hier, Einsatzadresse {j["address"]}. '+j['caller']);return
-        self.phone_line(j,'Anrufer',f'Hallo, {j["call"]["caller_name"]} mein Name. Ich bin in {j["address"]}. Bitte schicken Sie jemanden, hier braucht jemand Hilfe!')
+        self_intro=f'Hallo, {j["call"]["caller_name"]} mein Name. Ich bin in {j["address"]}. Bitte schicken Sie jemanden, hier braucht jemand Hilfe!'
+        if j.get('fire') and j.get('_scenario',{}).get('no_patient'):self_intro=f'Feuerwehr-Einsatzleitung hier, Einsatzadresse {j["address"]}. '+j['caller']
+        if self.automatic_calls_enabled():
+            j['call']['transcript'][-1]['spoken_at']=time.time();self.schedule_call(j,self_intro)
+        else:
+            j['call']['automatic']=False;self.phone_line(j,'Anrufer',self_intro)
 
     def question_call(self,data):
         j=self.get('jobs',data['job']);self.prepare_call(j);call=j.get('call')
         if not j['accepted'] or not call or call['state'] not in ('connected','ready'):raise ValueError('Zuerst den Notruf annehmen; Gespräch muss offen sein.')
+        if call.get('automatic'):raise ValueError('Die Anrufabfrage läuft automatisch. Bitte das Gespräch abwarten.')
         unanswered=[q for q in call['questions'] if q['key'] not in call['answered']]
         if not unanswered or data.get('question')!=unanswered[0]['key']:raise ValueError('Die nächste offene Abfrage auswählen.')
         q=unanswered[0]

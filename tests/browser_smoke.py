@@ -7,7 +7,7 @@ import tempfile
 import time
 import urllib.request
 from playwright.sync_api import sync_playwright, expect
-from browser_helpers import on_tab, choose_code, start_session
+from browser_helpers import on_tab, choose_code, start_session, wait_for_auto_call
 
 root=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as data:
@@ -41,11 +41,8 @@ with tempfile.TemporaryDirectory() as data:
             expect(b.locator('#dispatch-dialog')).not_to_be_visible()
             expect(b.locator('#toast')).to_have_text('Benutzer Disponent A hat den Einsatz übernommen.')
             expect(a.locator('#dispatch-dialog')).to_be_visible()
-            for _ in range(3):
-                with a.expect_response(lambda r:r.url.endswith('/api/call_question')) as response:a.locator('#call-next').click()
-                assert response.value.ok
-            a.locator('#call-finish').click();a.locator('#close-dispatch').click()
-            b.locator('.job.emergency .job-open').first.click();b.wait_for_timeout(1200);expect(b.locator('#dispatch-dialog')).to_be_visible();b.locator('#close-dispatch').click()
+            wait_for_auto_call(a)
+            a.locator('#close-dispatch').click()
             a.locator('#desk-menu > summary').click();a.get_by_role('button',name='Ressourcen',exact=True).click();expect(a.locator('#graphic-list img')).to_have_count(10);a.wait_for_function("[...document.querySelectorAll('#graphic-list img')].every(img=>img.complete&&img.naturalWidth>0)")
             a.locator('#desk-menu > summary').click();a.get_by_role('button',name='Disposition',exact=True).click();a.locator('#speed').select_option('60');a.locator('#pause').click();expect(a.locator('#running')).to_have_text('SIMULATION LÄUFT')
             # Move and resize a desk window, preserve its layout through live updates and reload.
@@ -63,10 +60,8 @@ with tempfile.TemporaryDirectory() as data:
             # Validate a private session, manual AMPDS modal, reservation and a Vienna bed workflow.
             solo=browser.new_context(viewport={'width':1440,'height':1100});solo.route('https://tile.openstreetmap.org/**',lambda route:route.abort());c=solo.new_page();c.on('pageerror',lambda e:errors.append(str(e)));c.goto('http://127.0.0.1:8080');c.get_by_label('Dein Disponentenname').fill('Solo');c.locator('#lobby-submit').click();expect(c.locator('#lobby')).to_be_hidden();start_session(c);expect(c.locator('#copy-code')).to_be_hidden();expect(c.locator('#chat-panel')).to_be_hidden();c.locator('#create-manual').click();c.locator('#manual-kind').select_option('transport');expect(c.locator('#manual-code')).to_have_value('');c.locator('#manual-code').select_option('KTR-90K3');c.get_by_label('Einsatzort / Adresse',exact=True).fill('Teststraße, Schwechat');c.locator('#manual-form button.primary').click();expect(c.locator('#dispatch-dialog')).to_be_visible();expect(on_tab(c, 'disposition').locator('.resource-row').first).to_contain_text('km');expect(on_tab(c, 'disposition').locator('#reserve')).to_be_disabled();c.locator('#reserve-vehicle').select_option(c.evaluate("[...document.querySelector('#reserve-vehicle').options].find(o=>o.value&&!o.disabled).value"));expect(c.locator('#reserve')).to_be_enabled();c.locator('#reserve').click();expect(c.locator('#detail')).to_contain_text('Reserviert:');on_tab(c, 'disposition').locator('#apply-aao').click();c.locator('#dispatch').click();expect(c.locator('#dispatch-dialog')).not_to_be_visible();
             c.locator('#demo').click();c.locator('#new-vienna').click();expect(c.locator('#dispatch-dialog')).to_be_visible(timeout=8000);c.locator('#accept').click();
-            for _ in range(3):
-                with c.expect_response(lambda r:r.url.endswith('/api/call_question')) as answer:c.locator('#call-next').click()
-                assert answer.value.ok,answer.value.text()
-            expect(c.locator('#call-finish')).to_be_visible()
+            wait_for_auto_call(c)
+            c.locator('#call-continue').click()
             on_tab(c, 'disposition').locator('#job-search').fill('RD-31D3');choose_code(c, 'RD-31D3');on_tab(c, 'disposition').locator('#job-code').focus();c.evaluate("window.stableSelect=document.getElementById('job-code')");c.wait_for_timeout(4200);assert c.evaluate("window.stableSelect===document.getElementById('job-code')"),'Polling replaced focused AMPDS selector';expect(c.locator('#detail')).to_contain_text('Einsatznummer');expect(c.locator('#detail')).to_contain_text('Verrechnungsnummer');expect(on_tab(c, 'disposition').locator('#job-code')).to_have_value('RD-31D3');
             with c.expect_response(lambda response:response.url.endswith('/api/edit_job')) as edited:
                 c.locator('#save-job').click()
