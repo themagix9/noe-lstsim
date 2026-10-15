@@ -52,6 +52,12 @@ jobs:
         run: |
           pip install playwright==1.58.0
           python -m playwright install --with-deps chromium webkit
+      - name: Test spoken calls, telephone filtering and window pause
+        run: python tests/browser_speech.py
+      - name: Build Docker image
+        run: docker build -t noe-lstsim:test .
+      - name: Verify real German speech model and audio timing
+        run: docker run --rm -v "$PWD/tests/speech_smoke.py:/tmp/speech_smoke.py:ro" -e PYTHONPATH=/app noe-lstsim:test python /tmp/speech_smoke.py
       - name: Test shared telenotarzt booking and helicopter query
         run: python tests/browser_telemedicine.py
       - name: Test event frequency settings and emergency-only mode
@@ -66,8 +72,6 @@ jobs:
         run: python tests/browser_live.py
       - name: Test touch selection, movable window and emergency caller dialogue
         run: python tests/browser_calls.py
-      - name: Test spoken calls, telephone filtering and window pause
-        run: python tests/browser_speech.py
       - name: Test Calltaker and dispatcher handoff in separate browser sessions
         run: python tests/browser_split.py
       - name: Upload internal UI previews
@@ -83,10 +87,6 @@ jobs:
         run: |
           docker compose -f compose.portainer.yaml config --quiet
           docker compose -f compose.portainer.yaml -f compose.routing.yaml config --quiet
-      - name: Build Docker image
-        run: docker build -t noe-lstsim:test .
-      - name: Verify real German speech model and audio timing
-        run: docker run --rm -v "$PWD/tests/speech_smoke.py:/tmp/speech_smoke.py:ro" -e PYTHONPATH=/app noe-lstsim:test python /tmp/speech_smoke.py
       - name: Verify container startup and health
         run: |
           docker run -d --name smoke -p 127.0.0.1:18080:8080 noe-lstsim:test

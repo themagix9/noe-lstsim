@@ -5,10 +5,10 @@ window.CallSpeech=(()=>{
  let ctx=null,jobId=null,room=null,line=-1,node=null,epoch=0,busy=false,finished=false,control='',timer=null;
  let enabled=localStorage.getItem('noe-call-voice')!=='0',telephone=localStorage.getItem('noe-call-telephone')!=='0';
  let volume=Number(localStorage.getItem('noe-call-volume')??65)/100;
- let status='';
+ let status='',commands=Promise.resolve();
  function unlock(){if(!ctx){const Audio=window.AudioContext||window.webkitAudioContext;if(Audio)ctx=new Audio()}if(ctx?.state==='suspended'&&document.getElementById('dispatch-dialog').open)void ctx.resume().catch(()=>{});sync()}
  function reset(){epoch++;clearTimeout(timer);if(node){node.onended=null;try{node.stop()}catch{}node.disconnect()}node=null;line=-1;busy=false;finished=false;control=''}
- function send(mode,job=jobId,index=line){if(!job)return;void command('call_playback',{job,mode,line:index})}
+ function send(mode,job=jobId,index=line){if(!job)return Promise.resolve(false);commands=commands.then(()=>command('call_playback',{job,mode,line:index}));return commands}
  function active(){const j=state?.jobs.find(j=>j.id===selected);return j?.call?.automatic&&j.owner===state.session.me&&j.accepted?j:null}
  function label(text){status=text;const el=document.getElementById('call-audio-status');if(el)el.textContent=text}
  function complete(token){if(token!==epoch)return;finished=true;busy=false;node=null;timer=setTimeout(()=>{if(token===epoch&&document.getElementById('dispatch-dialog').open){finished=false;send('done');}},250)}

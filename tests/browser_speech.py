@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory() as data:
                 page.add_init_script("""window.phoneFilters=[];const make=AudioContext.prototype.createBiquadFilter;AudioContext.prototype.createBiquadFilter=function(){const node=make.call(this);phoneFilters.push(node);return node}""")
                 page.goto('http://127.0.0.1:8080');page.get_by_label('Dein Disponentenname').fill('Sprachdisponent');page.locator('#lobby-submit').click();start_session(page)
                 page.evaluate("command('generate',{kind:'emergency'})");expect(page.locator('#accept')).to_be_visible();page.locator('#accept').click()
-                page.wait_for_function("document.getElementById('call-audio-status').textContent.includes('Sprachausgabe · LEO')",timeout=15000)
+                page.wait_for_function("document.getElementById('call-audio-status')?.textContent.includes('Sprachausgabe · LEO')",timeout=15000)
                 job=page.evaluate('selected')
                 page.locator('#call-continue').click();assert page.evaluate("detailTab==='disposition'")
                 page.wait_for_function("state.jobs.find(j=>j.id===selected).call.transcript.length>=2",timeout=12000)

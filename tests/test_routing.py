@@ -227,3 +227,15 @@ class RouteTests(unittest.TestCase):
         self.assertFalse(v['leg']['waiting']);self.assertEqual(v['leg']['time_factor'],1)
         self.e.update_operations(start+60);self.assertNotEqual((v['lat'],v['lon']),tuple(geometry[0]))
         self.e.state['clock']=start+121;self.e.update_operations(start+121);self.e.advance(v);self.assertEqual(v['status'],'ready');self.assertAlmostEqual(v['lat'],home['lat']);self.assertAlmostEqual(v['lon'],home['lon'])
+
+    def test_nearest_search_does_not_spend_all_probes_on_one_disconnected_origin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            def fetch(path):
+                if path.startswith('/nearest'):
+                    origin='16.0,48.0' in path
+                    return {'code':'Ok','waypoints':[{'location':[16+i*.0001 if origin else 16.1,48 if origin else 48.1+i*.0001],'distance':i*80 if origin else i,'hint':('start' if origin else 'end')+str(i)} for i in range(4)]}
+                if 'start3' not in path:return {'code':'NoRoute'}
+                return {'code':'Ok','routes':[{'duration':120,'distance':1000,'geometry':{'coordinates':[[16.0003,48],[16.1,48.1]]}}]}
+            router=Router(Path(directory)/'db',url='http://fixture',enabled=False,fetcher=fetch)
+            router.fetch_route('one',{'lat':48,'lon':16},{'lat':48.1,'lon':16.1})
+            self.assertTrue(router.items['one']['recovered']);self.assertEqual(router.items['one']['snap']['origin']['hint'],'start3');router.db.close()

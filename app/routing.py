@@ -175,8 +175,13 @@ class Router:
                     data=candidate;snap=dict(origin=x,destination=dict(b,distance_m=0,hint=''))
             if snap is None:
                 ends=self.nearest_roads(b)
-                pairs=sorted(((x,y) for x in starts for y in ends),key=lambda pair:pair[0]['distance_m']+pair[1]['distance_m'])
-                for x,y in pairs[:4]:
+                # Try a different origin before spending every probe on the same
+                # disconnected driveway paired with four almost identical ends.
+                pairs=[]
+                if ends:pairs.extend((x,ends[0]) for x in starts)
+                if starts:pairs.extend((starts[0],y) for y in ends[1:])
+                pairs.extend(sorted(((x,y) for x in starts[1:] for y in ends[1:]),key=lambda pair:pair[0]['distance_m']+pair[1]['distance_m']))
+                for x,y in pairs[:8]:
                     candidate=self.road_route(x,y,[x['hint'],y['hint']])
                     if candidate.get('code')=='Ok' and candidate.get('routes'):
                         data=candidate;snap=dict(origin=x,destination=y);break
