@@ -105,3 +105,13 @@ class PlanningTests(unittest.TestCase):
             self.assertIsNone(v['job']);self.assertFalse(engine.state['messages'])
         finally:release.set();worker.join(3);s.close()
         self.assertTrue(errors);self.assertIsNone(v['job']);self.assertFalse(j['vehicles'])
+
+    def test_split_dispatcher_can_plan_manual_transport_without_call_handoff(self):
+        s=Sessions(str(Path(self.tmp.name)/'split'));auth=s.create({'name':'Disponent','mode':'multi','workflow':'split','role':'dispatcher'});member=s.member(auth['token']);engine=s.engine(member['room_id'])
+        j=engine.new_job('transport',manual=True);j['accepted']=True
+        self.assertFalse(j.get('call'));engine.router.enabled=False
+        v=next(v for v in engine.state['vehicles'] if v['callsign']=='77/002')
+        try:
+            s.command(member,'dispatch',{'job':j['id'],'vehicles':[v['id']]})
+            self.assertEqual(v['job'],j['id'])
+        finally:s.close()
