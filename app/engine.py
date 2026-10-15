@@ -367,6 +367,7 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
                 j=self.get('jobs',data['id'])
                 if j['accepted']: raise ValueError('Anruf bereits angenommen.')
                 self.accept_call(j)
+            elif action=='call_playback':self.call_playback(data)
             elif action=='call_question':self.question_call(data)
             elif action=='call_finish':self.finish_call(data)
             elif action=='ask':

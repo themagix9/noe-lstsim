@@ -114,7 +114,7 @@ class Sessions:
             engine=self.engine(member['room_id'])
             split=engine.state['setup'].get('workflow')=='split';role=member.get('role','both')
             if split:
-                if action in ('accept','ask','call_question','call_finish','handoff') and role!='calltaker':raise PermissionError('Die Anrufabfrage übernimmt der Calltaker.')
+                if action in ('accept','ask','call_question','call_finish','call_playback','handoff') and role!='calltaker':raise PermissionError('Die Anrufabfrage übernimmt der Calltaker.')
                 if action in ('dispatch','reserve','unreserve','bed_request','send_case','carrier','ask_cpr','radio','radio_retry','radio_generate','vehicle_status','vehicle_order','fuel_radio','fuel_request','resource_call','cancel_radio','signal_contact','signal_radio','support_request','support_cancel','agency_request','agency_release','agency_task','job_code','telenotarzt_release') and role!='dispatcher':raise PermissionError('Die Einsatzdisposition übernimmt der Disponent.')
                 if action in ('claim','edit_job','job_signal','dispatch','reserve','unreserve','support_request','support_cancel','job_additional','agency_request','agency_release','agency_task','job_code','telenotarzt_release'):
                     job=engine.get('jobs',data.get('id') if action=='claim' else data.get('job'))

@@ -1,6 +1,9 @@
 FROM python:3.12-slim
 LABEL org.opencontainers.image.source="https://github.com/themagix9/noe-lstsim"
 LABEL org.opencontainers.image.description="Niederösterreich dispatch simulation prototype"
+ENV OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2
+RUN pip install --no-cache-dir piper-tts==1.3.0 \
+    && python -m piper.download_voices --download-dir /opt/voices de_DE-thorsten-high
 WORKDIR /app
 COPY app/ /app/
 RUN mkdir -p /data && chown -R 10001:10001 /data /app

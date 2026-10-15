@@ -2,6 +2,10 @@
 import random
 import os
 import time
+import re
+
+def line_seconds(text):
+    return max(1.4,len(re.findall(r'\S+',text))/3.5+0.3)
 
 class Calls:
     def prepare_call(self,j):
@@ -37,7 +41,13 @@ class Calls:
                 pending.append({'speaker':'LEO','text':question})
                 pending.append({'speaker':'Anrufer','text':' '.join(q['answer'] for q in batch),'answered_keys':[q['key'] for q in batch]})
         pending.extend([{'speaker':'LEO','text':'Wir schicken jemanden zu Ihnen.'},{'speaker':'Anrufer','text':'Okay, danke! Bitte kommen Sie bald.','ends_call':True}])
-        call.update(automatic=True,state='connected',pending=pending,next_line_at=time.time()+2)
+        # Normalize the text-only pace to ~38 seconds. Audio completion controls
+        # progression when speech is active; server deadlines recover lost clients.
+        rows=call['transcript'][-1:]+pending
+        total=sum(line_seconds(row['text']) for row in rows)
+        for row in rows:row['seconds']=round(38*line_seconds(row['text'])/total,3)
+        call.update(automatic=True,state='connected',pending=pending,next_line_at=time.time()+rows[0]['seconds'],paused=False)
+
 
     def resume_calls(self):
         if not self.automatic_calls_enabled():return
@@ -51,18 +61,20 @@ class Calls:
             call=j.get('call')
             if not call or not call.get('automatic') or call['state']!='connected':continue
             if j['status']=='done':call.update(state='ended',pending=[]);changed=True;continue
+            if call.get('finishing') and not call.get('paused') and now>=call.get('next_line_at',now+2):
+                call.update(state='ended',ended_at=self.state['clock'],pending=[]);call.pop('next_line_at',None);changed=True;continue
             pending=call.get('pending',[])
-            if not pending or now<call.get('next_line_at',now+2):continue
+            if call.get('paused') or not pending or now<call.get('next_line_at',now+2):continue
             row=pending.pop(0);self.phone_line(j,row['speaker'],row['text'])
-            call['transcript'][-1]['spoken_at']=now
+            call['transcript'][-1].update(spoken_at=now,seconds=row.get('seconds',2))
             keys=row.get('answered_keys',[])
             if keys:
                 call['transcript'][-1]['answered_keys']=keys
                 call['answered'].extend(key for key in keys if key not in call['answered'])
                 if len(call['answered'])==len(call['questions']):j['asked']=True;j['asked_at']=self.state['clock']
-            call['next_line_at']=now+2
+            call['next_line_at']=now+(25 if call.get('speech_active') else row.get('seconds',2))
             if row.get('ends_call'):
-                call.update(state='ended',ended_at=self.state['clock'],pending=[]);call.pop('next_line_at',None);self.log('Telefonat beendet.','Telefon')
+                call['finishing']=True
             changed=True
         return changed
 
@@ -72,9 +84,32 @@ class Calls:
         self_intro=f'Hallo, {j["call"]["caller_name"]} mein Name. Ich bin in {j["address"]}. Bitte schicken Sie jemanden, hier braucht jemand Hilfe!'
         if j.get('fire') and j.get('_scenario',{}).get('no_patient'):self_intro=f'Feuerwehr-Einsatzleitung hier, Einsatzadresse {j["address"]}. '+j['caller']
         if self.automatic_calls_enabled():
+            if not (j.get('fire') and j.get('_scenario',{}).get('no_patient')):self_intro=f'Hallo, {j["call"]["caller_name"]} mein Name. Bitte helfen Sie uns!'
             j['call']['transcript'][-1]['spoken_at']=time.time();self.schedule_call(j,self_intro)
         else:
             j['call']['automatic']=False;self.phone_line(j,'Anrufer',self_intro)
+
+    def call_playback(self,data):
+        j=self.get('jobs',data['job']);call=j.get('call')
+        if not call or not call.get('automatic') or call['state']!='connected':return
+        now=time.time();action=data.get('mode')
+        if action=='pause':
+            if not call.get('paused'):call['remaining']=max(.1,call.get('next_line_at',now)-now)
+            call['paused']=True;call['speech_active']=False
+        elif action in ('resume','speech'):
+            if call.get('paused'):
+                call.update(paused=False,next_line_at=now+call.pop('remaining',2))
+            if action=='resume' and call.get('speech_active'):call['next_line_at']=now+call['transcript'][-1].get('seconds',2)
+            call['speech_active']=action=='speech'
+            if action=='speech':call['next_line_at']=now+25
+        elif action=='done':
+            if call.get('paused') or data.get('line')!=len(call['transcript'])-1:return
+            if call.get('finishing'):
+                call.update(state='ended',ended_at=self.state['clock'],pending=[]);call.pop('next_line_at',None)
+            else:
+                call['next_line_at']=now
+                self.flush_calls()
+        else:raise ValueError('Ungültige Anrufsteuerung.')
 
     def question_call(self,data):
         j=self.get('jobs',data['job']);self.prepare_call(j);call=j.get('call')

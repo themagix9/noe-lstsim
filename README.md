@@ -493,23 +493,63 @@ wieder freigeben. Laufende Reanimation und das bestehende eCPR-Verfahren bleiben
 separat. Die Automatik beachtet `REINFORCEMENTS_AUTO=0`; `PATIENT_EVOLUTION=0`
 unterdrückt auch die zusätzliche Verbesserung durch telefonische Anleitung.
 
-### Automatische Anrufabfrage und Weiter zur Disposition
+### Anrufergespräch mit lokaler deutscher Sprachausgabe
 
-Nach **Annehmen** führt der Server das fiktive Abfrageschema automatisch aus.
-Zwischen jedem LEO-/Anruferbeitrag liegen mindestens zwei echte Sekunden,
-unabhängig von Simulationsgeschwindigkeit und Spielpause. Die bisherigen drei
-zusammengefassten Themenblöcke bleiben erhalten. Nach „Wir schicken jemanden zu
-Ihnen“ und der Schlussantwort wird aufgelegt; bis dahin bleibt die Alarmierung
-gesperrt. Ein Rückstand bei Neuladen/Verbindungsunterbrechung wird nicht auf einmal
-ausgegeben. Gesprächsfortschritt und noch ausstehende Beiträge sind gespeichert;
-alle Mitspieler lesen denselben serverseitigen Verlauf.
+Das Docker-Image enthält **Piper TTS 1.3.0** und die deutsche Stimme
+**de_DE-thorsten-high**. Kein API-Schlüssel und kein externer Sprachdienst sind
+nötig. Sprache wird auf der CPU im Container erzeugt; begrenzter gemeinsamer
+Audio-Cache und zwei ONNX-Rechenthreads begrenzen Speicher und CPU-Belastung.
+Anrufer und LEO erhalten leicht unterschiedliche Tonhöhen. Der Anrufer kann
+zusätzlich einen Telefonfilter (300–3.400 Hz und Kompression) bekommen.
+In den Einstellungen lassen sich Stimme, Telefonklang und Lautstärke ändern.
+`TTS_ENABLED=0` schaltet die Synthese serverseitig ab; `TTS_MODEL` erlaubt einen
+eigenen kompatiblen Modellpfad.
 
-Das Anruferprotokoll zeigt sämtliche Beiträge chronologisch untereinander, ohne
-Zwei-Zeilen-Umschalter. Bei Bedarf scrollt nur der Protokollbereich. Neue Beiträge
-führen die Ansicht weiter, solange der Nutzer unten mitliest; manuelles
-Zurückscrollen bleibt erhalten. Der feste Button **Weiter** öffnet nach
-Gesprächsende den Dispositionsreiter. Im getrennten Calltaker-Modus übergibt er
-stattdessen den Einsatz mit der eingetragenen Notiz an den Disponenten. AMPDS
-bleibt eine manuelle Auswahl. Bereits angenommene alte Gespräche werden beim
-Neustart automatisch mit den noch offenen Themen fortgesetzt. `CALL_AUTO=0`
-bleibt ausschließlich für die alten manuellen API-Regressionsfixtures erhalten.
+Das Gespräch ist auf ungefähr **38 Sekunden** ausgelegt (Zielbereich 30–45
+Sekunden). Der nächste Beitrag erscheint nach Ende der gesprochenen Zeile;
+eine kurze Sprechpause bleibt erhalten. Bei sehr langen Szenariotexten oder
+langsamer Hardware kann ein Gespräch länger dauern. Fehlt Audio, läuft der
+zeitgesteuerte Textdialog weiter. Browser erlauben Audio erst nach einem Klick;
+„Annehmen“ gibt es normalerweise frei. Der Server erzeugt nur bereits sichtbare
+Gesprächszeilen für angemeldete Mitglieder der jeweiligen Sitzung, keinen
+öffentlichen beliebigen Text-zu-Sprache-Endpunkt.
+
+**Fenster schließen pausiert Text und Audio**, Wiederöffnen setzt das Gespräch
+fort. Ein laufender Audiobeitrag setzt am selben Zeitpunkt fort. Beim Wechsel
+zu einem anderen Einsatz pausiert der bisherige Anruf. Der Reiter
+**Disposition** bzw. **Weiter** ist bereits während des Telefonats verfügbar;
+Fahrzeuge können nach manueller AMPDS-Auswahl alarmiert werden. Das Fenster
+bleibt während des laufenden Gesprächs offen. Im getrennten Calltaker-Modus
+bleibt die Übergabe an den Disponenten nach Gesprächsende. Alle Mitspieler
+sehen denselben Verlauf, nur der betreuende Spieler steuert und hört den Anruf.
+
+Quellen und Lizenzen: [Piper Quellcode, GPL-3.0](https://github.com/OHF-Voice/piper1-gpl/tree/v1.3.0)
+und [Thorsten Modellkarte, CC0-Datensatz](https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/thorsten/high/MODEL_CARD).
+Piper und sein Modell bleiben als Drittkomponenten gekennzeichnet; die
+Lizenzhinweise des installierten Pakets sind im Image enthalten. Die Stimme
+spricht Deutsch, imitiert keine echte Anruferperson. Die fiktiven Texte sind
+weiterhin kein originales AMPDS-Abfrageprotokoll.
+
+### Straßenrouting mit Ersatzdienst und Storno-Rückfahrt
+
+Bei nicht erreichbarem primärem Router oder fehlendem Straßenanschluss wird
+für tatsächliche Fahrzeugfahrten ein unabhängiger zweiter OSRM-Router genutzt.
+Standard: `https://router.project-osrm.org`; `ROUTING_BACKUP_URL` kann auf einen
+eigenen zweiten Router zeigen oder im Container leer gesetzt werden.
+Straßenanschlüsse, Hints und Cache sind pro Anbieter getrennt. Ein ausgefallener
+primärer Dienst erhält 15 Sekunden Pause, statt jedes Fahrzeug erneut um einen
+Timeout zu verzögern. Zwei Fahrt-Worker verhindern, dass eine einzelne schwierige
+Adresse sämtliche anderen Fahrzeuge aufhält. Öffentliche Router bleiben pro
+Anbieter auf höchstens eine Anfrage pro Sekunde begrenzt. Matrix-Abfragen
+lösen keinen massenhaften Backup-Verkehr aus. Für größere Sitzungen eigene
+OSRM-Instanzen verwenden; öffentliche Testdienste haben keine Verfügbarkeitsgarantie.
+
+Ein Storno entfernt die Einsatzbindung, schaltet das Sondersignal aus und
+berechnet eine neue, normale Straßenroute zur Heimatdienststelle. Falls die
+Route zunächst fehlt, bleibt der Rückfahrauftrag erhalten und wird automatisch
+erneut aufgelöst. Am Heimatstandort wird sofort korrekt eingerückt. Es werden
+keine Straßen gegen die Einbahnrichtung rückwärts abgefahren und keine
+Luftlinien als angebliche Straßenrouten ausgegeben. Sind beide Routendienste
+ausgefallen und fehlt eine passende Cache-Route, bleibt die Fahrt bis zu einer
+erreichbaren Straßenroute wartend. Bereits gespeicherte Routen funktionieren
+weiter ohne Netz.

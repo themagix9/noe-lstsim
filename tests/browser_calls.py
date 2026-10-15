@@ -31,19 +31,20 @@ with tempfile.TemporaryDirectory() as data:
             for browser_type in (pw.chromium,pw.webkit):
                 browser=browser_type.launch(headless=True);context=browser.new_context(viewport={'width':1366,'height':1024},has_touch=True,is_mobile=True)
                 context.route('https://tile.openstreetmap.org/**',lambda r:r.abort());p=context.new_page();errors=[];p.on('pageerror',lambda e:errors.append(str(e)))
-                p.goto('http://127.0.0.1:8080');p.get_by_label('Dein Disponentenname').fill('Touchdisponent');p.locator('#lobby-submit').click();expect(p.locator('#lobby')).to_be_hidden();start_session(p)
+                p.add_init_script("localStorage.setItem('noe-call-voice','0')");p.goto('http://127.0.0.1:8080');p.get_by_label('Dein Disponentenname').fill('Touchdisponent');p.locator('#lobby-submit').click();expect(p.locator('#lobby')).to_be_hidden();start_session(p)
                 p.evaluate("command('generate',{kind:'emergency'})");expect(p.locator('#accept')).to_be_visible();job=p.evaluate('state.jobs.at(-1).id')
                 p.wait_for_function("leafletMap.getZoom()===13 && leafletMap.getCenter().distanceTo([state.jobs.at(-1).lat,state.jobs.at(-1).lon])<150")
                 assert not p.evaluate("document.getElementById('dispatch-dialog').matches(':modal')")
                 expect(p.locator('#pause')).to_be_enabled();p.locator('#pause').click();expect(p.locator('#running')).to_have_text('SIMULATION LÄUFT')
                 p.locator('#accept').tap();expect(p.locator('.call-dialogue')).to_contain_text('Rettungsleitstelle Niederösterreich, wo genau ist der Notfallort?');expect(p.locator('#dispatch')).to_be_disabled()
-                expect(p.locator('#call-continue')).to_be_disabled()
+                expect(p.locator('#call-continue')).to_be_enabled()
                 wait_for_auto_call(p,job)
                 expect(p.locator('.call-dialogue')).to_contain_text('Wir schicken jemanden zu Ihnen.')
                 expect(p.locator('.call-transcript .phone-line')).to_have_count(10)
                 assert p.locator('.call-transcript .phone-line[hidden]').count()==0
                 lines=p.evaluate("state.jobs.find(j=>j.id===selected).call.transcript")
-                assert all(b['spoken_at']-a['spoken_at']>=2 for a,b in zip(lines,lines[1:])),lines
+                assert all(b['spoken_at']-a['spoken_at']>=a['seconds']-.01 for a,b in zip(lines,lines[1:])),lines
+                assert 30<=sum(row['seconds'] for row in lines)<=45
                 p.locator('#call-continue').tap();assert p.evaluate("detailTab==='disposition'")
                 on_tab(p, 'disposition');expect(p.locator('#detail > .job-top')).not_to_contain_text('RD-');p.locator('#job-search').fill('VU');expect(p.locator('#job-code-results')).to_be_visible();expect(p.locator('#job-code-results')).to_contain_text('RD-29');p.locator('#job-search').fill('RD-17B1');choose_code(p, 'RD-17B1');on_tab(p, 'disposition').locator('[data-filter="RTW"]').tap()
                 row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('km Straße',timeout=15000);row.locator('b').tap();expect(row.locator('input')).to_be_checked();p.wait_for_timeout(1500);expect(row.locator('input')).to_be_checked()

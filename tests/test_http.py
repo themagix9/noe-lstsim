@@ -32,6 +32,11 @@ class HTTPTests(unittest.TestCase):
         state=json.load(self.req('/api/generate',{'kind':'transport'}));self.assertEqual(state['jobs'][-1]['kind'],'transport')
         with self.assertRaises(urllib.error.HTTPError) as err:self.req('/api/control',{'speed':999})
         self.assertEqual(err.exception.code,400)
+    def test_speech_requires_auth_and_does_not_accept_arbitrary_text(self):
+        with self.assertRaises(urllib.error.HTTPError) as error:self.req('/api/call_audio?job=x&line=0',token='')
+        self.assertEqual(error.exception.code,401)
+        with self.assertRaises(urllib.error.HTTPError) as error:self.req('/api/call_audio?job=x&line=0')
+        self.assertEqual(error.exception.code,503)
     def test_unknown_route(self):
         with self.assertRaises(urllib.error.HTTPError) as err:self.req('/missing')
         self.assertEqual(err.exception.code,404)

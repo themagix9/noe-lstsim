@@ -16,6 +16,7 @@ import urllib.error
 import urllib.parse
 
 PUBLIC='https://routing.openstreetmap.de/routed-car'
+BACKUP='https://router.project-osrm.org'
 _registry={};_registry_lock=threading.Lock()
 
 class RoadRouteError(ValueError):pass
@@ -51,18 +52,20 @@ def segment_times(route,geometry):
     return sums
 
 class Router:
-    def __init__(self,path,url=None,enabled=None,fetcher=None):
+    def __init__(self,path,url=None,enabled=None,fetcher=None,backup_url=None):
         self.url=(url or os.environ.get('ROUTING_URL',PUBLIC)).rstrip('/')
+        self.backup_url=(os.environ.get('ROUTING_BACKUP_URL',BACKUP if self.url==PUBLIC and not fetcher else '') if backup_url is None else backup_url).rstrip('/')
+        self.backup=None;self.unavailable_until=0
         self.enabled=(os.environ.get('ROUTING_ENABLED','1')!='0') if enabled is None else enabled
         self.fetcher=fetcher;self.lock=threading.RLock();self.items={};self.pending=set();self.tasks=queue.PriorityQueue();self.journeys=queue.PriorityQueue();self.sequence=0;self.next_call=0;self.request_lock=threading.Lock();self.nearest_cache={}
-        public=urllib.parse.urlparse(self.url).hostname=='routing.openstreetmap.de'
+        public=urllib.parse.urlparse(self.url).hostname in ('routing.openstreetmap.de','router.project-osrm.org')
         self.min_interval=1.1 if public else 0.0
         self.path=str(path);self.db=sqlite3.connect(self.path,check_same_thread=False);self.db.execute('PRAGMA busy_timeout=5000')
         self.db.execute('CREATE TABLE IF NOT EXISTS routes (key TEXT PRIMARY KEY, value TEXT NOT NULL, stored REAL NOT NULL)')
         for k,value in self.db.execute('SELECT key,value FROM routes WHERE stored>?',(time.time()-7*86400,)):
             self.items[k]=json.loads(value)
         if self.enabled:
-            threading.Thread(target=self.worker,args=(self.journeys,),daemon=True,name='road-journeys').start()
+            for n in range(2):threading.Thread(target=self.worker,args=(self.journeys,),daemon=True,name=f'road-journeys-{n}').start()
             threading.Thread(target=self.worker,args=(self.tasks,),daemon=True,name='road-etas').start()
     def cachekey(self,a,b):return self.url+'|segment-times-v1|'+key(a,b)
     def save(self,k,result):
@@ -135,10 +138,31 @@ class Router:
             seen.add(fingerprint);result.append(dict(lat=lat,lon=lon,distance_m=distance,hint=match.get('hint','')))
         with self.lock:
             if len(self.nearest_cache)>=2000:self.nearest_cache.pop(next(iter(self.nearest_cache)))
-            self.nearest_cache[coords]=copy.deepcopy(result)
+            if result:self.nearest_cache[coords]=copy.deepcopy(result)
         return result
 
     def fetch_route(self,k,a,b):
+        # Independent server/dataset: hints and nearest-road caches never cross providers.
+        try:
+            if time.time()<self.unavailable_until:raise OSError('Router cooling down')
+            self._fetch_route(k,a,b)
+            self.unavailable_until=0
+            return
+        except (OSError,ValueError,KeyError,TypeError) as error:
+            if isinstance(error,OSError):self.unavailable_until=time.time()+15
+            if not self.backup_url or self.backup_url==self.url:raise
+            with self.lock:
+                if self.backup is None:self.backup=Router(self.path+'.backup',url=self.backup_url,enabled=False,backup_url='')
+            backup=self.backup;bk='route|'+backup.cachekey(a,b)
+            with backup.lock:record=copy.deepcopy(backup.items.get(bk))
+            if not record or record.get('status')!='ready':
+                backup.fetch_route(bk,a,b)
+                with backup.lock:record=copy.deepcopy(backup.items[bk])
+            record.update(backup=True,source=record['source']+' · Ersatz-Routendienst')
+            self.save(k,record)
+            self.save('eta|'+self.cachekey(a,b),{name:value for name,value in record.items() if name not in ('geometry','cumulative','time_cumulative')})
+
+    def _fetch_route(self,k,a,b):
         data=self.road_route(a,b);snap=None
         if data.get('code') in ('NoRoute','NoSegment') or data.get('code')=='Ok' and not data.get('routes'):
             starts=self.nearest_roads(a)
@@ -152,7 +176,7 @@ class Router:
             if snap is None:
                 ends=self.nearest_roads(b)
                 pairs=sorted(((x,y) for x in starts for y in ends),key=lambda pair:pair[0]['distance_m']+pair[1]['distance_m'])
-                for x,y in pairs[:8]:
+                for x,y in pairs[:4]:
                     candidate=self.road_route(x,y,[x['hint'],y['hint']])
                     if candidate.get('code')=='Ok' and candidate.get('routes'):
                         data=candidate;snap=dict(origin=x,destination=y);break

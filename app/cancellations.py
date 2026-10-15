@@ -26,13 +26,13 @@ class Cancellations:
         self.log(f'{self.radio_name(v)} von LEO, Einsatz {j["incident_number"]} für Sie storniert. {reason} Kommen.','Funk')
         self.log(f'LEO von {self.radio_name(v)}, Einsatzstorno verstanden.','Funk');self.log('LEO Ende.','Funk')
         previous=v['status'];self.detach(v);j['vehicles']=[id for id in j['vehicles'] if id!=v['id']]
-        v.pop('assessment_due',None);v['ack_deadline']=None
+        v.pop('assessment_due',None);v['ack_deadline']=None;v['signal']=False
         for c in self.state['radio_calls']:
             if c['vehicle']==v['id'] and c['job']==j['id']:c['state']='closed'
         if j.get('reinforcement_waiting')==v['id']:j.pop('reinforcement_waiting',None);j.pop('reinforcement_arrived',None)
         j.setdefault('cancellations',[]).append({'vehicle':v['id'],'callsign':v['callsign'],'time':self.state['clock'],'reason':reason})
         from engine import distance
-        if previous in ('assigned','standby','acknowledged') and distance(v,self.home(v))<.03:v.update(status=self.idle_status(v),phase_due=None,leg=None)
+        if distance(v,self.home(v))<.03:v.update(status=self.idle_status(v),phase_due=None,leg=None)
         else:self.drive(v,self.home(v),'radio')
         self.log(f'{v["callsign"]}: '+('Status 1: frei auf Wache.' if v['status']=='ready' else 'Status 6: frei über Funk.'),'Status')
         if not j['vehicles']:j.update(status='done',completed=self.state['clock'],bed_state='none')

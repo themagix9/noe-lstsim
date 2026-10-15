@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry','job_additional','agency_request','agency_release','agency_task','job_code','telenotarzt_release')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','call_playback','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry','job_additional','agency_request','agency_release','agency_task','job_code','telenotarzt_release')
 
 class Operations:
     def migrate_operations(self):
@@ -152,7 +152,7 @@ class Operations:
             if v['status']=='hospital' and j['kind']!='transport':raise ValueError('Während der Übergabe nur Transportaufträge senden.')
         if 'signal' in data:
             if not isinstance(data['signal'],bool):raise ValueError('Signalfahrt ein- oder ausschalten.')
-        if j.get('call',{}).get('state')=='connected':raise ValueError('Notruf zuerst vollständig abfragen.')
+        if j.get('call',{}).get('state')=='connected' and not j['call'].get('automatic'):raise ValueError('Notruf zuerst vollständig abfragen.')
         if j.get('call',{}).get('state')=='ready':self.finish_call({'job':j['id']})
         if j['kind']=='transport' and j.get('reserved'):
             self.unreserve({'job':j['id']})

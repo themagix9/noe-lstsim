@@ -189,3 +189,41 @@ class RouteTests(unittest.TestCase):
             router.route({'lat':48,'lon':16},{'lat':48.1,'lon':16.1})
             self.assertEqual(len(router.journeys.queue),1);self.assertEqual(len(router.tasks.queue),0)
             router.db.close()
+
+    def test_backup_router_uses_independent_cache_and_circuit_breaker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            primary=Router(Path(directory)/'db',url='http://offline',enabled=False,backup_url='http://backup')
+            backup=Router(Path(directory)/'other',url='http://backup',enabled=False,backup_url='',fetcher=lambda path:{'code':'Ok','routes':[{'duration':120,'distance':1000,'geometry':{'coordinates':[[16,48],[16.01,48.01]]}}]})
+            primary.backup=backup
+            a={'lat':48,'lon':16};b={'lat':48.01,'lon':16.01}
+            with patch.object(primary,'road_route',side_effect=OSError('offline')) as request:
+                primary.fetch_route('one',a,b);primary.fetch_route('two',a,b)
+            self.assertEqual(request.call_count,1,'Failed primary cools down instead of delaying every vehicle')
+            self.assertEqual(primary.items['one']['geometry'],[[48,16],[48.01,16.01]])
+            self.assertTrue(primary.items['one']['backup']);self.assertEqual(primary.cached_eta(a,b)['status'],'ready')
+            primary.db.close();backup.db.close()
+
+    def test_backup_also_recovers_primary_no_segment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            primary=Router(Path(directory)/'db',url='http://bad-dataset',enabled=False,backup_url='http://backup',fetcher=lambda path:{'code':'NoSegment'})
+            backup=Router(Path(directory)/'other',url='http://backup',enabled=False,backup_url='',fetcher=lambda path:{'code':'Ok','routes':[{'duration':60,'distance':500,'geometry':{'coordinates':[[16,48],[16.01,48.01]]}}]})
+            primary.backup=backup;primary.fetch_route('one',{'lat':48,'lon':16},{'lat':48.01,'lon':16.01})
+            self.assertTrue(primary.items['one']['backup']);self.assertEqual(backup.nearest_cache,{})
+            primary.db.close();backup.db.close()
+
+    def test_storno_recovers_pending_return_turns_off_signal_and_reaches_home(self):
+        v=self.vehicle('77/002');j=self.job();self.e.dispatch({'job':j['id'],'vehicles':[v['id']]});self.e.depart(v)
+        home=self.e.home(v);v.update(lat=home['lat']+.01,lon=home['lon']+.01,signal=True)
+        geometry=[[v['lat'],v['lon']],[home['lat'],v['lon']],[home['lat'],home['lon']]]
+        from types import SimpleNamespace
+        router=SimpleNamespace(enabled=True,url='http://fixture',route=lambda a,b:{'status':'error'},estimates=lambda origins,target:{v['id']:{'status':'error'} for v in origins},cached_eta=lambda *args:None)
+        self.e.router=router
+        self.e.command('resource_call',{'job':j['id'],'vehicle':v['id']});call=self.e.state['radio_calls'][-1]
+        self.e.command('cancel_radio',{'job':j['id'],'call':call['id'],'step':'answer'})
+        self.e.command('cancel_radio',{'job':j['id'],'call':call['id'],'step':'cancel'})
+        self.assertEqual(v['status'],'radio');self.assertFalse(v['signal']);self.assertIsNone(v['job']);self.assertTrue(v['leg']['waiting'])
+        router.route=lambda a,b:{'status':'ready','seconds':120,'geometry':geometry,'cumulative':cumulative(geometry),'distance_m':2000,'backup':True}
+        start=self.e.state['clock'];self.e.update_operations(start)
+        self.assertFalse(v['leg']['waiting']);self.assertEqual(v['leg']['time_factor'],1)
+        self.e.update_operations(start+60);self.assertNotEqual((v['lat'],v['lon']),tuple(geometry[0]))
+        self.e.state['clock']=start+121;self.e.update_operations(start+121);self.e.advance(v);self.assertEqual(v['status'],'ready');self.assertAlmostEqual(v['lat'],home['lat']);self.assertAlmostEqual(v['lon'],home['lon'])

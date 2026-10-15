@@ -7,7 +7,7 @@ import threading
 import time
 from collections import defaultdict,deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse,parse_qs
 from sessions import Sessions
 from catalog import CENTRES,ZONES,RULES,TRANSPORT_RULES
 from locations import ADDRESSES
@@ -47,6 +47,19 @@ class Handler(BaseHTTPRequestHandler):
                         self.wfile.write(b': heartbeat\n\n');self.wfile.flush();heartbeat=time.monotonic()
                     with live_changes:live_changes.wait(timeout=1)
             except (BrokenPipeError,ConnectionResetError,PermissionError):return
+        if path=='/api/call_audio':
+            try:
+                member=self.member();query=parse_qs(urlparse(self.path).query)
+                engine=sessions.engine(member['room_id'])
+                with engine.lock:
+                    job=engine.get('jobs',query.get('job',[''])[0]);index=int(query.get('line',['-1'])[0])
+                    rows=job.get('call',{}).get('transcript',[])
+                    if not job.get('accepted') or not 0<=index<len(rows):raise ValueError('Gesprächsbeitrag nicht verfügbar.')
+                    text,speaker=rows[index]['text'],rows[index]['speaker']
+                from speech import speech
+                return self.respond(speech.synthesize(text,speaker),'audio/wav')
+            except PermissionError as error:return self.json_response({'error':str(error)},401)
+            except (ValueError,KeyError,TypeError,ImportError,RuntimeError) as error:return self.json_response({'error':str(error)},503)
         if path=='/api/addresses':return self.json_response({'addresses':ADDRESSES,'source':'© OpenStreetMap contributors · ODbL 1.0'})
         if path=='/api/codes':return self.json_response({'date':SOURCE['date'],'rules':[code_rule(r['code']) for r in SOURCE['entries']]+TRANSPORT_RULES})
         if path=='/api/catalog':return self.json_response({'centres':CENTRES,'zones':ZONES,'rules':RULES})

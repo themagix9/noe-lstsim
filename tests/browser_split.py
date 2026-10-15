@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory() as data:
             d.locator('#lobby-join-tab').click();d.get_by_label('Dein Disponentenname').fill('Disposition');d.get_by_label('Sitzungscode',exact=True).fill(code);d.locator('#role-select').select_option('dispatcher');d.locator('#lobby-submit').click();expect(d.locator('#lobby')).to_be_hidden();start_session(d)
             expect(c.locator('#mode-label')).to_have_text('CALLTAKER');expect(d.locator('#mode-label')).to_have_text('DISPONENT')
             c.locator('#demo').click();c.locator('#new-call').click();expect(c.locator('#accept')).to_be_visible();c.locator('#accept').click()
-            expect(d.locator('.job.emergency')).to_contain_text('Abfrage läuft beim Calltaker');d.locator('.job.emergency').click();on_tab(d,'kommunikation');expect(d.locator('.call-dialogue')).to_contain_text('wo genau ist der Notfallort');expect(d.locator('#call-continue')).to_be_disabled()
+            expect(d.locator('.job.emergency')).to_contain_text('Abfrage läuft beim Calltaker');d.locator('.job.emergency').click();on_tab(d,'kommunikation');expect(d.locator('.call-dialogue')).to_contain_text('wo genau ist der Notfallort');expect(d.locator('#call-continue')).to_be_enabled()
             c.locator('#handoff-note').fill('Zugang über die Seitentür.')
             wait_for_auto_call(c)
             expect(c.locator('#handoff-note')).to_have_value('Zugang über die Seitentür.')
