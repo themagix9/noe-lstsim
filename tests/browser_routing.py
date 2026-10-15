@@ -137,6 +137,8 @@ with tempfile.TemporaryDirectory() as data:
             on_tab(p,'patienten');expect(p.locator('.triage-patient')).to_have_count(6)
             expect(p.locator('.triage-I')).to_have_count(2)
             expect(p.locator('#detail-panel-patienten')).to_contain_text('Notarztversorgung: NEF')
+            expect(p.locator('#detail-panel-patienten')).to_contain_text('Sichtung abgeschlossen · Patientenübernahme möglich')
+            assert p.evaluate("state.vehicles.find(v=>v.callsign==='77/002').patient_index!=null")
             assert p.evaluate('document.documentElement.scrollHeight<=innerHeight+1')
             p.screenshot(path='/tmp/noe-ui-qa/manv-triage.png')
             # One first-arriving unit handles both situation and resource needs.

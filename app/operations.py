@@ -255,7 +255,7 @@ class Operations:
 
     def start_transport(self,v):
         j=self.get('jobs',v['job'])
-        if self.triage_unit(j,v):raise ValueError('Das Sichtungsfahrzeug übernimmt keinen Patiententransport.')
+        if self.triage_unit(j,v):raise ValueError('Die erste Sichtung ist noch nicht abgeschlossen.')
         if v['type'] not in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'):raise ValueError('Diese Ressource kann keine Patienten transportieren.')
         if self.ongoing_cpr(j,v) and v['type']!='NAH':raise ValueError('Transport unter laufender Reanimation nur durch einen NAH.')
         if self.ongoing_cpr(j,v) and not j.get('cpr_confirmed'):raise ValueError('NAH-Transport unter laufender Reanimation zuerst über Funk abstimmen.')
@@ -285,6 +285,7 @@ class Operations:
             if other['id']!=v['id'] and other['job']==j['id'] and other['status']=='scene' and other.get('patient_index') is None:
                 if remaining and other['type'] in ('NEF','FR'):other['phase_due']=self.state['clock']+60;continue
                 self.detach(other);self.drive(other,self.home(other),'radio')
+        self.ensure_triage_leader(j)
         self.log(f'{v["callsign"]}, Status 4: Patient übernommen, zum Zielort {h["name"]}.')
 
     def request_bed(self,data):

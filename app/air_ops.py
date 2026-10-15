@@ -8,7 +8,7 @@ class AirOps:
 
     def choose_carrier(self,data):
         j=self.get('jobs',data['job']);v=self.get('vehicles',data['vehicle'])
-        if self.triage_unit(j,v):raise ValueError('Das Sichtungsfahrzeug übernimmt keinen Patiententransport.')
+        if self.triage_unit(j,v):raise ValueError('Die erste Sichtung ist noch nicht abgeschlossen.')
         active=[self.get('vehicles',id) for id in j['vehicles'] if self.get('vehicles',id)['job']==j['id']]
         if v not in active or v['type'] not in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH') or v['status'] not in ('assigned','acknowledged','enroute','scene'):raise ValueError('Eine alarmierte transportierende Ressource vor Transportbeginn wählen.')
         if any(u['status'] in ('transport','hospital') for u in active):raise ValueError('Patient ist bereits unterwegs.')

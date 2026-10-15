@@ -29,7 +29,9 @@ class Patients:
             self.log('Hier LEO, verstanden, Ende.','Funk')
         self.discover_patients(j)
         if j.get('patients'):
-            self.assign_doctors(j)
+            if self.is_manv(j):
+                j.setdefault('triage_completed_at',self.state['clock']);self.ensure_triage_leader(j)
+            self.assign_patients(j);self.assign_doctors(j)
             j['patient_condition']['percent']=min(p['percent'] for p in j['patients'])
             j['patient_condition']['notarzt_required']=any(p['percent']<45 for p in j['patients'])
         if truth.get('no_patient'):
