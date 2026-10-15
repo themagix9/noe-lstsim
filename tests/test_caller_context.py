@@ -18,6 +18,8 @@ class CallerContextTests(unittest.TestCase):
         count=0
         for scenario in CATALOG+EXTRA_SCENARIOS+MANV_SCENARIOS:
             j=self.e.new_job('emergency',scenario=scenario);self.e.prepare_call(j);call=j['call']
+            with patch.dict('os.environ',{'CALL_AUTO':'0'}):self.e.accept_call(j)
+            self.assertIn(j['address'],call['transcript'][1]['text'])
             self.assertIn(call['context']['role'],('self','relative','witness','group','agency'))
             if call['context']['role']!='self':continue
             count+=1

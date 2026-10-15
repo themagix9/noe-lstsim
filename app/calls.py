@@ -99,7 +99,6 @@ class Calls:
         self_intro=f'Hallo, {j["call"]["caller_name"]} hier. Ich bin in {j["address"]}. '+('Ich brauche Hilfe!' if j['call'].get('context',{}).get('role')=='self' else 'Bitte helfen Sie uns!')
         agency=j['call'].get('context',{}).get('role')=='agency'
         if agency:self_intro='Hier die '+('Feuerwehr-Einsatzleitung' if j.get('fire') else 'Rufhilfe' if 'rufhilfe' in j['caller'].lower() else 'Hausnotruf-Zentrale')+'. Wir melden einen Einsatz in '+j['address']+'.'
-        if j.get('fire') and j.get('_scenario',{}).get('no_patient'):self_intro='Hier die Feuerwehr-Einsatzleitung. Wir benötigen eine Beistellung.'
         if self.automatic_calls_enabled():
             if not agency:self_intro=f'Hallo, {j["call"]["caller_name"]} hier. '+('Ich brauche Hilfe!' if j['call'].get('context',{}).get('role')=='self' else 'Bitte helfen Sie uns!')
             j['call']['transcript'][-1]['spoken_at']=time.time();self.schedule_call(j,self_intro)
