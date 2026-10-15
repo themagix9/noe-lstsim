@@ -21,6 +21,7 @@ class TelemedicineTests(unittest.TestCase):
         c=self.e.raise_radio(j,v,'Telenotarzt',reason_initial=True)
         self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'})
         self.e.radio_action({'job':j['id'],'call':c['id'],'step':'confirm'})
+        j['telenotarzt']['assessment_roll']=1
         return j['telenotarzt']
 
     def test_booking_sends_phone_on_both_channels_without_vehicle_or_status(self):
@@ -132,3 +133,10 @@ class TelemedicineTests(unittest.TestCase):
             self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'})
             self.e.update_telenotarzt(self.e.state['clock']+1)
             self.assertEqual(self.e.state['radio_calls'][-1]['kind'],'Telenotarzt')
+
+    def test_phone_assessment_can_require_nef_despite_initial_moderate_score(self):
+        j,v=self.scene(55);t=self.book(j,v);t['assessment_roll']=0
+        self.e.state['clock']+=30;self.e.update_telenotarzt(self.e.state['clock'])
+        self.assertTrue(t['onsite_required'])
+        self.assertTrue(any(c['kind']=='NEF' and c['state']!='closed' for c in self.e.state['radio_calls']))
+        self.assertEqual(j['patient_condition']['percent'],55)

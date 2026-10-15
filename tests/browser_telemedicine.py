@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory() as data:
         j['patient_condition'].update(percent=score,reported=True,notarzt_required=score<45)
         v.update(job=j['id'],status='scene',phase_due=None,assessment_due=0,lat=j['lat'],lon=j['lon'])
         return j,v
-    j,v=scene('77/002',60);engine.raise_radio(j,v,'Telenotarzt',reason_initial=True);tna_job=j['id']
+    j,v=scene('77/002',65);engine.raise_radio(j,v,'Telenotarzt',reason_initial=True);tna_job=j['id']
     air,rtw=scene('77/011',30);air.update(lat=47.5,lon=15.8,crew_target='kh-hainburg');rtw.update(lat=air['lat'],lon=air['lon'])
     assert engine.maybe_request_transport_heli(air,rtw);air_job=air['id']
     engine.configure_events({'emergency_per_hour':0,'transport_per_hour':0,'transports_enabled':False})

@@ -96,7 +96,6 @@ class MultiplePatients:
                 elif qualified:delta=shared_rate+(2 if p.get('doctor') else 0)
                 elif present:delta=0
                 else:delta=random.randint(-2,1) if unit else random.randint(-4,0)
-                if self.tna_active(j) and self.tna_patient(j) is p:delta=max(0,delta)
                 p['percent']=max(0,min(100,p['percent']+delta));p['triage']=triage(p['percent'])
                 if p['percent']>=60:p['requires_doctor']=False
                 elif p['percent']<45:p['requires_doctor']=True

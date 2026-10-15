@@ -95,7 +95,6 @@ class Patients:
             if not carrier:continue
             doctor=any(v['type'] in ('NEF','NAH') and v['status']=='scene' for v in units)
             previous=c['notarzt_required'];delta=random.randint(1,6) if doctor else random.randint(*j.get('_scenario',{}).get('trend',[-12,4]))
-            if self.tna_active(j):delta=max(0,delta)
             if j.get('code')!='RD-9E1' or j.get('_scenario',{}).get('initial_percent',0)>0:c['percent']=max(0,min(100,c['percent']+delta))
             c['notarzt_required']=c['percent']<45;c['next_change']=now+300
             if previous!=c['notarzt_required'] and carrier['status']=='scene':self.patient_report(j,carrier,force=True)

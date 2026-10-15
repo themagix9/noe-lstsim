@@ -466,7 +466,11 @@ verbessert den fiktiven Patienten-Spielwert anschließend alle 60 Sekunden um
 3 Punkte bis maximal 85; ein Wert von 0 wird dadurch nicht angehoben. Dies ist
 keine medizinische Versorgungsregel. Der Telenotarzt belegt keinen physischen
 Notarztplatz, bietet keine Transportbegleitung und ersetzt kein NEF/NAH.
-Bei einem kritischen Spielwert fordert die Mannschaft nach telefonischer
+Eine anfänglich mäßige Einschränkung (45–60 Spielpunkte) kann bei der
+fiktiven Telefonbeurteilung ebenfalls eine Vor-Ort-Nachforderung ergeben
+(25 % Spielwahrscheinlichkeit, je Beratung einmal gespeichert). Die normale
+Patientenentwicklung läuft weiter; telefonische Hilfe garantiert keine
+Stabilisierung. Bei einem kritischen Spielwert fordert die Mannschaft nach telefonischer
 Einschätzung ein Notarztmittel vor Ort oder bei langem Transport einen Heli an.
 Beim Transportbeginn, Übergang zu einem Notarzt vor Ort, Storno oder Einsatzende
 endet die Beratung und der Poolplatz wird frei. Ein manuelles Beenden ist unter

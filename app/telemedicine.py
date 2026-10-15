@@ -28,7 +28,7 @@ class Telemedicine:
             patient=next((p for p in self.scene_patients(j) if p.get('carrier')==v['id']),None)
             if not patient:raise ValueError('Die Mannschaft muss einen Patienten zur telefonischen Beratung übernommen haben.')
             patient_number=patient['number']
-        t={'id':f'tna-{slot:02d}','slot':slot,'name':'Telenotarzt','phone':f'SIM-000-000-{slot:02d}','virtual':True,'vehicle':v['id'],'patient_number':patient_number,'assigned_at':now,'call_due':now+30,'connected_at':None,'care_due':None}
+        t={'id':f'tna-{slot:02d}','slot':slot,'name':'Telenotarzt','phone':f'SIM-000-000-{slot:02d}','virtual':True,'vehicle':v['id'],'patient_number':patient_number,'assigned_at':now,'call_due':now+30,'connected_at':None,'care_due':None,'assessment_roll':__import__('random').random()}
         j['telenotarzt']=t
         text=f'Einsatz {j["incident_number"]} | Telenotarzt zugebucht | Telefonnummer: {t["phone"]} (fiktive Simulationsnummer) | Bitte telefonisch Kontakt aufnehmen.'
         for channel in ('SDS','ESApp'):
@@ -74,6 +74,8 @@ class Telemedicine:
             v=self.get('vehicles',t['vehicle'])
             if t['connected_at'] is None and now>=t['call_due']:
                 t.update(connected_at=now,care_due=now+60)
+                patient=self.tna_patient(j) or {}
+                t['onsite_required']=bool(j.get('_scenario',{}).get('telenotarzt_onsite_required')) or 45<=patient.get('percent',100)<=60 and t.get('assessment_roll',1)<.25
                 self.log(f'{self.radio_name(v)} ruft den Telenotarzt unter {t["phone"]} an. Ärztliche Einschätzung und telefonische Anleitung beginnen.','Telefon')
             if not self.tna_active(j):continue
             patient=self.tna_patient(j)
@@ -86,7 +88,7 @@ class Telemedicine:
                         patient['triage']=triage(patient['percent'])
                     else:patient['notarzt_required']=patient['percent']<45
                 t['care_due']=now+60
-            if patient['percent']<45 and not t.get('escalated'):
+            if (patient['percent']<45 or t.get('onsite_required')) and not t.get('escalated'):
                 t['escalated']=True
                 self.log(f'Telenotarzt → {self.radio_name(v)}: Für diesen Patienten ist ein Notarzt vor Ort erforderlich. Bitte über LEO nachfordern.','Telefon')
                 if not self.maybe_request_transport_heli(j,v):
