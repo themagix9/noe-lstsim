@@ -31,11 +31,12 @@ function createCallReminders(onRing,now=()=>Date.now()){
  return {check(state){if(!state?.session)return;const ids=state.jobs.filter(j=>j.kind==='emergency'&&!j.accepted&&j.status!=='done'&&(!j.owner||j.owner===state.session.me)).map(j=>j.id).sort().join(',');if(room!==state.session.me){room=state.session.me;active='';last=-Infinity}if(!ids){active='';return}if(ids!==active||now()-last>=4000){active=ids;last=now();onRing()} }};
 }
 if(typeof window!=='undefined'){
- let context=null,pending=false,pendingRadio=false,pendingCall=false;
- let prefs={enabled:true,radioEnabled:true,callEnabled:true,volume:25};
+ let context=null,pending=false,pendingRadio=false,pendingCall=false,pendingVienna=false;
+ let prefs={enabled:true,radioEnabled:true,callEnabled:true,viennaEnabled:true,volume:25};
  try{prefs={...prefs,...JSON.parse(localStorage.getItem('noe-sound-settings')||'{}')}}catch{}
  prefs.volume=Math.max(0,Math.min(100,Number(prefs.volume)||0));
  const enabled=document.getElementById('transport-gong-enabled'),volume=document.getElementById('sound-volume'),radioEnabled=document.getElementById('radio-sound-enabled'),callEnabled=document.getElementById('call-sound-enabled');
+ const viennaEnabled=document.getElementById('vienna-sound-enabled');viennaEnabled.checked=!!prefs.viennaEnabled;
  radioEnabled.checked=!!prefs.radioEnabled;callEnabled.checked=!!prefs.callEnabled;
  enabled.checked=!!prefs.enabled;volume.value=prefs.volume;
  function gong(){
@@ -54,13 +55,19 @@ if(typeof window!=='undefined'){
  }
  function unlock(){
   const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;
-  try{context=context||new Audio();context.resume().then(()=>{if(pending)gong();if(pendingRadio)radioTone();if(pendingCall)callTone()}).catch(()=>{})}catch{}
+  try{context=context||new Audio();context.resume().then(()=>{if(pending)gong();if(pendingRadio)radioTone();if(pendingCall)callTone();if(pendingVienna)viennaTone()}).catch(()=>{})}catch{}
  }
  function callTone(){
   if(!prefs.callEnabled||!prefs.volume){pendingCall=false;return}
   if(!context||context.state!=='running'){pendingCall=true;return}pendingCall=false;
   [0,.3,.9,1.2].forEach(delay=>[440,480].forEach(frequency=>{const o=context.createOscillator(),g=context.createGain(),t=context.currentTime+delay;o.frequency.value=frequency;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(prefs.volume/100*.12,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+.22);o.connect(g);g.connect(context.destination);o.start(t);o.stop(t+.24);o.onended=()=>{o.disconnect();g.disconnect()}}));
  }
+ function viennaTone(){
+  if(!prefs.viennaEnabled||!prefs.volume){pendingVienna=false;return}
+  if(!context||context.state!=='running'){pendingVienna=true;return}pendingVienna=false;
+  [660,880,660].forEach((frequency,i)=>{const o=context.createOscillator(),g=context.createGain(),t=context.currentTime+i*.23;o.frequency.value=frequency;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(prefs.volume/100*.22,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.2);o.connect(g);g.connect(context.destination);o.start(t);o.stop(t+.22);o.onended=()=>{o.disconnect();g.disconnect()}});
+ }
+ window.ViennaSound={play:viennaTone};
  function radioTone(){
   if(!prefs.radioEnabled||!prefs.volume){pendingRadio=false;return}
   if(!context||context.state!=='running'){pendingRadio=true;return}
@@ -70,8 +77,8 @@ if(typeof window!=='undefined'){
   if(custom&&custom.startsWith('data:audio/')){const audio=new window.Audio(custom);audio.volume=prefs.volume/100;audio.play().then(()=>setTimeout(()=>audio.pause(),5000)).catch(ownTone)}else ownTone();
  }
  document.addEventListener('pointerdown',unlock,{passive:true});document.addEventListener('keydown',unlock);
- function save(){prefs.enabled=enabled.checked;prefs.radioEnabled=radioEnabled.checked;prefs.callEnabled=callEnabled.checked;prefs.volume=Number(volume.value);localStorage.setItem('noe-sound-settings',JSON.stringify(prefs));if(!prefs.enabled)pending=false;if(!prefs.radioEnabled)pendingRadio=false}
- enabled.onchange=save;volume.oninput=save;radioEnabled.onchange=save;callEnabled.onchange=save;
+ function save(){prefs.enabled=enabled.checked;prefs.radioEnabled=radioEnabled.checked;prefs.callEnabled=callEnabled.checked;prefs.viennaEnabled=viennaEnabled.checked;prefs.volume=Number(volume.value);localStorage.setItem('noe-sound-settings',JSON.stringify(prefs));if(!prefs.enabled)pending=false;if(!prefs.radioEnabled)pendingRadio=false;if(!prefs.viennaEnabled)pendingVienna=false}
+ enabled.onchange=save;volume.oninput=save;radioEnabled.onchange=save;callEnabled.onchange=save;viennaEnabled.onchange=save;
  document.getElementById('test-radio-sound').onclick=()=>{unlock();radioTone()};
  document.getElementById('radio-sound-file').onchange=event=>{const file=event.target.files[0];if(!file)return;if(file.size>1024*1024||!file.type.startsWith('audio/')){if(typeof toast==='function')toast('Audiodatei bis 1 MB auswählen.');return}const reader=new FileReader();reader.onload=()=>{try{localStorage.setItem('noe-radio-custom-sound',reader.result);if(typeof toast==='function')toast('Eigener Funkton lokal gespeichert.')}catch{if(typeof toast==='function')toast('Funkton konnte nicht gespeichert werden.')}};reader.readAsDataURL(file)};
  document.getElementById('reset-radio-sound').onclick=()=>{localStorage.removeItem('noe-radio-custom-sound');document.getElementById('radio-sound-file').value='';if(typeof toast==='function')toast('Eigener Standard-Funkton aktiv.')};

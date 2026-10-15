@@ -1,0 +1,18 @@
+const assert=require('assert');
+const {viennaAction,createViennaReminders}=require('../app/static/vienna-alerts.js');
+const data=new Map(),storage={getItem:k=>data.get(k),setItem:(k,v)=>data.set(k,v)},events=[];
+let alerts=createViennaReminders(storage,batch=>events.push(batch.map(x=>x.action.stage)));
+const state={session:{me:'a'},paused:true,clock:600,jobs:[{id:'one',incident_number:'RD-1',status:'awaiting_bed',bed_state:'requested',bed_requested_at:600,created:0}]};
+alerts.check(state);assert.deepEqual(events,[['requested']],'An existing waiting case must notify on joining, including while paused');
+alerts.check(state);assert.equal(events.length,1,'SSE ticks must not repeat alerts');
+alerts=createViennaReminders(storage,batch=>events.push(batch.map(x=>x.action.stage)));alerts.check(state);assert.equal(events.length,1,'Reload keeps notification history');
+state.clock=1199;alerts.check(state);assert.equal(viennaAction(state.jobs[0],state.clock).urgent,false);
+state.clock=1200;alerts.check(state);assert.equal(events.length,2,'Remind again after ten simulated minutes');alerts.check(state);assert.equal(events.length,2);
+assert.equal(viennaAction(state.jobs[0],state.clock).minutes,10);
+state.jobs[0].bed_state='calling';alerts.check(state);assert.equal(events.length,2);assert.equal(viennaAction(state.jobs[0],state.clock).actionable,false);
+state.jobs[0].bed_state='allocated';alerts.check(state);assert.deepEqual(events.at(-1),['allocated']);assert.match(viennaAction(state.jobs[0],state.clock).label,/an Mannschaft senden/);
+for(const bed_state of ['sent','ecpr_direct','crew_selected','none'])assert.equal(viennaAction({...state.jobs[0],bed_state},state.clock),null);
+assert.equal(viennaAction({...state.jobs[0],status:'done'},state.clock),null);
+assert.equal(viennaAction({...state.jobs[0],bed_requested_at:undefined,scene_report:{time:900}},1200).minutes,5,'Legacy cases use recorded scene time');
+state.session.me='b';alerts.check(state);assert.equal(events.length,4,'Each member has independent reminders');
+console.log('Vienna destination alerts: arrival/reload, deduplication, overdue reminder, case-number delivery and eCPR exemption passed.');

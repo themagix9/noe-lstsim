@@ -89,7 +89,18 @@ with tempfile.TemporaryDirectory() as data:
             if not c.locator('.job.emergency').filter(has_text='Wiener Ziel angefordert').count():
                 print('Vienna workflow diagnostic:',c.evaluate("({clock:state.clock,speed:state.speed,paused:state.paused,jobs:state.jobs.filter(j=>j.crew_target),vehicles:state.vehicles.filter(v=>v.job),toast:document.getElementById('toast').textContent})"),flush=True)
                 c.screenshot(path='/tmp/noe-ui-qa/vienna-failure.png',full_page=True)
-            expect(c.locator('.job.emergency').filter(has_text='Wiener Ziel angefordert').first).to_be_visible();c.locator('.job.emergency').filter(has_text='Wiener Ziel angefordert').first.click();on_tab(c, 'transport').locator('#bed-request').click();expect(on_tab(c, 'transport').locator('#send-sds')).to_be_visible(timeout=8000);on_tab(c, 'transport').locator('#send-sds').click();expect(c.locator('#detail')).to_contain_text('An Mannschaft übermittelt via SDS');c.screenshot(path='/tmp/noe-ui-qa/vienna-modal.png',full_page=True);
+            expect(c.locator('.job.emergency').filter(has_text='Wiener Ziel angefordert').first).to_be_visible()
+            expect(c.locator('#vienna-alerts')).to_contain_text('Wiener Ziel – Kasusnummer erforderlich')
+            c.locator('#tab-transport').click();expect(c.locator('#vienna-alerts')).to_be_visible()
+            c.locator('#vienna-alerts [data-vienna-job]').first.evaluate('e=>{window.viennaButton=e;e.focus()}')
+            c.evaluate('ViennaAlerts.render({...state,clock:state.clock+61})')
+            assert c.evaluate('viennaButton.isConnected&&document.activeElement===viennaButton')
+            c.locator('#vienna-alerts [data-vienna-job]').first.click()
+            expect(c.locator('#detail-panel-transport')).to_be_visible();c.locator('#bed-request').click()
+            expect(c.locator('#send-sds')).to_be_visible(timeout=8000)
+            expect(c.locator('#vienna-alerts')).to_contain_text('Kasusnummer liegt vor – an Mannschaft senden')
+            c.locator('#send-sds').click();expect(c.locator('#vienna-alerts')).to_be_hidden()
+            expect(c.locator('#detail')).to_contain_text('An Mannschaft übermittelt via SDS');c.screenshot(path='/tmp/noe-ui-qa/vienna-modal.png',full_page=True);
             c.locator('#close-dispatch').click();c.get_by_role('button',name='Zur Startseite',exact=True).click();expect(c.locator('#lobby')).to_be_visible();expect(c.locator('#dispatch-dialog')).not_to_be_visible();c.locator('#resume').click();expect(c.locator('#lobby')).to_be_hidden();expect(c.locator('#running')).to_have_text('SIMULATION PAUSIERT');
             if c.locator('#dispatch-dialog').is_visible():c.locator('#close-dispatch').click()
             c.get_by_role('button',name='Zur Startseite',exact=True).click();expect(c.locator('#lobby')).to_be_visible();c.screenshot(path='/tmp/noe-ui-qa/landing.png',full_page=True);assert not errors,errors

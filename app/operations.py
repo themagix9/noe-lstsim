@@ -244,7 +244,7 @@ class Operations:
             self.log(f'eCPR AKH: direkter NAH-Transport zu Einsatz {j["incident_number"]} abgestimmt; keine Kasusnummer erforderlich.','eCPR')
             self.start_transport(v);return
         if h['region']=='Wien':
-            j['destination']=None;j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None
+            j['destination']=None;j.setdefault('bed_requested_at',self.state['clock']);j['bed_state']='requested';j['status']='awaiting_bed';v['phase_due']=None
             self.log(f'{v["callsign"]} an Leitstelle: Patient transportbereit, benötigen ein Ziel in Wien, Wunsch {h["name"]}. Bitte Bettenmann verständigen.')
             self.log('Hier LEO, verstanden, Ende.','Funk')
         else:

@@ -27,6 +27,8 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check frontend syntax
         run: |
+          node --check app/static/vienna-alerts.js
+          node tests/test_vienna_alerts.js
           node --check app/static/agency-ui.js
           node --check app/static/event-settings.js
           node --check app/static/resource-motion.js
