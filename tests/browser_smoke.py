@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory() as data:
                 assert response.value.ok
             a.locator('#call-finish').click();a.locator('#close-dispatch').click()
             b.locator('.job.emergency .job-open').first.click();b.wait_for_timeout(1200);expect(b.locator('#dispatch-dialog')).to_be_visible();b.locator('#close-dispatch').click()
-            a.locator('#desk-menu > summary').click();a.get_by_role('button',name='Ressourcen',exact=True).click();expect(a.locator('#graphic-list img')).to_have_count(9);a.wait_for_function("[...document.querySelectorAll('#graphic-list img')].every(img=>img.complete&&img.naturalWidth>0)")
+            a.locator('#desk-menu > summary').click();a.get_by_role('button',name='Ressourcen',exact=True).click();expect(a.locator('#graphic-list img')).to_have_count(10);a.wait_for_function("[...document.querySelectorAll('#graphic-list img')].every(img=>img.complete&&img.naturalWidth>0)")
             a.locator('#desk-menu > summary').click();a.get_by_role('button',name='Disposition',exact=True).click();a.locator('#speed').select_option('60');a.locator('#pause').click();expect(a.locator('#running')).to_have_text('SIMULATION LÄUFT')
             # Move and resize a desk window, preserve its layout through live updates and reload.
             a.evaluate("command('control',{paused:true})")

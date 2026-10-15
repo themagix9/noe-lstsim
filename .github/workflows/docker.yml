@@ -44,6 +44,8 @@ jobs:
           node tests/test_live_ui.js
           node --check app/static/transport-reminders.js
           node tests/test_transport_reminders.js
+      - name: Verify Austrian speeds with actual OSRM profile
+        run: python tests/osrm_profile_smoke.py
       - name: Install browser test dependencies
         run: |
           pip install playwright==1.58.0
@@ -75,8 +77,6 @@ jobs:
         run: |
           docker compose -f compose.portainer.yaml config --quiet
           docker compose -f compose.portainer.yaml -f compose.routing.yaml config --quiet
-      - name: Verify Austrian speeds with actual OSRM profile
-        run: python tests/osrm_profile_smoke.py
       - name: Build Docker image
         run: docker build -t noe-lstsim:test .
       - name: Verify container startup and health
