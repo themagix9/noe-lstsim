@@ -8,6 +8,8 @@ import re
 import sqlite3
 import threading
 import uuid
+from telemedicine import Telemedicine
+from air_transport import AirTransport
 from operations import Operations, STATUS_LABELS, JOB_ACTIONS
 from event_generation import EventGeneration
 from manv_coordination import ManvCoordination
@@ -69,7 +71,7 @@ def seed():
         vehicles.append({'id':uid(),'callsign':call,'type':typ,'station':station,'start':'00:00','end':'00:00','staffed':True,'status':'ready','lat':s['lat'],'lon':s['lon'],'job':None,'phase_due':None,'source':'Kennung/Typ: Nutzerfoto 11.10.2026; Stammdienststelle und Dienstzeit: ungeprüfte Startkonfiguration'})
     return {'clock':8*3600,'speed':1,'paused':True,'stations':stations,'vehicles':vehicles,'jobs':[],'logs':[],'hospitals':copy.deepcopy(HOSPITALS),'next_emergency':8*3600+180,'next_transport':8*3600+60}
 
-class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
+class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Agencies,SignalOps,Support,Cancellations,MultiplePatients,Fuel,Operations, Fleet, Staffing, AirOps, Radio, Patients, Calls):
     def __init__(self, path, room_id='legacy'):
         self.lock=threading.RLock()
         self.db=sqlite3.connect(path, check_same_thread=False)
@@ -116,6 +118,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
             if had and not j['vehicles']:j.update(status='done',completed=j.get('completed',self.state['clock']))
             self.sync_ecpr_team(j)
             self.ensure_triage_leader(j)
+        self.sync_telenotarzt()
         self.save()
 
     def save(self):
@@ -129,6 +132,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
             for name in ('scenario_rotation','scenario_pool','last_scenario','address_rotation','address_pool','last_address_city','last_address_id'):result.pop(name,None)
             result['support_catalog']=self.support_catalog()
             result['event_settings']=self.event_settings()
+            result['telenotarzt_pool']={'total':10,'available':len(self.tna_free_slots())}
             for v in result['vehicles']:
                 v['in_shift']=self.in_shift(v);v['crew_shift']='Tagmannschaft 06–18' if 21600<=self.state['clock']%86400<64800 else 'Nachtmannschaft 18–06';v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
                 if v.get('daylight'):v['duty_window']=list(self.daylight_window(v))
@@ -242,6 +246,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
             self.update_support(now)
             self.update_agencies(now)
             self.update_assessments(now)
+            self.update_telenotarzt(now)
             self.update_patients(now)
             for v in self.state['vehicles']:
                 # Alarm/ack events must retain their simulated timestamps even
@@ -322,6 +327,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
             elif action=='fuel_request':self.request_fuel(self.get('vehicles',data['vehicle']))
             elif action=='radio':self.radio_action(data)
             elif action=='radio_retry':self.retry_requests(data)
+            elif action=='telenotarzt_release':self.release_telenotarzt(self.get('jobs',data['job']))
             elif action=='handoff':
                 if self.state['setup'].get('workflow')!='split':raise ValueError('Übergabe gehört zum getrennten Mehrspielermodus.')
                 j=self.get('jobs',data['job'])
@@ -413,6 +419,7 @@ class Engine(ManvCoordination,EventGeneration,EcprTeam,SceneRadio,RadioPacing,Ag
                 self.upgrade_support()
                 self.upgrade_agencies()
             else: raise ValueError('Unbekannte Aktion.')
+            self.sync_telenotarzt()
             if actor and action in JOB_ACTIONS and action!='handoff': j['owner']=actor['id']
             self.save()
             return self.snapshot()

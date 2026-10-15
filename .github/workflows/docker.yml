@@ -27,6 +27,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Check frontend syntax
         run: |
+          node --check app/static/telemedicine-ui.js
           node --check app/static/vehicle-menu.js
           node --check app/static/vienna-alerts.js
           node tests/test_vienna_alerts.js
@@ -50,6 +51,8 @@ jobs:
         run: |
           pip install playwright==1.58.0
           python -m playwright install --with-deps chromium webkit
+      - name: Test shared telenotarzt booking and helicopter query
+        run: python tests/browser_telemedicine.py
       - name: Test event frequency settings and emergency-only mode
         run: python tests/browser_event_settings.py
       - name: Test agency support, live incident texts and paced scene radio

@@ -30,6 +30,11 @@ class AirOps:
 
     def update_air(self,now):
         for j in self.state['jobs']:
+            self.update_transport_heli(j)
+            if j['status']!='done' and now>=j.get('next_air_check',0) and __import__('os').environ.get('REINFORCEMENTS_AUTO','1')!='0':
+                j['next_air_check']=now+30
+                reporter=self.ensure_triage_leader(j) if self.is_manv(j) else next((u for u in self.state['vehicles'] if u.get('job')==j['id'] and u['status']=='scene' and u['type'] in ('KTW','RTW','RTW-C')),None)
+                if reporter:self.maybe_request_transport_heli(j,reporter)
             if j['status']=='done':
                 if j.get('cpr_due') is not None:j.update(cpr_due=None,ecpr_state='closed')
                 continue

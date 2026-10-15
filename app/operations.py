@@ -3,7 +3,7 @@ import random
 import uuid
 
 STATUS_LABELS = {'ready':'1 · Frei auf Wache','enroute':'2 · Zum Berufungsort','scene':'3 · Am Berufungsort','transport':'4 · Zum Zielort','hospital':'5 · Am Zielort','radio':'6 · Frei über Funk','duty':'7 · Dienstfahrt','standby':'8 · Bereitschaft','acknowledged':'9 · Alarmiert und Quittiert','out':'0 · Außer Betrieb','fr_ready':'Bereitschaft · zuhause'}
-JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry','job_additional','agency_request','agency_release','agency_task','job_code')
+JOB_ACTIONS = ('accept','ask','dispatch','reserve','unreserve','bed_request','send_case','edit_job','carrier','ask_cpr','radio','radio_generate','call_question','call_finish','handoff','resource_call','cancel_radio','support_request','support_cancel','job_signal','signal_contact','signal_radio','radio_retry','job_additional','agency_request','agency_release','agency_task','job_code','telenotarzt_release')
 
 class Operations:
     def migrate_operations(self):
@@ -214,6 +214,8 @@ class Operations:
     def crew_destination(self,v):
         j=self.get('jobs',v['job'])
         if self.triage_unit(j,v):v['phase_due']=self.state['clock']+60;return
+        if self.awaiting_transport_heli(j,v):v['phase_due']=self.state['clock']+30;return
+        if __import__('os').environ.get('REINFORCEMENTS_AUTO','1')!='0' and self.maybe_request_transport_heli(j,v):return
         if self.agency_gate(j,'transport'):
             v.update(agency_transport_wait=True,phase_due=self.state['clock']+30);return
         if j.get('no_patient'):self.finish_without_patient(j);return
@@ -294,6 +296,7 @@ class Operations:
             escort=next((u for u in doctors if not patient or patient.get('doctor')==u['id']),None)
         v['transport_destination']=h['id'];v['transport_target']=__import__('copy').deepcopy(h)
         self.drive(v,h,'transport',180);j['status']='transport';self.sync_ecpr_team(j)
+        self.sync_telenotarzt()
         if patient:patient.update(phase='transport',destination=h['id'],doctor=escort['id'] if escort else v['id'] if v['type']=='NAH' else None)
         if escort:
             escort.update(signal=self.signal_for(v,j),escort_of=v['id'],transport_destination=h['id'],transport_target=__import__('copy').deepcopy(h));escort.pop('treating_patient',None)

@@ -449,3 +449,42 @@ Sekunde auf der gesamten Route. Ohne gültige Annotationen bleibt die bisherige
 Interpolation erhalten. Alte Routen-Caches werden für neue Fahrten nicht
 weiterverwendet; bereits laufende Fahrten bleiben erhalten. Es gibt keine
 Live-Stau-, Ampel- oder Beschleunigungssimulation.
+
+
+### Telenotarzt und Heli-Anfragen für lange Transporte
+
+Pro Sitzung stehen zehn Telenotärzte in einem gemeinsamen Pool zur Verfügung.
+Die Mannschaft fordert die Beratung per Sprechwunsch an; im Funkgespräch oder
+unter **Nachforderung** kann der Disponent den Telenotarzt zubuchen. Die Nummer
+wird gleichzeitig per SDS und ESApp an die anfordernde Mannschaft gesendet.
+`SIM-000-000-01` bis `SIM-000-000-10` sind absichtlich nicht anwählbare
+Simulationskennungen, keine echten Telefonnummern. Im Einsatz erscheint nur
+**Telenotarzt** samt Nummer, ohne Fahrzeugstatus und ohne Kartenfahrzeug.
+
+Nach 30 Simulationssekunden ruft die Mannschaft an. Telefonische Anleitung
+verbessert den fiktiven Patienten-Spielwert anschließend alle 60 Sekunden um
+3 Punkte bis maximal 85; ein Wert von 0 wird dadurch nicht angehoben. Dies ist
+keine medizinische Versorgungsregel. Der Telenotarzt belegt keinen physischen
+Notarztplatz, bietet keine Transportbegleitung und ersetzt kein NEF/NAH.
+Bei einem kritischen Spielwert fordert die Mannschaft nach telefonischer
+Einschätzung ein Notarztmittel vor Ort oder bei langem Transport einen Heli an.
+Beim Transportbeginn, Übergang zu einem Notarzt vor Ort, Storno oder Einsatzende
+endet die Beratung und der Poolplatz wird frei. Ein manuelles Beenden ist unter
+**Nachforderung** möglich. Auslastung, Verbindung und Zuordnung bleiben bei
+Neuladen/Neustart erhalten. Pool und Zuweisung sind zwischen Mitspielern geteilt;
+Betreuerrechte und die Calltaker-/Disponenten-Trennung gelten auch hier.
+
+Bei kritischem fiktivem Zustand (1–44 Punkte) und mindestens 35 Minuten
+Bodentransport zu einem geeigneten Akutkrankenhaus mit Heli-Landeplatz kann die
+Mannschaft nach einem verfügbaren NAH fragen. Straßenrouting wird bevorzugt;
+fehlende Routendaten werden durch eine ausdrücklich vorläufige Schätzung
+ersetzt. Die 35 Minuten sind eine Spielannahme, keine medizinische Indikation.
+Der Disponent bucht ein tatsächlich verfügbares Luftrettungsmittel zu und
+bestätigt dessen Anfahrt mit ETA oder antwortet **Negativ – derzeit kein
+Notarzthubschrauber verfügbar**. Es erscheint kein Phantom-Heli. Nach einer
+Zusage wartet die Mannschaft; bei mehreren Patienten wird die Patientenzuordnung
+erst nach Eintreffen des Helis geändert. Eine negative Antwort verhindert die
+ständige Wiederholung derselben Anfrage; sie lässt sich unter Nachforderung
+wieder freigeben. Laufende Reanimation und das bestehende eCPR-Verfahren bleiben
+separat. Die Automatik beachtet `REINFORCEMENTS_AUTO=0`; `PATIENT_EVOLUTION=0`
+unterdrückt auch die zusätzliche Verbesserung durch telefonische Anleitung.
