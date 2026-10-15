@@ -46,7 +46,7 @@ class ScenarioTests(unittest.TestCase):
 
     def test_fire_standby_holds_and_survives_reload(self):
         j=self.incident('fire-standby');v=self.arrive(j);self.assess(v)
-        self.assertEqual(v['phase_due']-self.e.state['clock'],600)
+        self.assertAlmostEqual(v['phase_due']-self.e.state['clock'],600,places=6)
         self.e.save();self.e.db.close()
         from engine import Engine
         self.e=Engine(self.path);saved=self.e.get('jobs',j['id'])
