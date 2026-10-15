@@ -11,7 +11,7 @@ window.CallSpeech=(()=>{
  function send(mode,job=jobId,index=line){if(!job)return Promise.resolve(false);commands=commands.then(()=>command('call_playback',{job,mode,line:index}));return commands}
  function active(){const j=state?.jobs.find(j=>j.id===selected);return j?.call?.automatic&&j.owner===state.session.me&&j.accepted?j:null}
  function label(text){status=text;const el=document.getElementById('call-audio-status');if(el)el.textContent=text}
- function complete(token){if(token!==epoch)return;finished=true;busy=false;node=null;timer=setTimeout(()=>{if(token===epoch&&document.getElementById('dispatch-dialog').open){finished=false;send('done');}},250)}
+ function complete(token){if(token!==epoch)return;finished=true;busy=false;node=null;timer=setTimeout(()=>{if(token===epoch&&document.getElementById('dispatch-dialog').open){finished=false;send('done');}},120)}
  async function speak(j,index){
   const token=++epoch;busy=true;finished=false;line=index;label('Sprachausgabe wird vorbereitet …');
   try{
@@ -23,9 +23,10 @@ window.CallSpeech=(()=>{
    node.playbackRate.value=1;node.detune.value=0;
    const gain=ctx.createGain();gain.gain.value=volume;
    if(telephone&&row.speaker==='Anrufer'){
-    const high=ctx.createBiquadFilter(),low=ctx.createBiquadFilter(),compress=ctx.createDynamicsCompressor();
+    const high=ctx.createBiquadFilter(),low=ctx.createBiquadFilter(),high2=ctx.createBiquadFilter(),low2=ctx.createBiquadFilter(),compress=ctx.createDynamicsCompressor();
     high.type='highpass';high.frequency.value=300;low.type='lowpass';low.frequency.value=3400;
-    compress.threshold.value=-24;compress.ratio.value=4;node.connect(high).connect(low).connect(compress).connect(gain);
+    high2.type='highpass';high2.frequency.value=300;low2.type='lowpass';low2.frequency.value=3400;
+    compress.threshold.value=-24;compress.ratio.value=4;node.connect(high).connect(high2).connect(low).connect(low2).connect(compress).connect(gain);
    }else node.connect(gain);
    gain.connect(ctx.destination);node.onended=()=>complete(token);node.start();
    if(!document.getElementById('dispatch-dialog').open||j.call.paused)await ctx.suspend();

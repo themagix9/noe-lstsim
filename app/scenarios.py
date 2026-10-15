@@ -1,9 +1,11 @@
 """Original fictional NÖ incidents; caller observations are separate from scene truth."""
 
-def scenario(id,title,caller,detail,code,report,answers,score=70,trend=(-5,3),no_patient=False,fire=False,police=False,hold=120):
+def scenario(id,title,caller,detail,code,report,answers,score=70,trend=(-5,3),no_patient=False,fire=False,police=False,hold=120,age=None,perspective=None):
+    from caller_context import context_for
+    context=context_for({'scenario_id':id,'caller':caller,'detail':detail,'_scenario':{'answers':answers}},age,perspective)
     return {'scenario_id':id,'title':title,'caller':caller,'detail':detail,'suggested_code':code,
             'priority':'mittel','needs':['RTW'],'scene':report,'fire':fire,'police':police,
-            '_scenario':{'report':report,'answers':answers,'initial_percent':score,'trend':list(trend),
+            '_scenario':{'call_context':context,'report':report,'answers':answers,'initial_percent':score,'trend':list(trend),
                          'no_patient':no_patient,'hold_seconds':hold,'source':'Eigene fiktive NÖ-Übung'}}
 
 EXTRA_SCENARIOS=[

@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory() as directory,patch.dict('os.environ',{'ROUTIN
         with wave.open(io.BytesIO(raw),'rb') as wav:
             assert wav.getnchannels()==1 and wav.getsampwidth()==2
             seconds=wav.getnframes()/wav.getframerate()
-        played=seconds+.25;duration+=played
+        played=seconds+.12;duration+=played
         # Simulate the browser playing while later lines are prepared. This
         # measures end-to-end pacing, not only the sum of WAV durations.
         time.sleep(played)
@@ -37,6 +37,12 @@ with tempfile.TemporaryDirectory() as directory,patch.dict('os.environ',{'ROUTIN
     sample=speech.synthesize('LEO von siebenundsiebzig null null zwei, kommen.',v['callsign'],identity)
     assert sample.startswith(b'RIFF') and len(sample)>1000
     assert speech.synthesize('LEO von siebenundsiebzig null null zwei, kommen.',v['callsign'],identity)==sample
-    assert list(speech.voices)==['clear-model']
-    assert j['call']['voice_profile']['model']=='clear' and j['call']['voice_profile']['speaker_id']==0
+    from voice_profiles import profile
+    for gender in ('male','female'):
+        raw=speech.synthesize('Ja, ich bin einunddreißig Jahre alt. Der Hund hat mich in den Arm gebissen. Ich bekomme normal Luft.','Anrufer',profile('smoke:'+gender,gender))
+        with wave.open(io.BytesIO(raw),'rb') as wav:
+            assert wav.getframerate()==(16000 if gender=='female' else 22050)
+            assert 3<wav.getnframes()/wav.getframerate()<20
+    assert set(speech.voices)=={'clear-model','female-model'}
+    assert j['call']['voice_profile']['model'] in ('clear','female') and j['call']['voice_profile']['speaker_id']==0
     engine.db.close()

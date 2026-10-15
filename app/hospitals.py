@@ -54,3 +54,19 @@ def plan_transport(engine,j):
         else:
             h=random.choice(nearby(engine,j,'NÖ',True)[:5]);j.update(destination=h['id'],title='Ambulanztermin')
     else:j['transport_direction']='NÖ · regional'
+
+
+def spoken_name(h):
+    """Brief operational names; retain registry labels in the hospital directory."""
+    import re
+    known={'kh-akh-ecpr':'AKH Wien','kh-moedling':'Klinik Mödling','kh-hainburg':'Klinik Hainburg','kh-donaustadt':'Klinik Donaustadt'}
+    if h.get('id') in known:return known[h['id']]
+    name=h.get('name','Krankenhaus')
+    if h.get('registry_id')=='K380.2':return 'Klinik Baden'
+    suffix=re.search(r' / ([^(·/]+)',name)
+    if 'Baden-Mödling' in name and ('Baden' in (suffix[1] if suffix else h.get('city',''))):return 'Klinik Baden'
+    short=(suffix[1] if suffix else name).split(' · ')[0].strip()
+    short=re.sub(r'\s*\([^)]*\)','',short)
+    short=re.sub(r'^(?:Landesklinikum|Universitätsklinikum|Landeskrankenhaus|LKH)\s+','Klinik ',short)
+    if suffix and not re.match(r'Klinik|AKH|Krankenhaus|Spital',short):short='Klinik '+short
+    return short.strip()

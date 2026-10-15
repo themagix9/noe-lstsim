@@ -211,3 +211,11 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 #dispatch-dialog .call-panel .phone-line{flex:0 0 auto}
 #dispatch-dialog .call-panel .call-dialogue>h3,#dispatch-dialog .call-panel #call-progress,#dispatch-dialog .call-panel #call-continue{flex:0 0 auto}
 #dispatch-dialog .call-panel #call-continue{width:100%;margin-top:6px}
+
+/* Actionable radio is visible without opening the incident. */
+.job.radio-attention{border:2px solid #c67b00;box-shadow:inset 4px 0 #d98b12}
+.radio-job-action{display:block;text-align:left;margin:5px 46px 8px 12px;background:#fff0cf;color:#674100;border:1px solid #c67b00;font-size:13px;line-height:1.4}
+.radio-owner{display:block;font-size:13px;font-weight:750;color:#4e3a74;margin:3px 0 6px}
+.radio-owner.own{color:#125b3b}
+.radio-call>b{font-size:14px;font-weight:800}.radio-call>span{font-size:13px;font-weight:600;line-height:1.5}
+.log-funk>span:last-child{font-size:13px;font-weight:650;line-height:1.5}

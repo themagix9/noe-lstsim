@@ -14,7 +14,7 @@ for row in ROWS:
         breathing='Das kann ich aus der Entfernung nicht beurteilen.' if absent else 'Keine normale Atmung erkennbar.' if arrest else 'Die Person atmet deutlich angestrengt.' if code.startswith(('RD-6','RD-10C1')) else 'Die Person atmet regelmäßig, soweit ich das sehen kann.',
         access='Ich bleibe unter dieser Nummer erreichbar und mache mich beim Zugang bemerkbar.')
     item=scenario(row['id'],row['title'],row['caller'],'Telefonische Angaben: '+row['caller'],code,row['report'],answers,
-        score=row['percent'],trend=(-7,2) if row['percent']<45 else (-3,4),no_patient=absent,
+        age=row['age'] if not absent else None,score=row['percent'],trend=(-7,2) if row['percent']<45 else (-3,4),no_patient=absent,
         fire=row.get('fire',False) or code.startswith(('RD-8','RD-22A2')),police=row.get('police',False) or code.startswith(('RD-4','RD-29')))
     SCENARIOS.append(item)
 

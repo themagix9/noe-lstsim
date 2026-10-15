@@ -9,11 +9,13 @@ import threading
 import wave
 from voice_profiles import profile as make_profile
 from spoken_text import speech_text
+from speech_timing import natural_pauses
 
 class Speech:
     def __init__(self):
         self.lock=threading.Lock();self.cache_lock=threading.RLock();self.voice=None;self.voices={};self.cache=OrderedDict();self.size=0
         self.model=Path(os.environ.get('TTS_MODEL','/opt/voices/de_DE-thorsten-high.onnx'))
+        self.female_model=Path(os.environ.get('TTS_FEMALE_MODEL','/opt/voices/de_DE-kerstin-low.onnx'))
         self.preparation=queue.Queue(maxsize=256);self.worker=None
     def available(self):return os.environ.get('TTS_ENABLED','1')!='0' and self.model.is_file()
     def cached(self,key):
@@ -54,21 +56,22 @@ class Speech:
             from piper import PiperVoice,SynthesisConfig
             from piper.config import PiperConfig
             identity=profile or make_profile('LEO' if speaker=='LEO' else 'caller:default')
-            model=self.model
+            model=self.female_model if identity.get('model')=='female' else self.model
+            voice_key='female-model' if identity.get('model')=='female' else 'clear-model'
             if identity.get('model')=='mls':identity=make_profile(identity.get('identity','caller:legacy'))
             if not model.is_file():raise ValueError('Zugeordnetes Sprachmodell fehlt.')
-            if 'clear-model' not in self.voices:
+            if voice_key not in self.voices:
                 import onnxruntime as ort
                 session=ort.SessionOptions();session.intra_op_num_threads=2;session.inter_op_num_threads=1
                 config=PiperConfig.from_dict(json.loads(Path(str(model)+'.json').read_text()))
-                self.voices['clear-model']=PiperVoice(config=config,session=ort.InferenceSession(str(model),sess_options=session,providers=['CPUExecutionProvider']))
-            voice=self.voices['clear-model']
+                self.voices[voice_key]=PiperVoice(config=config,session=ort.InferenceSession(str(model),sess_options=session,providers=['CPUExecutionProvider']))
+            voice=self.voices[voice_key]
             speaker_id=identity['speaker_id']
             if not 0<=speaker_id<voice.config.num_speakers:raise ValueError('Unbekannte Sprecherstimme.')
             out=io.BytesIO()
             with wave.open(out,'wb') as wav:
                 voice.synthesize_wav(speech_text(text),wav,syn_config=SynthesisConfig(speaker_id=speaker_id,length_scale=1.0,noise_scale=.333,noise_w_scale=.333))
-            raw=out.getvalue()
+            raw=natural_pauses(out.getvalue())
             with self.cache_lock:
                 while self.cache and (len(self.cache)>=128 or self.size+len(raw)>32_000_000):
                     _,old=self.cache.popitem(last=False);self.size-=len(old)

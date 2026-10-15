@@ -1,16 +1,12 @@
-"""Stable identities using the intelligible single-speaker German model.
-
-The former MLS pool is intentionally retired: arbitrary speaker IDs produced
-unintelligible calls. Identity remains stable, but is not a promise of a unique
-human voice for every resource. Telephone filtering distinguishes callers.
-"""
-def profile(identity):
-    return {'model':'leo' if identity=='LEO' else 'clear','speaker_id':0,'identity':str(identity)}
+"""Stable, single-speaker German voices; no random speaker or pitch changes."""
+def profile(identity,gender=None):
+    return {'model':'leo' if identity=='LEO' else 'female' if gender=='female' else 'clear','speaker_id':0,'identity':str(identity)}
 
 def caller_profile(job):
-    current=job['call'].get('voice_profile')
-    if not current or current.get('model')!='clear' or current.get('speaker_id')!=0:
-        job['call']['voice_profile']=profile('caller:'+job['id'])
-    return job['call']['voice_profile']
+    from caller_context import gender_for_name
+    call=job['call'];gender=call.get('caller_gender') or gender_for_name(call.get('caller_name',''))
+    expected=profile('caller:'+job['id'],gender)
+    if call.get('voice_profile')!=expected:call['voice_profile']=expected
+    return call['voice_profile']
 
 def resource_profile(vehicle):return profile('resource:'+vehicle['id'])

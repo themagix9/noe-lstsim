@@ -60,10 +60,19 @@ for id,title,caller,age,report,score,code in CASES:
     critical=score<45
     consciousness='Keine normale Reaktion erkennbar.' if code=='RD-9E1' else 'Wach, aber nicht wie sonst; antwortet nur kurz.' if critical else 'Ja, die Person ist wach und antwortet.'
     breathing='Ich sehe keine normale Atmung.' if code=='RD-9E1' else 'Die Atmung wirkt angestrengt.' if code.startswith(('RD-6','RD-8','RD-10C','RD-14')) else 'Die Person atmet; genauer kann ich es gerade nicht beurteilen.'
+    observations={
+        'seizure-known':('Er ist wach, aber noch müde und verwirrt.','Er atmet, soweit ich das sehe.'),
+        'seizure-first':('Sie reagiert noch nicht richtig auf mich.','Sie atmet, genauer kann ich es gerade nicht beurteilen.'),
+        'electric-shock':('Ja, er ist wach und antwortet.','Er atmet, soweit ich das sehe.'),
+        'fall-ladder':('Ja, er spricht mit mir.','Er atmet, genauer kann ich es gerade nicht beurteilen.'),
+        'water-rescue':('Ja, er sitzt hier und ist ansprechbar.','Er atmet und hustet.'),
+        'child-poison':('Ja, mein Kind ist wach.','Es atmet, soweit ich das sehe.'),
+        'helpless-home':('Ich höre ihn rufen, aber sehe ihn nicht.','Das kann ich durch die versperrte Tür nicht beurteilen.')}
+    if id in observations:consciousness,breathing=observations[id]
     CATALOG.append(scenario(id,title,caller,'Telefonische Angaben: '+caller,code,report,
         {'patient':f'Eine Person, ungefähr {age} Jahre alt.','consciousness':consciousness,'breathing':breathing,
          'access':'Ich bin unter dieser Nummer erreichbar. Eine zweite Person erwartet euch beim Eingang.'},
-        score=score,trend=(-9,2) if critical else (-5,4),fire=id in ('co-alarm','smoke-inhalation','trapped-hand','helpless-home'),police=id in ('assault','crash-pedestrian')))
+        age=age,score=score,trend=(-9,2) if critical else (-5,4),fire=id in ('co-alarm','smoke-inhalation','trapped-hand','helpless-home'),police=id in ('assault','crash-pedestrian')))
 
 for id,title,caller,report in [
     ('two-crash','Verkehrsunfall mit unklarer Personenlage','Zwei Autos sind zusammengestoßen. Ein Mann klagt über Schmerzen, bei der zweiten Person bin ich mir nicht sicher.','Vor Ort zwei verletzte, ansprechbare Personen. Für den zweiten Patienten benötigen wir ein weiteres transportierendes Rettungsmittel.'),

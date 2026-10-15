@@ -39,7 +39,9 @@ class CallTests(unittest.TestCase):
             self.assertEqual(len(j['call']['answered']),answered)
         self.assertEqual(j['call']['state'],'ready');self.assertEqual(len(j['call']['transcript']),8)
         text=' '.join(line['text'] for line in j['call']['transcript'])
-        for q in j['call']['questions']:self.assertIn(q['answer'],text)
+        for q in j['call']['questions']:
+            if j['call']['context']['role']=='self' and q['key']=='consciousness':continue # A speaking self-caller establishes this without a redundant answer.
+            self.assertIn(q['answer'],text)
         self.e.command('call_finish',{'job':j['id']});self.assertEqual(len(j['call']['transcript']),10)
 
     def test_combined_mode_resumes_partly_queried_existing_call(self):

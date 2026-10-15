@@ -57,6 +57,9 @@ with tempfile.TemporaryDirectory() as data:
             p.wait_for_function("state.jobs.find(j=>j.id===jobId).patient_condition.reported",timeout=10000);p.evaluate("command('control',{paused:true})")
             on_tab(p,'gebucht');expect(p.locator('#detail .agency-resource')).to_have_count(2);expect(p.locator('#detail .agency-resource').first).to_contain_text('Am Einsatzort')
             on_tab(p,'kommunikation');p.wait_for_function("!state.radio_pending?.length",timeout=20000)
+            expect(p.locator('.job.radio-attention')).to_have_count(1)
+            expect(p.locator('.radio-job-action')).to_contain_text('Antwort erforderlich')
+            expect(p.locator('#radio-queue .radio-owner')).to_have_count(0)
             before=time.monotonic();visible(p,'#radio-detail [data-radio][data-step=listen]').click()
             p.wait_for_function("state.radio_calls.some(c=>c.job===jobId&&c.kind==='Lagemeldung'&&c.state==='awaiting_end')")
             # The reply is queued, not inserted together with LEO's answer.
@@ -67,6 +70,7 @@ with tempfile.TemporaryDirectory() as data:
             visible(p,'#radio-detail [data-lage-storno]').click();p.wait_for_function("state.vehicles.find(v=>v.callsign==='64/007').job===null")
             p.wait_for_function("!state.radio_pending.length",timeout=30000);visible(p,'#radio-detail [data-radio][data-step=end]').click();p.wait_for_function("state.radio_calls.filter(c=>c.job===jobId&&c.kind==='Lagemeldung').every(c=>c.state==='closed')");p.wait_for_function("!state.radio_pending.length",timeout=10000)
             expect(p.locator('#logs')).to_contain_text('77/002 von LEO, verstanden. Ende.');p.screenshot(path='/tmp/noe-ui-qa/paced-scene-report.png')
+            expect(p.locator('.job.radio-attention')).to_have_count(0)
             colors=p.evaluate("""()=>{const result={};for(const status of ['ready','radio','enroute','scene','transport','hospital','assigned']){const el=document.createElement('span');el.className='badge '+status;document.body.append(el);const css=getComputedStyle(el);result[status]=[css.backgroundColor,css.color];el.remove()}return result}""")
             assert colors['assigned']==['rgb(255, 255, 255)','rgb(207, 38, 56)'];assert colors['scene'][0]=='rgb(207, 52, 62)';assert colors['ready'][0]!=colors['radio'][0]
             p.set_viewport_size({'width':1366,'height':768});on_tab(p,'behoerden');p.wait_for_timeout(300);assert p.evaluate("document.getElementById('detail').scrollHeight<=document.getElementById('detail').clientHeight+1")

@@ -295,9 +295,7 @@ class Operations:
             self.radio_transmit('LEO',v,'verstanden. Ende.')
         else:
             j['destination']=h['id'];j['bed_state']='crew_selected'
-            if self.routine_radio_enabled(j):
-                self.radio_transmit(v,'LEO',f'Transportziel {h["name"]}. Kommen.')
-                self.radio_transmit('LEO',v,'verstanden. Ende.')
+            self.log(f'{v["callsign"]}: Transportziel '+__import__('hospitals').spoken_name(h)+'.','Status')
             self.start_transport(v)
 
     def start_transport(self,v):
@@ -334,7 +332,7 @@ class Operations:
                 if remaining and other['type'] in ('NEF','FR'):other['phase_due']=self.state['clock']+60;continue
                 self.detach(other);self.drive(other,self.home(other),'radio')
         self.ensure_triage_leader(j)
-        self.log(f'{v["callsign"]}, Status 4: Patient übernommen, zum Zielort {h["name"]}.')
+        self.log(f'{v["callsign"]}, Status 4: zum Zielort '+__import__('hospitals').spoken_name(h)+'.','Status')
 
     def request_bed(self,data):
         j=self.get('jobs',data['job']);h=self.get('hospitals',data['hospital'])

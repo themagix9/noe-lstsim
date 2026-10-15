@@ -32,6 +32,14 @@ with tempfile.TemporaryDirectory() as data:
             b.locator('.job').first.click();expect(b.locator('#dispatch')).to_be_disabled()
             a.get_by_role('button',name='Zur Übergabe freigeben').click();expect(b.locator('#claim')).to_be_visible(timeout=8000);b.locator('#claim').click();expect(a.locator('#detail')).to_contain_text('Betreuung: Disponent B',timeout=8000)
             choose_code(b, 'KTR-90K3');on_tab(b, 'disposition').locator('.dispatch-options input').first.check();b.locator('#dispatch').click();expect(b.locator('#detail')).to_contain_text('Alarmiert');expect(b.locator('#dispatch-dialog')).not_to_be_visible();a.locator('#close-dispatch').click();expect(a.locator('#fleet-table')).to_contain_text('Alarmiert',timeout=8000)
+            # An actual shared radio task shows its dispatcher and marks the incident for both users.
+            b.evaluate("""async()=>{const j=state.jobs.find(j=>j.owner===state.session.me),v=state.vehicles.find(v=>v.job===j.id);window.radioJob=j.id;await command('signal_contact',{job:j.id,vehicle:v.id,signal:true})}""")
+            for page in (a,b):
+                expect(page.locator('#radio-queue .radio-owner')).to_contain_text('Disponent B')
+                expect(page.locator('.job.radio-attention')).to_have_count(1)
+            expect(a.locator('#radio-queue [data-signal-call][data-step=answer]')).to_be_disabled()
+            b.locator('#radio-queue [data-signal-call][data-step=cancel]').click()
+            for page in (a,b):expect(page.locator('.job.radio-attention')).to_have_count(0)
             b.locator('#chat-input').fill('Transport übernommen.');b.get_by_role('button',name='Senden',exact=True).click();expect(a.locator('#chat')).to_contain_text('Transport übernommen.',timeout=8000)
             a.reload();expect(a.locator('#lobby')).to_be_hidden(timeout=8000);expect(a.locator('#copy-code')).to_have_text(code)
             # Both see an incoming offer; claiming it closes only the other prompt.

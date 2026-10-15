@@ -11,6 +11,9 @@ class Radio:
         return v['callsign']
     def radio_text(self,text):
         import re
+        from hospitals import spoken_name
+        for h in sorted(self.state.get('hospitals',[]),key=lambda h:len(h['name']),reverse=True):
+            if h['name'] in str(text):text=str(text).replace(h['name'],spoken_name(h))
         text=re.sub(r'\bLeitstelle(?: NÖ)?\b','LEO',str(text))
         def name(value):
             unit=next((v for v in self.state['vehicles'] if v['callsign']==value),None)
@@ -20,6 +23,16 @@ class Radio:
         text=re.sub(r'\bC(?:3|9|15|16)\b',lambda match:name(match[0]),text)
         if re.match(r'^.+? von .+?,',text) and not text.lower().endswith(('kommen.','ende.','warten.')):text=text.rstrip() + (' ' if text.endswith(('.', '?', '!')) else '. ')+'Kommen.'
         return text
+
+    def radio_metadata(self,text):
+        import re
+        match=re.match(r'^(.+?) von (.+?),',text)
+        if not match:return {}
+        parties={match[1],match[2]}
+        unit=next((v for v in self.state['vehicles'] if self.radio_name(v) in parties or v['callsign'] in parties),None)
+        if not unit:return {}
+        job=next((j for j in self.state['jobs'] if j['id']==unit.get('job')),None)
+        return dict(vehicle=unit['id'],job=unit.get('job'),owner=job.get('owner') if job else None)
 
     def radio_transmit(self,sender,receiver,text='kommen.'):
         sender=self.radio_name(sender) if isinstance(sender,dict) else sender

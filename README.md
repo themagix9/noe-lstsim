@@ -507,24 +507,25 @@ unterdrückt auch die zusätzliche Verbesserung durch telefonische Anleitung.
 ### Anrufergespräch mit lokaler deutscher Sprachausgabe
 
 Das Docker-Image enthält **Piper TTS 1.3.0** und die deutsche Stimme
-**de_DE-thorsten-high** für LEO, Anrufer und Ressourcen. Der frühere MLS-Pool
-wurde wegen unverständlicher Sprecherstimmen entfernt. Alle verwenden vorerst
-dieselbe klare Grundstimme; der Telefonfilter unterscheidet den Anrufer akustisch. Kein API-Schlüssel und kein externer Sprachdienst sind
+**de_DE-thorsten-high** für LEO, männliche Anrufer und Ressourcen sowie
+**de_DE-kerstin-low** für weibliche Anrufer. Beide sind Einzelsprecher-Modelle.
+Die Anruferstimme folgt dem gespeicherten Geschlecht und bleibt über alle Gesprächszeilen stabil.
+Der frühere MLS-Pool bleibt wegen unverständlicher Stimmen entfernt. Kein API-Schlüssel und kein externer Sprachdienst sind
 nötig. Sprache wird auf der CPU im Container erzeugt; begrenzter gemeinsamer
 Audio-Cache und zwei ONNX-Rechenthreads begrenzen Speicher und CPU-Belastung.
 Folgende Beiträge werden während des laufenden Gesprächs vorbereitet, damit
 Wiedergabe nicht auf die Synthese der nächsten Zeile warten muss.
 LEO hat eine feste eigene Stimme. Jeder Anrufer erhält einmal pro Telefonat eine
 gespeicherte Identität; jede Ressource behält ihre feste Identität. Aktuell verwenden
-alle Sprecher-ID 0 des klaren Modells, ohne zufällige Stimmvarianten. Alte MLS-Zuordnungen
+alle Sprecher-ID 0 ihres jeweiligen Modells, ohne zufällige Stimmvarianten. Alte MLS-Zuordnungen
 werden auch in bestehenden Sitzungen ersetzt. Status- oder Funkkennungswechsel verändern sie nicht.
 In den Ressourcen-Einstellungen kann die Stimme probegehört werden. Dies bereitet
 die Funksprachausgabe vor; laufende Funkgespräche werden noch nicht vorgelesen.
-Es gibt keine Tonhöhenverschiebung und keine zeitliche Anpassung einzelner Zeilen. Der Anrufer kann
+Es gibt keine Tonhöhenverschiebung und keine Dehnung der gesprochenen Wörter. Lange nahezu stille Pausen werden vorsichtig gekürzt; kurze Pausen und leise Konsonanten bleiben erhalten. Der Anrufer kann
 zusätzlich einen Telefonfilter (300–3.400 Hz und Kompression) bekommen.
 In den Einstellungen lassen sich Stimme, Telefonklang und Lautstärke ändern.
 `TTS_ENABLED=0` schaltet die Synthese serverseitig ab; `TTS_MODEL` erlaubt einen
-eigenen kompatiblen deutschen Einzelsprecher-Modellpfad. `TTS_CREW_MODEL` wird nicht mehr verwendet.
+eigenen kompatiblen deutschen Einzelsprecher-Modellpfad. `TTS_FEMALE_MODEL` wählt das weibliche Einzelsprecher-Modell. `TTS_CREW_MODEL` wird nicht mehr verwendet.
 
 Für kurze Gespräche bleibt 30–45 Sekunden das Ziel. Die Dauer entsteht durch
 kürzere, szenariogerechte Formulierungen, nicht durch Veränderung der
@@ -637,3 +638,16 @@ Der erste Österreich-Download und die Aufbereitung benötigen weiterhin Zeit.
 mit `--check`. Zusätzlich startet CI die tatsächlichen Routing-Services aus
 nur einer Compose-Datei in einem separaten Verzeichnis ohne `routing/` und
 prüft eine echte Straßenroute auf einem kleinen Testnetz.
+
+
+### Konsistente Anruferrollen und zugeordnete Funkaufgaben
+
+Der gesamte eigene Einsatzkatalog unterscheidet Selbstanrufer, Angehörige,
+Beobachter, mehrere Betroffene und meldende Organisationen. Selbstanrufer nennen
+ihr genaues hinterlegtes Alter; entfernte Beobachter erfinden keine Sicht auf die Atmung.
+Noch nicht gesprochene Beiträge gespeicherter Anrufe werden beim Laden angeglichen.
+Kliniknamen im Funk werden gekürzt (z. B. Klinik Baden); amtliche Verzeichnisnamen
+bleiben im Krankenhausbestand erhalten. Transportbeginn erscheint als Statusmeldung.
+Offene Funkgespräche markieren den Auftrag mit „Antwort erforderlich“. Im
+Mehrspielermodus zeigen Funkkarten und zuordenbare Funkprotokolle die Betreuung.
+Die Markierung wird nach Gesprächsabschluss für alle Teilnehmer entfernt.
