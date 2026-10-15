@@ -114,9 +114,11 @@ class Sessions:
             with self.lock:
                 engine=self.engine(member['room_id'])
                 with engine.lock:
+                    split=engine.state['setup'].get('workflow')=='split'
+                    if split and member.get('role')!='dispatcher':raise PermissionError('Die Einsatzdisposition übernimmt der Disponent.')
                     job=engine.get('jobs',data.get('job'))
+                    if split and job.get('call') and not job.get('handoff'):raise PermissionError('Die Abfrage muss zuerst an die Disposition übergeben werden.')
                     if job.get('owner') and job['owner']!=member['id']:raise ValueError('Einsatz wird von einem anderen Disponenten betreut.')
-                    if engine.state['setup'].get('workflow')=='split' and (member.get('role')!='dispatcher' or job.get('call') and not job.get('handoff')):raise PermissionError('Die Abfrage muss zuerst an die Disposition übergeben werden.')
                     selected=[engine.get('vehicles',id) for id in data.get('vehicles',[])]
                     selected=[engine.nearest_responder(v,job) if v['type']=='FR' and not v.get('job') else v for v in selected]
                     journeys=[(v['id'],{'lat':v['lat'],'lon':v['lon']},{'lat':job['lat'],'lon':job['lon']}) for v in selected if v['type']!='NAH'] if engine.router.enabled else []

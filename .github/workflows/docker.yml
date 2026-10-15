@@ -56,6 +56,8 @@ jobs:
         run: python tests/browser_speech.py
       - name: Test road routing, ETA and map icons
         run: python tests/browser_routing.py
+      - name: Test Calltaker and dispatcher handoff in separate browser sessions
+        run: python tests/browser_split.py
       - name: Build Docker image
         run: docker build -t noe-lstsim:test .
       - name: Verify real German speech model and audio timing
@@ -72,8 +74,6 @@ jobs:
         run: python tests/browser_live.py
       - name: Test touch selection, movable window and emergency caller dialogue
         run: python tests/browser_calls.py
-      - name: Test Calltaker and dispatcher handoff in separate browser sessions
-        run: python tests/browser_split.py
       - name: Upload internal UI previews
         if: always()
         uses: actions/upload-artifact@v4

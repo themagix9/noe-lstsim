@@ -115,3 +115,11 @@ class PlanningTests(unittest.TestCase):
             s.command(member,'dispatch',{'job':j['id'],'vehicles':[v['id']]})
             self.assertEqual(v['job'],j['id'])
         finally:s.close()
+
+    def test_split_calltaker_is_denied_before_ownership_or_route_checks(self):
+        s=Sessions(str(Path(self.tmp.name)/'guard'));auth=s.create({'name':'Calltaker','mode':'multi','workflow':'split','role':'calltaker'});member=s.member(auth['token']);engine=s.engine(member['room_id'])
+        j=engine.new_job('transport',manual=True);j.update(accepted=True,owner='another-dispatcher')
+        try:
+            for id in (j['id'],'unknown-job'):
+                with self.assertRaises(PermissionError):s.command(member,'dispatch',{'job':id,'vehicles':[]})
+        finally:s.close()
