@@ -28,12 +28,12 @@ class Radio:
         if not text.lower().endswith(('kommen.','ende.')):text=text.rstrip() + (' ' if text.endswith(('.', '?', '!')) else '. ')+'Kommen.'
         self.log(f'{receiver} von {sender}, {text}','Funk')
 
-    def reinforcement_eta_text(self,unit,j):
+    def reinforcement_eta(self,unit,j):
         """Remaining simulated response time, including outstanding turnout."""
         import math
         from engine import distance
         from turnout import preparation
-        if unit['status']=='scene':return 'Bereits am Berufungsort.'
+        if unit['status']=='scene':return {'seconds':0,'minutes':0,'approximate':False,'arrived':True}
         now=self.state['clock'];leg=unit.get('leg') or {};approximate=False
         if unit['status']=='enroute' and not leg.get('waiting') and leg.get('end') is not None:
             remaining=max(0,leg['end']-now)
@@ -47,6 +47,12 @@ class Radio:
             if unit['status']!='enroute':
                 remaining+=max(0,unit['turnout_due']-now) if unit.get('turnout_due') is not None else preparation(self,unit,j)
         minutes=max(1,math.ceil(remaining/60))
+        return {'seconds':remaining,'minutes':minutes,'approximate':approximate,'arrived':False}
+
+    def reinforcement_eta_text(self,unit,j):
+        eta=self.reinforcement_eta(unit,j)
+        if eta['arrived']:return 'Bereits am Berufungsort.'
+        minutes=eta['minutes'];approximate=eta['approximate']
         return f'Eintreffzeit ca. {minutes} '+('Minute.' if minutes==1 else 'Minuten.')+(' Vorläufige Schätzung, Straßenroute wird noch ermittelt.' if approximate else '')
 
     def raise_radio(self,j,v,kind='NEF',reason=None,reason_initial=False,force=False):

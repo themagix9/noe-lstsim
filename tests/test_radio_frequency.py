@@ -47,3 +47,45 @@ class RadioFrequencyTests(unittest.TestCase):
         j,v=self.scene();j.update(code='RD-1A1',routine_radio_roll=.99,crew_target='kh-donaustadt')
         self.e.crew_destination(v);self.assertEqual(j['bed_state'],'requested')
         self.assertTrue(any(l['channel']=='Funk' and 'benötigen ein Ziel in Wien' in l['text'] for l in self.e.state['logs']))
+
+    def test_scene_acknowledges_fastest_incoming_doctor_with_remaining_eta(self):
+        j,v=self.scene();j['patient_condition']['notarzt_required']=True
+        nef=self.vehicle('77/099');heli=self.vehicle('C9');now=self.e.state['clock']
+        for u,duration in [(nef,420),(heli,181)]:
+            u.update(job=j['id'],status='enroute',leg={'end':now+duration});j['vehicles'].append(u['id'])
+        c=self.e.raise_scene_radio(j,v,force=True)
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'})
+        self.e.state['clock']+=62
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'})
+        self.assertEqual(c['state'],'closed')
+        self.assertTrue(any('77/002 von LEO, Verstanden, Christophorus 9 trifft in ca. 2 Minuten ein. Ende.' in l['text'] for l in self.e.state['logs']))
+
+    def test_scene_ack_reports_nef_when_report_explicitly_requests_doctor(self):
+        j,v=self.scene();nef=self.vehicle('77/099')
+        nef.update(job=j['id'],status='enroute',leg={'end':self.e.state['clock']+300})
+        self.assertEqual(self.e.scene_acknowledgement(j,{'report':'Kein Notarzt erforderlich.'},v),'verstanden. Ende.')
+        text=self.e.scene_acknowledgement(j,{'report':'Notarzt erforderlich.'},v)
+        self.assertEqual(text,'Verstanden, NEF Schwechat trifft in ca. 5 Minuten ein. Ende.')
+
+    def test_scene_ack_does_not_invent_incoming_support_or_hold_stale_call(self):
+        j,v=self.scene();j['patient_condition']['notarzt_required']=True
+        nef=self.vehicle('77/099');nef.update(job='another-job',status='enroute',leg={'end':self.e.state['clock']+300})
+        self.assertEqual(self.e.scene_acknowledgement(j,{},v),'verstanden. Ende.')
+        nef.update(job=j['id'],status='scene')
+        self.assertEqual(self.e.scene_acknowledgement(j,{},v),'verstanden. Ende.')
+        c=self.e.raise_scene_radio(j,v,force=True);v.update(job=None,status='radio')
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'})
+        self.assertEqual(c['state'],'closed')
+        self.assertFalse(any('trifft in ca.' in l['text'] for l in self.e.state['logs']))
+
+    def test_doctor_scene_reports_own_care_instead_of_requesting_itself(self):
+        j,v=self.scene();j['patient_condition'].update(percent=25,notarzt_required=True)
+        for callsign in ('77/099','C9'):
+            unit=self.vehicle(callsign);unit.update(job=j['id'],status='scene')
+            j['scene_report']={'text':'Patient mit zunehmender Atemnot, Notarzt zur weiteren Versorgung notwendig.'}
+            c=self.e.raise_scene_radio(j,unit,force=True)
+            self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'})
+            self.assertIn('Patient mit zunehmender Atemnot',c['report'])
+            self.assertIn('Notärztliche Versorgung durch uns übernommen',c['report'])
+            self.assertNotIn('Notarzt zur weiteren Versorgung notwendig',c['report'])
+        self.assertEqual(self.e.doctor_scene_report(j,v,'Notarzt erforderlich.'),'Notarzt erforderlich.')

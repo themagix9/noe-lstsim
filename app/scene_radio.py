@@ -51,10 +51,40 @@ class SceneRadio:
             result.append(v['id'])
         return result
 
+    def doctor_scene_report(self,j,v,text):
+        if v['type'] not in ('NEF','NAH'):return text
+        # Scenario truth can contain an RTW's request for a doctor. Keep the
+        # observations, but don't have an on-scene doctor request itself.
+        parts=re.split(r'(?<=[.!?;])\s+|,\s*',text)
+        observations=[]
+        for part in parts:
+            request=re.search(r'\b(?:notarzt\w*|notärzt\w*|nef)\b',part,re.I) and re.search(r'erforderlich|notwendig|benötigt|disponiert|nachforder|bitte',part,re.I)
+            if not request and part.strip():observations.append(part.strip().rstrip('.;'))
+        text='. '.join(observations)
+        if not text:
+            condition=j.get('patient_condition') or {}
+            text='Laufende Reanimation' if condition.get('percent')==0 else 'Patient kritisch' if condition.get('notarzt_required') else 'Patient derzeit stabil'
+        if not re.search(r'notärztliche Versorgung (?:läuft|durch uns übernommen)',text,re.I):text+='. Notärztliche Versorgung durch uns übernommen'
+        return text.rstrip('.')+'.'
+
+    def scene_acknowledgement(self,j,c,v):
+        text=str(c.get('report','')).lower()
+        explicit=bool(re.search(r'notarzt(?:mittel|versorgung)? (?:erforderlich|benötigt)',text)) and not re.search(r'kein\w* notarzt|notarzt.*nicht (?:erforderlich|benötigt)',text)
+        requested=bool((j.get('patient_condition') or {}).get('notarzt_required')) or explicit
+        if not requested or v['type'] in ('NEF','NAH') or v.get('job')!=j['id'] or v['status']!='scene':return 'verstanden. Ende.'
+        # Only a resource actually approaching this incident can be announced.
+        candidates=[(u,self.reinforcement_eta(u,j)) for u in self.state['vehicles'] if u.get('job')==j['id'] and u['type'] in ('NEF','NAH') and u['status']=='enroute']
+        if not candidates:return 'verstanden. Ende.'
+        unit,eta=min(candidates,key=lambda item:item[1]['seconds'])
+        minutes=eta['minutes'];word='Minute' if minutes==1 else 'Minuten'
+        answer=f'Verstanden, {self.radio_name(unit)} trifft in ca. {minutes} {word} ein.'
+        if eta['approximate']:answer+=' Vorläufige Schätzung, Straßenroute wird noch ermittelt.'
+        return answer+' Ende.'
+
     def scene_radio_action(self,j,c,v,data):
         step=data.get('step')
         if step=='end':
-            self.radio_transmit('LEO',v,'verstanden. Ende.');c['state']='closed'
+            self.radio_transmit('LEO',v,self.scene_acknowledgement(j,c,v));c['state']='closed'
             if v.get('job')==j['id'] and v['status']=='scene' and v.get('phase_due') is None:v['phase_due']=self.state['clock']+120
             return
         if c.get('manv') and step in ('manv_confirm','manv_unavailable') and c['state']=='awaiting_end':
@@ -72,6 +102,7 @@ class SceneRadio:
                 text='Patient kritisch, notärztliche Versorgung läuft.' if condition.get('notarzt_required') and v['type'] in ('NEF','NAH') else 'Patient wird von uns versorgt, Zustand derzeit stabil.' if not condition.get('notarzt_required') else 'Patient kritisch, weitere Versorgung am Berufungsort.'
             if c.get('manv'):text=self.manv_report_text(j);j['manv_reported_needs']=self.manv_needs(j)
             elif j.get('patients'):text+=f' {len(self.scene_patients(j))} Patienten noch am Berufungsort, davon {sum(p["percent"]<45 for p in self.scene_patients(j))} kritisch.'
+            if not c.get('manv'):text=self.doctor_scene_report(j,v,text)
             present=[self.radio_name(u) for u in self.state['vehicles'] if u.get('job')==j['id'] and u['status']=='scene' and u['id']!=v['id']]
             if present:text+=' '+', '.join(present)+' bereits vor Ort.'
             c['cancel_candidates']=self.excess_units(j,v)
