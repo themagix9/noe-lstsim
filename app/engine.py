@@ -424,7 +424,7 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
                 self.upgrade_agencies()
             else: raise ValueError('Unbekannte Aktion.')
             self.sync_telenotarzt()
-            if actor and action in JOB_ACTIONS and action!='handoff': j['owner']=actor['id']
+            if actor and action in JOB_ACTIONS and action not in ('handoff','call_playback'): j['owner']=actor['id']
             self.save()
             return self.snapshot()
 

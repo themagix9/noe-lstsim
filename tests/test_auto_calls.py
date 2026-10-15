@@ -58,3 +58,10 @@ class AutoCallTests(unittest.TestCase):
             self.assertFalse(self.e.flush_calls());self.assertTrue(j['call']['paused'])
             j['owner']='a'
             with self.assertRaises(ValueError):self.e.command('call_playback',{'job':j['id'],'mode':'speech','_actor':{'id':'b'}})
+
+    def test_releasing_call_does_not_get_reclaimed_by_audio_pause(self):
+        with patch.dict('os.environ',{'CALL_AUTO':'1'}),patch('calls.time.time',return_value=100):
+            j=self.accept();j['owner']='a';actor={'id':'a','name':'A'}
+            self.e.command('release',{'id':j['id'],'_actor':actor})
+            self.e.command('call_playback',{'job':j['id'],'mode':'pause','_actor':actor})
+            self.assertIsNone(j['owner']);self.assertTrue(j['call']['paused'])
