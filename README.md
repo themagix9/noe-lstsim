@@ -616,3 +616,24 @@ in 2/4/6/7/9 dargestellt. Standort halten, Tankvorgang und Spielpause bleiben ab
 Stopps. Verlorene Fahrstrecken alter Spielstände werden für Anfahrt, Transport und
 freie Rückfahrt wiederhergestellt. Bekannte Ziel- und Rückfahrten werden während Versorgung
 und Übergabe vorab angefragt. Es gibt weiterhin keine erfundene Querfeldein-Straßenroute.
+
+
+### Portainer: fehlender Bind-Mount auf routing/noe-car.lua behoben
+
+Die Stack-Dateien enthalten das Geschwindigkeitsprofil nun direkt im Startskript
+von `osm-prepare`. Dieser schreibt `/data/noe-car.lua` ins benannte Volume
+`routing-data`. Es gibt dafür keine `configs.file`- oder Hostpfad-Mounts mehr.
+Dadurch funktioniert der Git-Stack auch, wenn Portainer und Docker-Daemon keinen
+gemeinsamen Git-Checkout-Pfad besitzen. Der Fix benötigt nur eine aktualisierte
+Compose-Datei; das zuletzt veröffentlichte App-Image bleibt kompatibel.
+
+In Portainer **Pull and redeploy** verwenden; Stack und Volumes beibehalten.
+Anschließend sind `osm-download` und `osm-prepare` nach erfolgreichem Abschluss
+mit `Exited (0)` normal, während `osrm`, App und Tunnel dauerhaft laufen.
+Der erste Österreich-Download und die Aufbereitung benötigen weiterhin Zeit.
+
+`routing/noe-car.lua` bleibt die maßgebliche Quelldatei. Nach Profiländerungen
+`python scripts/sync_routing_profile.py` ausführen; CI kontrolliert beide Kopien
+mit `--check`. Zusätzlich startet CI die tatsächlichen Routing-Services aus
+nur einer Compose-Datei in einem separaten Verzeichnis ohne `routing/` und
+prüft eine echte Straßenroute auf einem kleinen Testnetz.

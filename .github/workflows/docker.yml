@@ -46,8 +46,12 @@ jobs:
           node tests/test_live_ui.js
           node --check app/static/transport-reminders.js
           node tests/test_transport_reminders.js
+      - name: Check embedded routing profiles
+        run: python scripts/sync_routing_profile.py --check
       - name: Verify Austrian speeds with actual OSRM profile
         run: python tests/osrm_profile_smoke.py
+      - name: Start Portainer routing stack without repository mounts
+        run: python tests/portainer_stack_smoke.py
       - name: Install browser test dependencies
         run: |
           pip install playwright==1.58.0
