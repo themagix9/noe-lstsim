@@ -20,6 +20,9 @@ class CallerContextTests(unittest.TestCase):
             j=self.e.new_job('emergency',scenario=scenario);self.e.prepare_call(j);call=j['call']
             with patch.dict('os.environ',{'CALL_AUTO':'0'}):self.e.accept_call(j)
             self.assertIn(j['address'],call['transcript'][1]['text'])
+            self.e.schedule_call(j)
+            self.assertTrue(all(row['text'] for row in call['pending']))
+            self.assertEqual(len([row for row in call['pending'] if row.get('answered_keys')]),3)
             self.assertIn(call['context']['role'],('self','relative','witness','group','agency'))
             if call['context']['role']!='self':continue
             count+=1

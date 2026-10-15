@@ -83,8 +83,5 @@ def groups_for(call):
 def answer_for(call,batch):
     context=call.get('context',{});role=context.get('role');keys={q['key'] for q in batch}
     if role=='self' and 'patient' in keys:return ' '.join(q['answer'] for q in batch if q['key']!='consciousness')
-    if role=='group' and job.get('scenario_id') in ('co-alarm','zone5-029'):
-        answers['consciousness']='Wir können beide mit Ihnen sprechen.'
-        answers['breathing']='Wir bekommen Luft, aber uns ist schwindlig.'
     if role=='agency' and 'patient' in keys:return next(q['answer'] for q in batch if q['key']=='patient')
     return ' '.join(q['answer'] for q in batch)
