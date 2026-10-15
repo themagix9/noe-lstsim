@@ -101,7 +101,10 @@ class Calls:
                 call.update(paused=False,next_line_at=now+call.pop('remaining',2))
             if action=='resume' and call.get('speech_active'):call['next_line_at']=now+call['transcript'][-1].get('seconds',2)
             call['speech_active']=action=='speech'
-            if action=='speech':call['next_line_at']=now+25
+            if action=='speech':
+                call['next_line_at']=now+25
+                from speech import speech
+                speech.prepare(call['transcript'][-1:]+call.get('pending',[]))
         elif action=='done':
             if call.get('paused') or data.get('line')!=len(call['transcript'])-1:return
             if call.get('finishing'):

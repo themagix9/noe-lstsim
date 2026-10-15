@@ -499,6 +499,8 @@ Das Docker-Image enthält **Piper TTS 1.3.0** und die deutsche Stimme
 **de_DE-thorsten-high**. Kein API-Schlüssel und kein externer Sprachdienst sind
 nötig. Sprache wird auf der CPU im Container erzeugt; begrenzter gemeinsamer
 Audio-Cache und zwei ONNX-Rechenthreads begrenzen Speicher und CPU-Belastung.
+Folgende Beiträge werden während des laufenden Gesprächs vorbereitet, damit
+Wiedergabe nicht auf die Synthese der nächsten Zeile warten muss.
 Anrufer und LEO erhalten leicht unterschiedliche Tonhöhen. Der Anrufer kann
 zusätzlich einen Telefonfilter (300–3.400 Hz und Kompression) bekommen.
 In den Einstellungen lassen sich Stimme, Telefonklang und Lautstärke ändern.
