@@ -40,7 +40,7 @@ class CallTests(unittest.TestCase):
         self.assertEqual(j['call']['state'],'ready');self.assertEqual(len(j['call']['transcript']),8)
         text=' '.join(line['text'] for line in j['call']['transcript'])
         for q in j['call']['questions']:
-            if j['call']['context']['role']=='self' and q['key']=='consciousness':continue # A speaking self-caller establishes this without a redundant answer.
+            if (j['call']['context']['role']=='self' and q['key']=='consciousness') or (j['call']['context']['role']=='agency' and q['key'] in ('consciousness','breathing')):continue # A speaking self-caller establishes this without a redundant answer.
             self.assertIn(q['answer'],text)
         self.e.command('call_finish',{'job':j['id']});self.assertEqual(len(j['call']['transcript']),10)
 

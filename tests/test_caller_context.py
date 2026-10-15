@@ -24,6 +24,7 @@ class CallerContextTests(unittest.TestCase):
             text=answer_for(call,[q for q in call['questions'] if q['key'] in ('patient','consciousness','breathing')])
             self.assertNotIn('ungefähr',text);self.assertNotIn('Die Person',text)
             self.assertNotIn('Wer ist betroffen',str(groups_for(call)))
+            self.assertIsNotNone(call['context']['age'])
             if call['context']['age'] is not None:self.assertIn(f"Ich bin {call['context']['age']} Jahre alt.",text)
         self.assertGreater(count,50)
     def test_dog_bite_self_age_and_no_invented_door_helper(self):
