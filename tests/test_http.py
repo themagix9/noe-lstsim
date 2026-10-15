@@ -37,6 +37,14 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(error.exception.code,401)
         with self.assertRaises(urllib.error.HTTPError) as error:self.req('/api/call_audio?job=x&line=0')
         self.assertEqual(error.exception.code,503)
+    def test_resource_voice_requires_room_membership_and_known_vehicle(self):
+        with self.assertRaises(urllib.error.HTTPError) as error:self.req('/api/resource_voice?vehicle=x',token='')
+        self.assertEqual(error.exception.code,401)
+        with self.assertRaises(urllib.error.HTTPError) as error:self.req('/api/resource_voice?vehicle=x')
+        self.assertEqual(error.exception.code,503)
+        vehicle=json.load(self.req('/api/state'))['vehicles'][0]
+        self.assertEqual(vehicle['voice_profile']['model'],'mls')
+        self.assertTrue(0<=vehicle['voice_profile']['speaker_id']<236)
     def test_unknown_route(self):
         with self.assertRaises(urllib.error.HTTPError) as err:self.req('/missing')
         self.assertEqual(err.exception.code,404)

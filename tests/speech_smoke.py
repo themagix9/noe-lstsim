@@ -16,19 +16,26 @@ with tempfile.TemporaryDirectory() as directory,patch.dict('os.environ',{'ROUTIN
     engine.call_playback({'job':j['id'],'mode':'speech'})
     rows=j['call']['transcript']+j['call']['pending'];duration=0;generated=0
     for row in rows:
-        start=time.monotonic();raw=speech.synthesize(row['text'],row['speaker']);generated+=time.monotonic()-start
+        identity=j['call']['voice_profile'] if row['speaker']=='Anrufer' else None
+        start=time.monotonic();raw=speech.synthesize(row['text'],row['speaker'],identity);generated+=time.monotonic()-start
         assert raw.startswith(b'RIFF') and len(raw)>1000
         with wave.open(io.BytesIO(raw),'rb') as wav:
             assert wav.getnchannels()==1 and wav.getsampwidth()==2
             seconds=wav.getnframes()/wav.getframerate()
-        rate=max(.8,min(1.7,seconds/max(.6,row['seconds']-.25)))
-        played=seconds/rate+.25;duration+=played
+        played=seconds+.25;duration+=played
         # Simulate the browser playing while later lines are prepared. This
         # measures end-to-end pacing, not only the sum of WAV durations.
         time.sleep(played)
-        assert speech.synthesize(row['text'],row['speaker'])==raw
+        assert speech.synthesize(row['text'],row['speaker'],identity)==raw
     elapsed=time.monotonic()-started
-    assert 30<=duration<=50,(duration,generated)
-    assert 30<=elapsed<=50,(elapsed,generated)
-    print(json.dumps({'model':'de_DE-thorsten-high','lines':len(rows),'spoken_seconds':round(duration,2),'foreground_wait_seconds':round(generated,2),'conversation_elapsed_seconds':round(elapsed,2),'cache_entries':len(speech.cache)}))
+    assert 20<=duration<=90,(duration,generated)
+    assert 20<=elapsed<=100,(elapsed,generated)
+    print(json.dumps({'model':'de_DE-thorsten-high','lines':len(rows),'spoken_seconds':round(duration,2),'foreground_wait_seconds':round(generated,2),'conversation_elapsed_seconds':round(elapsed,2),'cache_entries':len(speech.cache),'caller_voice':j['call']['voice_profile'],'native_playback':True}))
+    from voice_profiles import resource_profile
+    v=next(v for v in engine.state['vehicles'] if v['callsign']=='77/002')
+    identity=resource_profile(v)
+    sample=speech.synthesize('LEO von siebenundsiebzig null null zwei, kommen.',v['callsign'],identity)
+    assert sample.startswith(b'RIFF') and len(sample)>1000
+    assert speech.synthesize('LEO von siebenundsiebzig null null zwei, kommen.',v['callsign'],identity)==sample
+    assert 'leo' in speech.voices and 'mls' in speech.voices
     engine.db.close()

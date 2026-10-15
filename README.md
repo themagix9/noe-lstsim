@@ -496,19 +496,28 @@ unterdrückt auch die zusätzliche Verbesserung durch telefonische Anleitung.
 ### Anrufergespräch mit lokaler deutscher Sprachausgabe
 
 Das Docker-Image enthält **Piper TTS 1.3.0** und die deutsche Stimme
-**de_DE-thorsten-high**. Kein API-Schlüssel und kein externer Sprachdienst sind
+**de_DE-thorsten-high** für LEO sowie **de_DE-mls-medium** mit 236 Sprecher-IDs
+für Anrufer und Ressourcen. Kein API-Schlüssel und kein externer Sprachdienst sind
 nötig. Sprache wird auf der CPU im Container erzeugt; begrenzter gemeinsamer
 Audio-Cache und zwei ONNX-Rechenthreads begrenzen Speicher und CPU-Belastung.
 Folgende Beiträge werden während des laufenden Gesprächs vorbereitet, damit
 Wiedergabe nicht auf die Synthese der nächsten Zeile warten muss.
-Anrufer und LEO erhalten leicht unterschiedliche Tonhöhen. Der Anrufer kann
+LEO hat eine feste eigene Stimme. Jeder Anrufer erhält einmal pro Telefonat eine
+gespeicherte Sprecher-ID; jede Ressource hat eine aus ihrer unveränderlichen ID
+abgeleitete feste Sprecher-ID. Status- oder Funkkennungswechsel verändern sie nicht.
+In den Ressourcen-Einstellungen kann die Stimme probegehört werden. Dies bereitet
+die Funksprachausgabe vor; laufende Funkgespräche werden noch nicht vorgelesen.
+Es gibt keine Tonhöhenverschiebung und keine zeitliche Anpassung einzelner Zeilen. Der Anrufer kann
 zusätzlich einen Telefonfilter (300–3.400 Hz und Kompression) bekommen.
 In den Einstellungen lassen sich Stimme, Telefonklang und Lautstärke ändern.
 `TTS_ENABLED=0` schaltet die Synthese serverseitig ab; `TTS_MODEL` erlaubt einen
-eigenen kompatiblen Modellpfad.
+eigenen kompatiblen LEO-Modellpfad, `TTS_CREW_MODEL` den MLS-Modellpfad.
 
-Das Gespräch ist auf ungefähr **38 Sekunden** ausgelegt (Zielbereich 30–45
-Sekunden). Der nächste Beitrag erscheint nach Ende der gesprochenen Zeile;
+Für kurze Gespräche bleibt 30–45 Sekunden das Ziel. Die Dauer entsteht durch
+kürzere, szenariogerechte Formulierungen, nicht durch Veränderung der
+Wiedergabegeschwindigkeit. Jede WAV-Datei läuft mit Originaltempo und
+Originaltonhöhe; natürlich längere Antworten dürfen länger dauern. Die
+textbasierte Variante ohne Audio behält ihr 38-Sekunden-Ziel. Der nächste Beitrag erscheint nach Ende der gesprochenen Zeile;
 eine kurze Sprechpause bleibt erhalten. Bei sehr langen Szenariotexten oder
 langsamer Hardware kann ein Gespräch länger dauern. Fehlt Audio, läuft der
 zeitgesteuerte Textdialog weiter. Browser erlauben Audio erst nach einem Klick;
@@ -526,7 +535,14 @@ bleibt die Übergabe an den Disponenten nach Gesprächsende. Alle Mitspieler
 sehen denselben Verlauf, nur der betreuende Spieler steuert und hört den Anruf.
 
 Quellen und Lizenzen: [Piper Quellcode, GPL-3.0](https://github.com/OHF-Voice/piper1-gpl/tree/v1.3.0)
-und [Thorsten Modellkarte, CC0-Datensatz](https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/thorsten/high/MODEL_CARD).
+, [Thorsten Modellkarte, CC0-Datensatz](https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/thorsten/high/MODEL_CARD)
+und [MLS-Modellkarte](https://huggingface.co/rhasspy/piper-voices/blob/main/de/de_DE/mls/medium/MODEL_CARD).
+MLS basiert auf Multilingual LibriSpeech von Vineel Pratap, Qiantong Xu, Anuroop
+Sriram, Gabriel Synnaeve und Ronan Collobert (2020), LibriVox-Aufnahmen,
+[OpenSLR 94](https://www.openslr.org/94/), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+Die Modelle bleiben unverändert; die App formuliert Texte für die Sprache und
+legt bei Bedarf einen Telefonfilter auf erzeugtes Audio. Attribution ist auch
+in den Einstellungen unter „Stimmen und Lizenzen“ erreichbar.
 Piper und sein Modell bleiben als Drittkomponenten gekennzeichnet; die
 Lizenzhinweise des installierten Pakets sind im Image enthalten. Die Stimme
 spricht Deutsch, imitiert keine echte Anruferperson. Die fiktiven Texte sind

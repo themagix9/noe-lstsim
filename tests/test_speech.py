@@ -27,3 +27,13 @@ class SpeechTests(unittest.TestCase):
         with patch.object(s,'available',return_value=False):
             s.prepare([{'text':'Hallo','speaker':'LEO'}]);self.assertIsNone(s.worker)
             with self.assertRaises(ValueError):s.synthesize('Hallo','LEO')
+
+    def test_identical_text_from_different_callers_never_reuses_the_wrong_voice(self):
+        from voice_profiles import profile
+        from unittest.mock import Mock
+        s=Speech();a=profile('caller:A');b=profile('caller:B')
+        s.cache[s.audio_key('Ja, danke.','Anrufer',a)]=b'RIFFvoiceA'
+        s.lock=Mock();s.lock.acquire.return_value=False
+        with patch.object(s,'available',return_value=True):
+            self.assertEqual(s.synthesize('Ja, danke.','Anrufer',a),b'RIFFvoiceA')
+            with self.assertRaises(ValueError):s.synthesize('Ja, danke.','Anrufer',b)

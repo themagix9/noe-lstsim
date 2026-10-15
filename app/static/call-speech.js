@@ -19,10 +19,8 @@ window.CallSpeech=(()=>{
    if(!response.ok)throw Error('Sprachmodell nicht erreichbar');
    const buffer=await ctx.decodeAudioData(await response.arrayBuffer());if(token!==epoch)return;
    const row=j.call.transcript[index];node=ctx.createBufferSource();node.buffer=buffer;
-   // Each contribution receives a share of a 38-second conversation. Limit
-   // acceleration for intelligibility when an exceptional answer is very long.
-   const seconds=Math.max(.6,(row.seconds||4)-.25);node.playbackRate.value=Math.max(.8,Math.min(1.7,buffer.duration/seconds));
-   node.detune.value=row.speaker==='Anrufer'?70:-70;
+   // Original synthesized voice at its native speed and pitch, for every line.
+   node.playbackRate.value=1;node.detune.value=0;
    const gain=ctx.createGain();gain.gain.value=volume;
    if(telephone&&row.speaker==='Anrufer'){
     const high=ctx.createBiquadFilter(),low=ctx.createBiquadFilter(),compress=ctx.createDynamicsCompressor();
@@ -50,6 +48,7 @@ window.CallSpeech=(()=>{
  }
  document.addEventListener('pointerdown',unlock,{passive:true});
  document.addEventListener('keydown',unlock);
+ document.addEventListener('click',unlock);
  document.addEventListener('DOMContentLoaded',()=>{
   const dialog=document.getElementById('dispatch-dialog');dialog.addEventListener('close',sync);
   new MutationObserver(sync).observe(dialog,{attributes:true,attributeFilter:['open']});

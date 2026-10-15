@@ -36,7 +36,7 @@ with tempfile.TemporaryDirectory() as data:
                 context.route('**/api/call_audio?**',speech)
                 page=context.new_page();errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
                 # Inspect actual filter graph construction, without replacing AudioContext.
-                page.add_init_script("""window.phoneFilters=[];const make=AudioContext.prototype.createBiquadFilter;AudioContext.prototype.createBiquadFilter=function(){const node=make.call(this);phoneFilters.push(node);return node}""")
+                page.add_init_script("""window.speechSources=[];const originalSource=AudioContext.prototype.createBufferSource;AudioContext.prototype.createBufferSource=function(){const source=originalSource.call(this);speechSources.push(source);return source};window.phoneFilters=[];const make=AudioContext.prototype.createBiquadFilter;AudioContext.prototype.createBiquadFilter=function(){const node=make.call(this);phoneFilters.push(node);return node}""")
                 page.goto('http://127.0.0.1:8080');page.get_by_label('Dein Disponentenname').fill('Sprachdisponent');page.locator('#lobby-submit').click();start_session(page)
                 page.evaluate("command('generate',{kind:'emergency'})");expect(page.locator('#accept')).to_be_visible();page.locator('#accept').click()
                 page.wait_for_function("document.getElementById('call-audio-status')?.textContent.includes('Sprachausgabe · LEO')",timeout=15000)
@@ -61,6 +61,7 @@ with tempfile.TemporaryDirectory() as data:
                 page.wait_for_function("state.jobs.find(j=>j.id===selected).call.state==='ended'",timeout=50000)
                 lines=page.evaluate("state.jobs.find(j=>j.id===selected).call.transcript")
                 assert len(lines)==10 and 'Wir schicken jemanden' in lines[-2]['text']
+                assert page.evaluate('speechSources.length>=10 && speechSources.every(s=>s.playbackRate.value===1&&s.detune.value===0)'), 'Voice speed or pitch changed between lines'
                 assert len(requests)==10,(len(requests),requests)
                 assert not errors,errors
                 browser.close();print(engine.name+': actual WebAudio, telephone filter, pause/resume without replay, early disposition and complete transcript passed.')

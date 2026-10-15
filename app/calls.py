@@ -3,6 +3,8 @@ import random
 import os
 import time
 import re
+from voice_profiles import caller_profile
+from spoken_text import address_reply
 
 def line_seconds(text):
     return max(1.4,len(re.findall(r'\S+',text))/3.5+0.3)
@@ -13,16 +15,17 @@ class Calls:
         name=random.choice(['Anna Berger','Thomas Winter','Sabine Leitner','Markus Huber','Eva Wagner','Florian Gruber','Petra Bauer','Miriam Steiner','Lukas Hofer','Elisabeth Mayer','Daniel Fischer','Johanna Leitner','Michael Schwarz','Nora Huber','Andreas König','Claudia Reiter','Felix Schuster','Maria Winkler','Leon Auer','Theresa Pichler','Paul Brandl','Katharina Moser','Simon Eder','Verena Fuchs','Stefan Haider','Lisa Koller','Robert Brunner','Sarah Graf','Martin Schmid','Julia Reisinger'])
         event=j.get('event_title',j['title']);unconscious=event=='Bewusstlose Person';dyspnea=event=='Atemnot';fall=event=='Sturz in Wohnung'
         questions=[
-            ('location','Adresse bestätigen','Zur Sicherheit: Wo genau sind Sie? Welche Hausnummer, welcher Stock und welche Tür?',f'Ja, {j["address"]}. '+('Erster Stock, Tür 3.' if fall or dyspnea else 'Ich stehe direkt davor, draußen.')),
+            ('location','Adresse bestätigen','Zur Sicherheit: Wo genau sind Sie? Welche Hausnummer, welcher Stock und welche Tür?',address_reply(j)+' '+('Erster Stock, Tür 3.' if fall or dyspnea else 'Ich stehe direkt davor, draußen.')),
             ('event','Was ist passiert?','Was ist passiert? Erzählen Sie mir kurz, was Sie sehen.',j['caller']),
-            ('patient','Wer ist betroffen?','Wer braucht Hilfe und wie alt ist die Person ungefähr?','Mein Vater, er ist 68.' if dyspnea else 'Meine Mutter, sie ist 79 Jahre alt.' if fall else 'Ich kenne die Person nicht, erwachsen jedenfalls.' if unconscious else 'Ein Autofahrer, vielleicht Mitte vierzig. Es ist eine verletzte Person.'),
-            ('consciousness','Ist die Person ansprechbar?','Ist die Person wach und reagiert sie, wenn Sie sie ansprechen?','Nein, ich spreche ihn an, aber da kommt gar nichts.' if unconscious else 'Ja, sie antwortet mir.' if fall else 'Ja, er ist wach und antwortet, aber er wirkt sehr beunruhigt.'),
-            ('breathing','Wie atmet die Person?','Atmet die Person? Was fällt Ihnen an der Atmung auf?','Ich weiß es nicht genau, ich kann das gerade nicht sicher erkennen.' if unconscious else 'Er atmet, aber ganz schwer. Er kann kaum einen ganzen Satz sagen.' if dyspnea else 'Ja, die Atmung sieht für mich normal aus.'),
-            ('access','Zugang und Rückruf klären','Wie finden unsere Kräfte Sie? Gibt es beim Zugang etwas zu beachten, und bleiben Sie unter dieser Nummer erreichbar?','Ich bin unter dieser Nummer erreichbar. '+('Ich öffne unten die Haustür, die Klingel ist beschriftet.' if dyspnea or fall else 'Ich mache mich am Straßenrand bemerkbar.')),
+            ('patient','Wer ist betroffen?','Wer braucht Hilfe und wie alt ist die Person ungefähr?','Mein Vater, 68 Jahre.' if dyspnea else 'Meine Mutter, 79 Jahre.' if fall else 'Eine erwachsene Person, ich kenne sie nicht.' if unconscious else 'Ein verletzter Autofahrer, etwa vierzig.'),
+            ('consciousness','Ist die Person ansprechbar?','Ist die Person wach und reagiert sie, wenn Sie sie ansprechen?','Nein, er reagiert nicht.' if unconscious else 'Ja, sie antwortet mir.' if fall else 'Ja, er ist ansprechbar.'),
+            ('breathing','Wie atmet die Person?','Atmet die Person? Was fällt Ihnen an der Atmung auf?','Das kann ich gerade nicht sicher erkennen.' if unconscious else 'Er bekommt schwer Luft und kann kaum sprechen.' if dyspnea else 'Die Atmung wirkt normal.'),
+            ('access','Zugang und Rückruf klären','Wie finden unsere Kräfte Sie? Gibt es beim Zugang etwas zu beachten, und bleiben Sie unter dieser Nummer erreichbar?','Ja, ich bleibe erreichbar. '+('Ich öffne unten die Haustür.' if dyspnea or fall else 'Ich winke Ihnen an der Straße.')),
         ]
         answers=j.get('_scenario',{}).get('answers',{})
         questions=[(key,label,question,answers.get(key,answer)) for key,label,question,answer in questions]
         j['call']={'state':'ringing','caller_name':name,'questions':[{'key':key,'label':label,'question':question,'answer':answer} for key,label,question,answer in questions],'answered':[],'transcript':[],'model':'Fiktiver Anrufdialog; kein originales AMPDS-Abfrageprotokoll'}
+        caller_profile(j)
 
     def phone_line(self,j,speaker,text):
         call=j['call'];call['transcript'].append({'speaker':speaker,'text':text,'time':self.state['clock']})
@@ -34,13 +37,13 @@ class Calls:
     def schedule_call(self,j,intro=None):
         call=j['call'];pending=[]
         if intro:pending.append({'speaker':'Anrufer','text':intro})
-        groups=[(('location','event'),'Wo genau sind Sie, und was ist passiert?'),(('patient','consciousness','breathing'),'Wer ist betroffen? Sind die Personen ansprechbar, und wie atmen sie?'),(('access',),'Wie kommen wir zu Ihnen? Bleiben Sie unter dieser Nummer erreichbar?')]
+        groups=[(('location','event'),'Wo genau sind Sie, und was ist passiert?'),(('patient','consciousness','breathing'),'Wer ist betroffen? Ist die Person ansprechbar und atmet sie?'),(('access',),'Bleiben Sie erreichbar? Wie kommen wir hinein?')]
         for keys,question in groups:
             batch=[q for q in call['questions'] if q['key'] in keys and q['key'] not in call['answered']]
             if batch:
                 pending.append({'speaker':'LEO','text':question})
                 pending.append({'speaker':'Anrufer','text':' '.join(q['answer'] for q in batch),'answered_keys':[q['key'] for q in batch]})
-        pending.extend([{'speaker':'LEO','text':'Wir schicken jemanden zu Ihnen.'},{'speaker':'Anrufer','text':'Okay, danke! Bitte kommen Sie bald.','ends_call':True}])
+        pending.extend([{'speaker':'LEO','text':'Wir schicken jemanden zu Ihnen.'},{'speaker':'Anrufer','text':'Danke, bitte kommen Sie schnell.','ends_call':True}])
         # Normalize the text-only pace to ~38 seconds. Audio completion controls
         # progression when speech is active; server deadlines recover lost clients.
         rows=call['transcript'][-1:]+pending
@@ -53,6 +56,7 @@ class Calls:
         if not self.automatic_calls_enabled():return
         for j in self.state['jobs']:
             call=j.get('call')
+            if call:caller_profile(j)
             if call and not call.get('automatic') and call['state'] in ('connected','ready') and j['status']!='done':self.schedule_call(j)
 
     def flush_calls(self):
@@ -72,7 +76,7 @@ class Calls:
                 call['transcript'][-1]['answered_keys']=keys
                 call['answered'].extend(key for key in keys if key not in call['answered'])
                 if len(call['answered'])==len(call['questions']):j['asked']=True;j['asked_at']=self.state['clock']
-            call['next_line_at']=now+(25 if call.get('speech_active') else row.get('seconds',2))
+            call['next_line_at']=now+(60 if call.get('speech_active') else row.get('seconds',2))
             if row.get('ends_call'):
                 call['finishing']=True
             changed=True
@@ -84,7 +88,7 @@ class Calls:
         self_intro=f'Hallo, {j["call"]["caller_name"]} mein Name. Ich bin in {j["address"]}. Bitte schicken Sie jemanden, hier braucht jemand Hilfe!'
         if j.get('fire') and j.get('_scenario',{}).get('no_patient'):self_intro=f'Feuerwehr-Einsatzleitung hier, Einsatzadresse {j["address"]}. '+j['caller']
         if self.automatic_calls_enabled():
-            if not (j.get('fire') and j.get('_scenario',{}).get('no_patient')):self_intro=f'Hallo, {j["call"]["caller_name"]} mein Name. Bitte helfen Sie uns!'
+            if not (j.get('fire') and j.get('_scenario',{}).get('no_patient')):self_intro=f'Hallo, {j["call"]["caller_name"]} hier. Bitte helfen Sie uns!'
             j['call']['transcript'][-1]['spoken_at']=time.time();self.schedule_call(j,self_intro)
         else:
             j['call']['automatic']=False;self.phone_line(j,'Anrufer',self_intro)
@@ -102,9 +106,9 @@ class Calls:
             if action=='resume' and call.get('speech_active'):call['next_line_at']=now+call['transcript'][-1].get('seconds',2)
             call['speech_active']=action=='speech'
             if action=='speech':
-                call['next_line_at']=now+25
+                call['next_line_at']=now+60
                 from speech import speech
-                speech.prepare(call['transcript'][-1:]+call.get('pending',[]))
+                speech.prepare([{**row,'voice_profile':caller_profile(j) if row['speaker']=='Anrufer' else None} for row in call['transcript'][-1:]+call.get('pending',[])])
         elif action=='done':
             if call.get('paused') or data.get('line')!=len(call['transcript'])-1:return
             if call.get('finishing'):
@@ -122,7 +126,7 @@ class Calls:
         if not unanswered or data.get('question')!=unanswered[0]['key']:raise ValueError('Die nächste offene Abfrage auswählen.')
         q=unanswered[0]
         if data.get('combined') is True:
-            groups=[(('location','event'),'Wo genau sind Sie, und was ist passiert?'),(('patient','consciousness','breathing'),'Wer ist betroffen? Sind die Personen ansprechbar, und wie atmen sie?'),(('access',),'Wie kommen wir zu Ihnen? Bleiben Sie unter dieser Nummer erreichbar?')]
+            groups=[(('location','event'),'Wo genau sind Sie, und was ist passiert?'),(('patient','consciousness','breathing'),'Wer ist betroffen? Ist die Person ansprechbar und atmet sie?'),(('access',),'Bleiben Sie erreichbar? Wie kommen wir hinein?')]
             keys,question=next((keys,text) for keys,text in groups if q['key'] in keys)
             batch=[item for item in unanswered if item['key'] in keys]
             self.phone_line(j,'LEO',question)
@@ -137,5 +141,5 @@ class Calls:
         j=self.get('jobs',data['job']);self.prepare_call(j);call=j.get('call')
         if not call or call['state']!='ready':raise ValueError('Notruf zuerst vollständig abfragen.')
         self.phone_line(j,'LEO','Wir schicken jemanden zu Ihnen.')
-        self.phone_line(j,'Anrufer','Okay, danke! Bitte kommen Sie bald.')
+        self.phone_line(j,'Anrufer','Danke, bitte kommen Sie schnell.')
         call['state']='ended';call['ended_at']=self.state['clock'];self.log('Telefonat beendet.','Telefon')

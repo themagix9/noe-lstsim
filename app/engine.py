@@ -136,6 +136,8 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
             result['event_settings']=self.event_settings()
             result['telenotarzt_pool']={'total':10,'available':len(self.tna_free_slots())}
             for v in result['vehicles']:
+                from voice_profiles import resource_profile
+                v['voice_profile']=resource_profile(v)
                 v['in_shift']=self.in_shift(v);v['crew_shift']='Tagmannschaft 06–18' if 21600<=self.state['clock']%86400<64800 else 'Nachtmannschaft 18–06';v['capabilities']={'transport':v['type'] in ('KTW','KTW-B','BKTW','RTW','RTW-C','NAH'),'emergency':v['type'] in ('KTW','RTW','RTW-C'),'notarzt':v['type'] in ('NEF','NAH'),'rtwc':bool(v.get('rtwc_capable'))}
                 if v.get('daylight'):v['duty_window']=list(self.daylight_window(v))
             for j in result['jobs']:

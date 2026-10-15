@@ -1,7 +1,7 @@
 'use strict';
 // Keep an unsaved icon choice stable while live simulation updates arrive.
 window.ResourceIcons=(()=>{
- let selected='',draft='',signature='';
+ let selected='',draft='',signature='',voiceAudio=null,voiceUrl=null;
  const vehicleSelect=document.getElementById('icon-resource');
  const graphicSelect=document.getElementById('icon-graphic');
  const search=document.getElementById('icon-resource-search');
@@ -22,9 +22,15 @@ window.ResourceIcons=(()=>{
   preview.hidden=!graphic;if(graphic){preview.src=graphic.url;preview.alt=graphic.name}
   const v=state.vehicles.find(v=>v.id===selected);
   document.getElementById('resource-icon-info').textContent=graphic?graphic.name+' · '+graphic.author+' · '+graphic.license:'Keine passende Ressource gefunden.';
+  document.getElementById('resource-voice-info').textContent=v?.voice_profile?'Feste Sprecherstimme '+(v.voice_profile.speaker_id+1)+' · bleibt bei Statuswechsel und Neustart erhalten.':'';
+  document.getElementById('preview-resource-voice').disabled=!v;
   save.disabled=!v||!graphic||!state.session.host||v.graphic===draft;
   graphicSelect.disabled=!state.session.host;upload.disabled=!state.session.host;
  }
+ document.getElementById('preview-resource-voice').onclick=async()=>{
+  const button=document.getElementById('preview-resource-voice');button.disabled=true;
+  try{if(voiceAudio)voiceAudio.pause();if(voiceUrl)URL.revokeObjectURL(voiceUrl);const response=await fetch('/api/resource_voice?vehicle='+encodeURIComponent(selected),{headers:authHeaders()});if(!response.ok)throw Error('Stimme derzeit nicht verfügbar.');voiceUrl=URL.createObjectURL(await response.blob());voiceAudio=new Audio(voiceUrl);voiceAudio.playbackRate=1;await voiceAudio.play()}catch(error){toast(error.message)}finally{button.disabled=false}
+ };
  search.oninput=render;
  vehicleSelect.onchange=()=>{selected=vehicleSelect.value;draft=state.vehicles.find(v=>v.id===selected)?.graphic||'';render()};
  graphicSelect.onchange=()=>{draft=graphicSelect.value;render()};

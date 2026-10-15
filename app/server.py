@@ -56,8 +56,21 @@ class Handler(BaseHTTPRequestHandler):
                     rows=job.get('call',{}).get('transcript',[])
                     if not job.get('accepted') or not 0<=index<len(rows):raise ValueError('Gesprächsbeitrag nicht verfügbar.')
                     text,speaker=rows[index]['text'],rows[index]['speaker']
+                    from voice_profiles import caller_profile
+                    identity=caller_profile(job) if speaker=='Anrufer' else None
                 from speech import speech
-                return self.respond(speech.synthesize(text,speaker),'audio/wav')
+                return self.respond(speech.synthesize(text,speaker,identity),'audio/wav')
+            except PermissionError as error:return self.json_response({'error':str(error)},401)
+            except (ValueError,KeyError,TypeError,ImportError,RuntimeError) as error:return self.json_response({'error':str(error)},503)
+        if path=='/api/resource_voice':
+            try:
+                member=self.member();query=parse_qs(urlparse(self.path).query);engine=sessions.engine(member['room_id'])
+                with engine.lock:
+                    vehicle=engine.get('vehicles',query.get('vehicle',[''])[0]);name=engine.radio_name(vehicle)
+                    from voice_profiles import resource_profile
+                    identity=resource_profile(vehicle)
+                from speech import speech
+                return self.respond(speech.synthesize(f'LEO von {name}, kommen. Hier {name}, verstanden, kommen.',name,identity),'audio/wav')
             except PermissionError as error:return self.json_response({'error':str(error)},401)
             except (ValueError,KeyError,TypeError,ImportError,RuntimeError) as error:return self.json_response({'error':str(error)},503)
         if path=='/api/addresses':return self.json_response({'addresses':ADDRESSES,'source':'© OpenStreetMap contributors · ODbL 1.0'})
