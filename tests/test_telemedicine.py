@@ -123,3 +123,12 @@ class TelemedicineTests(unittest.TestCase):
             member=sessions.member(auth2['token'])
             with self.assertRaises(PermissionError):sessions.command(member,'telenotarzt_release',{'job':'missing'})
         finally:sessions.close()
+
+    def test_automatic_tna_request_waits_for_initial_scene_report_to_close(self):
+        j,v=self.scene();c=self.e.raise_scene_radio(j,v,force=True)
+        with patch.dict(os.environ,{'REINFORCEMENTS_AUTO':'1'}),patch('random.random',return_value=0):
+            self.e.update_telenotarzt(self.e.state['clock'])
+            self.assertFalse(any(c['kind']=='Telenotarzt' for c in self.e.state['radio_calls']))
+            self.e.radio_action({'job':j['id'],'call':c['id'],'step':'end'})
+            self.e.update_telenotarzt(self.e.state['clock']+1)
+            self.assertEqual(self.e.state['radio_calls'][-1]['kind'],'Telenotarzt')

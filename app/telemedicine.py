@@ -66,7 +66,11 @@ class Telemedicine:
         self.sync_telenotarzt()
         for j in self.state['jobs']:
             t=j.get('telenotarzt')
-            if not t:continue
+            if not t:
+                if j['status']!='done' and __import__('os').environ.get('REINFORCEMENTS_AUTO','1')!='0':
+                    reporter=next((v for v in self.state['vehicles'] if v.get('job')==j['id'] and v['status']=='scene' and v.get('assessment_due',0)<=now and v['type'] in ('KTW','RTW','RTW-C')),None)
+                    if reporter:self.maybe_telenotarzt_request(j,reporter)
+                continue
             v=self.get('vehicles',t['vehicle'])
             if t['connected_at'] is None and now>=t['call_due']:
                 t.update(connected_at=now,care_due=now+60)
