@@ -19,6 +19,30 @@ class RadioTests(unittest.TestCase):
         text='\n'.join(l['text'] for l in reversed(self.e.state['logs']))
         for phrase in ['LEO von 77/001, kommen.','77/001 von LEO, hört, kommen.','Grund der Nachforderung?','Laufende Reanimation.','NEF Schwechat kommt ab Wache.','NEF Schwechat, verstanden.','LEO Ende.']:self.assertIn(phrase,text)
         self.assertEqual(j['vehicles'],[v['id'],nef['id']])
+    def test_reinforcement_eta_uses_remaining_journey_and_turnout(self):
+        from unittest.mock import patch
+        j,v=self.scene();nef=self.vehicle('77/099')
+        self.e.dispatch({'job':j['id'],'vehicles':[nef['id']]})
+        now=self.e.state['clock'];nef['turnout_due']=now+30
+        with patch.object(self.e.router,'cached_eta',return_value={'status':'ready','seconds':300}):
+            expected=__import__('math').ceil((300*self.e.response_factor(nef,j)+30)/60)
+            self.assertIn(f'ca. {expected} Minuten',self.e.reinforcement_eta_text(nef,j))
+        nef.update(status='enroute',leg={'end':now+121})
+        self.assertEqual(self.e.reinforcement_eta_text(nef,j),'Eintreffzeit ca. 3 Minuten.')
+        self.e.state['clock']+=62
+        self.assertEqual(self.e.reinforcement_eta_text(nef,j),'Eintreffzeit ca. 1 Minute.')
+        nef['status']='scene'
+        self.assertEqual(self.e.reinforcement_eta_text(nef,j),'Bereits am Berufungsort.')
+
+    def test_confirmation_announces_booked_doctor_eta(self):
+        j,v=self.scene();c=self.e.raise_radio(j,v,'NEF',reason_initial=True)
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'})
+        nef=self.vehicle('77/099');self.e.dispatch({'job':j['id'],'vehicles':[nef['id']]})
+        nef.update(status='enroute',leg={'end':self.e.state['clock']+420})
+        self.e.radio_action({'job':j['id'],'call':c['id'],'step':'confirm'})
+        text=' '.join(x['text'] for x in self.e.state['logs'])
+        self.assertIn('77/001 von LEO, NEF Schwechat kommt ab Wache. Eintreffzeit ca. 7 Minuten. Kommen.',text)
+
     def test_reason_already_provided_and_external_support(self):
         j,v=self.scene();c=self.e.raise_radio(j,v,'Feuerwehr',reason_initial=True)
         self.e.radio_action({'job':j['id'],'call':c['id'],'step':'listen'});self.assertEqual(c['state'],'awaiting_dispatch')

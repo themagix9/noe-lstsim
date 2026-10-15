@@ -28,6 +28,27 @@ class Radio:
         if not text.lower().endswith(('kommen.','ende.')):text=text.rstrip() + (' ' if text.endswith(('.', '?', '!')) else '. ')+'Kommen.'
         self.log(f'{receiver} von {sender}, {text}','Funk')
 
+    def reinforcement_eta_text(self,unit,j):
+        """Remaining simulated response time, including outstanding turnout."""
+        import math
+        from engine import distance
+        from turnout import preparation
+        if unit['status']=='scene':return 'Bereits am Berufungsort.'
+        now=self.state['clock'];leg=unit.get('leg') or {};approximate=False
+        if unit['status']=='enroute' and not leg.get('waiting') and leg.get('end') is not None:
+            remaining=max(0,leg['end']-now)
+        else:
+            estimate=self.router.cached_eta(unit,j) if unit['type']!='NAH' else None
+            if estimate and estimate.get('status')=='ready':travel=estimate['seconds']
+            else:
+                approximate=unit['type']!='NAH'
+                travel=distance(unit,j)*(1 if unit['type']=='NAH' else 1.25)/(unit.get('flight_speed',220) if unit['type']=='NAH' else 45)*3600
+            remaining=travel*self.response_factor(unit,j)
+            if unit['status']!='enroute':
+                remaining+=max(0,unit['turnout_due']-now) if unit.get('turnout_due') is not None else preparation(self,unit,j)
+        minutes=max(1,math.ceil(remaining/60))
+        return f'Eintreffzeit ca. {minutes} '+('Minute.' if minutes==1 else 'Minuten.')+(' Vorläufige Schätzung, Straßenroute wird noch ermittelt.' if approximate else '')
+
     def raise_radio(self,j,v,kind='NEF',reason=None,reason_initial=False,force=False):
         if self.is_manv(j) and kind in ('NEF','NAH','RTW','RTW-C'):
             leader=self.ensure_triage_leader(j)
@@ -107,7 +128,10 @@ class Radio:
                 if not unit:raise ValueError('Benötigtes Rettungsmittel zuerst zum bestehenden Einsatz dazubuchen.')
                 call['assigned']=unit['id'];j['reinforcement_waiting']=unit['id'];j['reinforcement_arrived']=unit['status']=='scene';place=self.station(unit['station'])['name'].removeprefix('RK ').split(' · ')[0]
                 answer=f'{self.radio_name(unit) if kind in ("NEF","NAH") else kind+" "+place} kommt '+('ab Wache.' if unit.get('alarm_from')=='ready' else 'über Funk zum Berufungsort.')
-            self.radio_transmit('LEO',v,answer+' Kommen.');self.log(f'LEO von {self.radio_name(v)}, '+answer.split(' kommt ')[0]+', verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed';v['phase_due']=self.state['clock']+120
+                if kind in ('NEF','NAH'):
+                    if unit['status']=='scene':answer=f'{self.radio_name(unit)} ist bereits am Berufungsort.'
+                    else:answer+=' '+self.reinforcement_eta_text(unit,j)
+            self.radio_transmit('LEO',v,answer+' Kommen.');self.log(f'LEO von {self.radio_name(v)}, '+(self.radio_name(unit) if kind in ('NEF','NAH') else answer.split(' kommt ')[0])+', verstanden.','Funk');self.log('LEO Ende.','Funk');call['state']='closed';v['phase_due']=self.state['clock']+120
         elif step=='unavailable' and call['state']=='awaiting_dispatch':
             self.log(f'{self.radio_name(v)} von LEO, Negativ, derzeit keine weiteren Kräfte ({kind}) verfügbar. Kommen.','Funk')
             self.log(f'LEO von {self.radio_name(v)}, negativ verstanden, Versorgung mit vorhandenen Mitteln. Kommen.','Funk')
