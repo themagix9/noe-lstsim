@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory() as data:
             p.wait_for_function('addressPoints.length>500');address=p.evaluate("addressPoints.find(a=>a.city==='Schwechat').address")
             p.locator('#create-manual').click();p.locator('#manual-code').select_option('RD-1A1');p.get_by_label('Einsatzort / Adresse',exact=True).fill(address);p.get_by_label('Zusatztext',exact=True).click();p.locator('#manual-form button.primary').click()
             row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('1.5 km Straße',timeout=15000);expect(row).to_contain_text('4 min');assert p.evaluate("(()=>{const j=state.jobs.find(j=>j.id===selected),v=state.vehicles.find(v=>v.callsign==='77/002'),eta=j.resource_eta[v.id];return eta.turnout_seconds>=85&&eta.turnout_seconds<=120&&eta.seconds===120*.85+eta.turnout_seconds})()");row.locator('input').check();p.locator('#dispatch').click();expect(p.locator('#dispatch-dialog')).not_to_be_visible();p.locator('#speed').select_option('60');p.locator('#pause').click()
-            p.wait_for_function("state.vehicles.some(v=>v.callsign==='77/002'&&v.leg?.geometry)",timeout=20000);p.evaluate("command('control',{paused:true})")
+            p.wait_for_function("state.vehicles.some(v=>v.callsign==='77/002'&&v.status==='enroute'&&v.leg?.geometry)",timeout=20000);p.evaluate("command('control',{paused:true})")
             if p.locator('#dispatch-dialog').is_visible():p.locator('#close-dispatch').click()
             assert p.evaluate("![...mapObjects.keys()].some(k=>k.startsWith('route:'))"),'Routes must stay hidden by default'
             p.evaluate("mapObjects.get('vehicle:'+state.vehicles.find(v=>v.callsign==='77/002').id).layer.fire('click')")

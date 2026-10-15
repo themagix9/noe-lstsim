@@ -54,6 +54,8 @@ jobs:
           python -m playwright install --with-deps chromium webkit
       - name: Test spoken calls, telephone filtering and window pause
         run: python tests/browser_speech.py
+      - name: Test road routing, ETA and map icons
+        run: python tests/browser_routing.py
       - name: Build Docker image
         run: docker build -t noe-lstsim:test .
       - name: Verify real German speech model and audio timing
@@ -66,8 +68,6 @@ jobs:
         run: python tests/browser_agencies.py
       - name: Test multiplayer in two browser sessions
         run: python tests/browser_smoke.py
-      - name: Test road routing, ETA and map icons
-        run: python tests/browser_routing.py
       - name: Test live editing, empty code choices, resource filters and sorting
         run: python tests/browser_live.py
       - name: Test touch selection, movable window and emergency caller dialogue
