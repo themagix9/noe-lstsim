@@ -47,6 +47,18 @@ class PortalHTTPTests(unittest.TestCase):
     def denied(self,client,path,data=None,status=403,**kw):
         with self.assertRaises(urllib.error.HTTPError) as error:client.call(path,data,**kw)
         self.assertEqual(error.exception.code,status)
+    def test_adsense_disabled_by_default_and_only_admin_can_enable_it(self):
+        self.admin.call('/api/admin/settings',{'settings':{'adsense_enabled':False}})
+        site,_=self.player.call('/api/site');self.assertFalse(site['advertising']['enabled'])
+        self.denied(self.player,'/api/admin/settings',{'settings':{'adsense_enabled':True}},status=404)
+        self.denied(self.admin,'/api/admin/settings',{'settings':{'adsense_enabled':'true'}},status=400)
+        self.admin.call('/api/admin/settings',{'settings':{'adsense_enabled':True}})
+        site,_=self.player.call('/api/site');self.assertTrue(site['advertising']['enabled'])
+        self.assertEqual(site['advertising']['publisher'],'ca-pub-2546389460875165');self.assertEqual(site['advertising']['slot'],'7480335427')
+        page,_=self.player.call('/');self.assertIn(b'google-adsense-account',page);self.assertIn(b'/landing-ads.js',page)
+        text,_=self.player.call('/ads.txt');self.assertIn(b'pub-2546389460875165',text)
+        admin,_=self.admin.call('/');self.assertNotIn(b'src="/landing-ads.js"',admin)
+
     def test_global_usage_includes_guest_starts_and_survives_admin_delete(self):
         guest=Client(8080);room,_=guest.call('/api/session/create',{'name':'Statistik Gast','mode':'single'});guest.token=room['token']
         before,_=self.admin.call('/api/admin/dashboard')

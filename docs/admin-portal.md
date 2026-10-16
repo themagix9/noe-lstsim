@@ -146,3 +146,10 @@ zusätzlich einen CSRF-Nachweis; Login und Registrierung sind begrenzt.
 SQLite-Backups müssen die laufende WAL-Schreibweise berücksichtigen. Ein Backup
 über die SQLite-Backup-API erstellen oder den Container für eine Dateisicherung
 geordnet stoppen; nicht nur die laufende Hauptdatei ohne WAL kopieren.
+
+## Startseitenwerbung
+
+Im Reiter **Werbung** lässt sich der vorbereitete AdSense-Anzeigenblock aktivieren
+und wieder ausschalten. Die Funktion ist anfangs deaktiviert. Einrichtung von
+Googles Einwilligungsnachricht, Ausschluss automatischer Anzeigen für die
+Simulator-URL und ads.txt: [AdSense-Einrichtung](adsense.md).

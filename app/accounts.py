@@ -11,7 +11,7 @@ import time
 
 PASSWORD_SLOTS=threading.BoundedSemaphore(2)
 
-DEFAULTS={'registration_open':True,'maintenance_enabled':False,'maintenance_message':'Am Simulator wird gerade live gearbeitet. Es kann zu kurzen Unterbrechungen kommen.',
+DEFAULTS={'registration_open':True,'adsense_enabled':False,'maintenance_enabled':False,'maintenance_message':'Am Simulator wird gerade live gearbeitet. Es kann zu kurzen Unterbrechungen kommen.',
           'centre':'Mödling','dispo':'05','hour':8,'speed':1,'emergency_per_hour':3,'transport_per_hour':4,'transports_enabled':True,
           'split_emergency_per_hour':6,'split_transport_per_hour':6,'blue_light_factor':.85,'helicopter_speed_factor':1.15}
 
@@ -54,7 +54,7 @@ class Accounts:
             row=self.db.execute('SELECT value FROM site_settings WHERE id=1').fetchone()
             return {**DEFAULTS,**(json.loads(row[0]) if row else {})}
     def public_config(self):
-        s=self.settings();return {'registration_open':s['registration_open'],'maintenance':{'enabled':s['maintenance_enabled'],'message':s['maintenance_message']},'defaults':{k:s[k] for k in ('centre','dispo','hour')}}
+        s=self.settings();return {'registration_open':s['registration_open'],'maintenance':{'enabled':s['maintenance_enabled'],'message':s['maintenance_message']},'defaults':{k:s[k] for k in ('centre','dispo','hour')},'advertising':{'enabled':s['adsense_enabled'],'publisher':'ca-pub-2546389460875165','slot':'7480335427'}}
     def register(self,data,admin=False):
         username=str(data.get('username','')).strip().lower();name=str(data.get('display_name') or username).strip()
         if not re.fullmatch(r'[a-z0-9][a-z0-9_.-]{2,31}',username):raise ValueError('Benutzername: 3–32 Buchstaben, Zahlen, Punkt, Unterstrich oder Bindestrich.')
