@@ -16,6 +16,61 @@ class PortalTests(unittest.TestCase):
         self.user=self.a.register({'username':'julian','display_name':'Julian','password':'My-Long-Password-2026!'})
         self.credential=self.s.create({'name':'Julian','mode':'single'},user_id=self.user['id']);self.member=self.s.member(self.credential['token'])
     def tearDown(self):self.s.close();self.tmp.cleanup()
+    def test_admin_delete_revokes_room_and_preserves_statistics_and_other_rooms(self):
+        room=self.member['room_id'];engine=self.s.engine(room)
+        other=self.s.member(self.s.create({'name':'Andere Sitzung','mode':'single'},user_id=self.user['id'])['token'])
+        self.s.command(self.member,'generate',{'kind':'transport'})
+        job=engine.state['jobs'][0];job.update(status='done',owner=self.member['id'],completed=engine.state['clock']+90);engine.save()
+        self.s.db.execute('INSERT INTO graphics_files VALUES(?,?,?)',('delete-picture',room,b'image'))
+        self.s.db.execute('INSERT INTO player_usage VALUES(?,?,?)',(self.user['id'],room,42))
+        self.s.db.execute('INSERT INTO account_events VALUES(?,?,?,?,?,?)',(room,job['id'],'call','',self.user['id'],time.time()));self.s.db.commit()
+        before=self.s.account_stats(self.user)
+        self.s.admin_delete_room({'username':'admin'},{'room':room,'confirm':True})
+        self.assertEqual(self.s.account_stats(self.user),before)
+        self.assertFalse(self.s.stream_touch(self.member));self.assertNotIn(room,self.s.engines)
+        with self.assertRaises(PermissionError):self.s.member(self.credential['token'])
+        with self.assertRaises(PermissionError):self.s.account_resume(self.user,self.member['id'])
+        for action in ('snapshot','command','engine'):
+            with self.assertRaises(PermissionError):
+                if action=='snapshot':self.s.snapshot(self.member)
+                elif action=='command':self.s.command(self.member,'generate',{'kind':'transport'})
+                else:self.s.engine(room)
+        for table in ('members','room_states','graphics_files'):
+            self.assertEqual(self.s.db.execute('SELECT count(*) FROM '+table+' WHERE room_id=?',(room,)).fetchone()[0],0)
+        self.assertEqual(self.s.snapshot(other)['session']['me'],other['id'])
+        self.assertEqual([r['id'] for r in self.s.account_rooms(self.user)],[other['room_id']])
+        self.assertEqual(self.s.admin_audit()[0]['action'],'room_delete')
+        self.s.close();self.s=Sessions(self.path);self.a=self.s.accounts
+        self.assertEqual(self.s.account_stats(self.user),before)
+        self.assertNotIn(room,[r['id'] for r in self.s.admin_monitor()['rooms']])
+
+    def test_delete_saved_unloaded_room_and_reject_late_dispatch(self):
+        room=self.member['room_id'];engine=self.s.engine(room)
+        engine.db.close();self.s.engines.pop(room)
+        self.s.admin_delete_room({'username':'admin'},{'room':room,'confirm':True})
+        self.assertNotIn(room,self.s.engines)
+        self.assertIsNone(self.s.db.execute('SELECT value FROM room_states WHERE room_id=?',(room,)).fetchone())
+
+    def test_dispatch_waiting_for_route_cannot_recreate_deleted_room(self):
+        room=self.member['room_id'];engine=self.s.engine(room)
+        self.s.command(self.member,'generate',{'kind':'transport'})
+        job=engine.state['jobs'][0];vehicle=next(v for v in engine.state['vehicles'] if v['callsign']=='77/002')
+        def delete_during_routing(journeys):
+            self.s.admin_delete_room({'username':'admin'},{'room':room,'confirm':True})
+            return {id:{} for id,_,_ in journeys}
+        with patch.object(engine.router,'enabled',True),patch.object(engine.router,'wait_routes',side_effect=delete_during_routing) as routes:
+            with self.assertRaises(PermissionError):self.s.command(self.member,'dispatch',{'job':job['id'],'vehicles':[vehicle['id']]})
+            routes.assert_called_once()
+        self.assertNotIn(room,self.s.engines)
+        self.assertIsNone(self.s.db.execute('SELECT value FROM room_states WHERE room_id=?',(room,)).fetchone())
+
+    def test_admin_delete_requires_explicit_confirmation(self):
+        room=self.member['room_id']
+        for confirm in (None,False,'true',1):
+            with self.assertRaises(ValueError):self.s.admin_delete_room({'username':'admin'},{'room':room,'confirm':confirm})
+        self.assertEqual(self.s.snapshot(self.member)['session']['me'],self.member['id'])
+        with self.assertRaises(ValueError):self.s.admin_delete_room({'username':'admin'},{'room':'absent','confirm':True})
+
     def test_concurrent_password_work_has_bounded_memory_use(self):
         import threading
         active=0;peak=0;guard=threading.Lock()

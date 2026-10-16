@@ -74,6 +74,11 @@ kann diese kontospezifischen Einstellungen ohne Cloudflare-Zugang nicht aktivier
   „Aktiv“ bedeutet: mindestens ein Teilnehmer innerhalb von 45 Sekunden verbunden.
 - Teilnehmer, Rollen, Konto-/Gaststatus, offene Aufträge und offene Funkaufgaben.
 - Einzelne Simulationen administrativ pausieren oder fortsetzen.
+- Sitzungen in Übersicht und Sitzungsliste endgültig löschen, mit Bestätigungsdialog
+  und Hinweis auf verbundene Teilnehmer. Teilnehmer verlieren den Sitzungszugang
+  und kehren zur Startseite zurück. Spielstand, Chat, Teilnehmerzugänge und eigene
+  Fahrzeuggrafiken der Sitzung werden entfernt. Benutzerkonten und bisherige
+  Statistiken bleiben erhalten; das Löschen erscheint im Änderungsprotokoll.
 - Globale Statistiken, Prozesslaufzeit, SQLite-Größe und freier Datenträgerspeicher.
 - Standards für neue Übungen: Standort, Zone, Startstunde, Geschwindigkeit,
   getrennte Notruf-/KT-Frequenzen für gemeinsam und Calltaker/Dispo, Transporte

@@ -80,6 +80,7 @@ class PortalHTTP:
                 if not isinstance(apply,bool):raise ValueError('Übernahme für bestehende Sitzungen ungültig.')
                 settings=accounts.update_settings(user,data.get('settings',{}));changed=self.sessions.admin_apply_defaults(settings) if apply else 0
                 self.notify_live();return self.json_response({'settings':settings,'changed_sessions':changed})
+            if path=='/api/admin/delete-room':self.sessions.admin_delete_room(user,data);self.notify_live();return self.json_response({'ok':True})
             if path=='/api/admin/pause':self.sessions.admin_pause(user,data);self.notify_live();return self.json_response({'ok':True})
             if path=='/api/admin/user':return self.json_response({'user':accounts.update_user(user,data)})
         return self.json_response({'error':'Nicht gefunden'},404)

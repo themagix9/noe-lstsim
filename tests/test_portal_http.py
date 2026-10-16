@@ -47,6 +47,21 @@ class PortalHTTPTests(unittest.TestCase):
     def denied(self,client,path,data=None,status=403,**kw):
         with self.assertRaises(urllib.error.HTTPError) as error:client.call(path,data,**kw)
         self.assertEqual(error.exception.code,status)
+    def test_delete_room_is_admin_only_csrf_protected_and_revokes_access(self):
+        self.register();room=self.create();id=room['state']['session']['me']
+        listing,_=self.player.call('/api/account/rooms');room_id=listing['rooms'][0]['id']
+        payload={'room':room_id,'confirm':True}
+        self.denied(Client(8081),'/api/admin/delete-room',payload)
+        self.denied(self.player,'/api/admin/delete-room',payload,status=404)
+        self.denied(self.admin,'/api/admin/delete-room',payload,csrf=False)
+        self.denied(self.admin,'/api/admin/delete-room',{'room':room_id},status=400)
+        self.admin.call('/api/admin/delete-room',payload)
+        self.denied(self.player,'/api/state',status=401)
+        self.denied(self.player,'/api/account/resume',{'membership':id})
+        self.denied(Client(8080),'/api/session/join',{'name':'Zu spät','code':room['state']['session']['code']},status=400)
+        rooms,_=self.player.call('/api/account/rooms');self.assertEqual(rooms['rooms'],[])
+        self.denied(self.admin,'/api/admin/delete-room',payload,status=400)
+
     def test_map_page_sends_origin_to_external_tiles_but_admin_stays_private(self):
         _,public=self.player.call('/')
         _,admin=self.admin.call('/')

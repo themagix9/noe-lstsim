@@ -32,8 +32,10 @@ class Sessions(SessionPortal):
         self.engine('legacy')
 
     def engine(self,id):
-        if id not in self.engines: self.engines[id]=Engine(self.path,id)
-        return self.engines[id]
+        with self.lock:
+            if id!='legacy':self.require_room({'room_id':id})
+            if id not in self.engines:self.engines[id]=Engine(self.path,id)
+            return self.engines[id]
 
     def name(self,value):
         name=str(value or '').strip()
@@ -105,6 +107,7 @@ class Sessions(SessionPortal):
 
     def snapshot(self,member):
         with self.lock:
+            self.require_room(member)
             room=self.db.execute('SELECT code,title,mode FROM rooms WHERE id=?',(member['room_id'],)).fetchone()
             roster=self.db.execute('SELECT id,name,host,last_seen,role FROM members WHERE room_id=?',(member['room_id'],)).fetchall()
             s=self.engine(member['room_id']).snapshot()
@@ -128,6 +131,7 @@ class Sessions(SessionPortal):
         plans=None
         if action=='dispatch':
             with self.lock:
+                self.require_room(member)
                 engine=self.engine(member['room_id'])
                 with engine.lock:
                     split=engine.state['setup'].get('workflow')=='split'
@@ -145,6 +149,7 @@ class Sessions(SessionPortal):
                 routes=engine.router.wait_routes(journeys)
                 plans={id:{'origin':a,'target':b,'route':routes[id]} for id,a,b in journeys}
         with self.lock:
+            self.require_room(member)
             if action in ('vehicle','vehicle_graphic','station','delete_vehicle','import','reset','upload_graphic','rules','rtwc','travel_settings','event_settings','hospital') and not member['host']:raise PermissionError('Nur der Sitzungsleiter darf Stammdaten oder die Übung ändern.')
             engine=self.engine(member['room_id'])
             split=engine.state['setup'].get('workflow')=='split';role=member.get('role','both')

@@ -12,6 +12,7 @@ class SessionPortal:
         if 'user_id' not in {r[1] for r in self.db.execute('PRAGMA table_info(members)')}:self.db.execute('ALTER TABLE members ADD COLUMN user_id TEXT')
         self.db.executescript('''
         CREATE INDEX IF NOT EXISTS member_user ON members(user_id);
+        CREATE TABLE IF NOT EXISTS archived_member_users(member_id TEXT PRIMARY KEY,user_id TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS account_events(room_id TEXT,job_id TEXT,event TEXT,unit TEXT,user_id TEXT,at REAL,PRIMARY KEY(room_id,job_id,event,unit));
         CREATE TABLE IF NOT EXISTS player_usage(user_id TEXT,room_id TEXT,seconds REAL,PRIMARY KEY(user_id,room_id));
         ''');self.db.commit()
@@ -36,8 +37,8 @@ class SessionPortal:
             return [{'membership':r[0],'id':r[1],'title':r[2],'mode':r[3],'created':r[4],'host':bool(r[5]),'last_seen':r[6]} for r in rows]
     def account_stats(self,user=None):
         with self.lock:
-            where='WHERE m.user_id=?' if user else '';args=(user['id'],) if user else ()
-            row=self.db.execute('SELECT count(*),coalesce(sum(c.kind=\'emergency\'),0),coalesce(sum(c.kind=\'transport\'),0),coalesce(sum(c.duration),0) FROM completed_incidents c LEFT JOIN members m ON m.id=c.owner_member '+where,args).fetchone()
+            where='WHERE coalesce(m.user_id,a.user_id)=?' if user else '';args=(user['id'],) if user else ()
+            row=self.db.execute('SELECT count(*),coalesce(sum(c.kind=\'emergency\'),0),coalesce(sum(c.kind=\'transport\'),0),coalesce(sum(c.duration),0) FROM completed_incidents c LEFT JOIN members m ON m.id=c.owner_member LEFT JOIN archived_member_users a ON a.member_id=c.owner_member '+where,args).fetchone()
             events=dict(self.db.execute('SELECT event,count(*) FROM account_events '+('WHERE user_id=?' if user else '')+' GROUP BY event',args).fetchall())
             seconds=self.db.execute('SELECT coalesce(sum(seconds),0) FROM player_usage '+('WHERE user_id=?' if user else ''),args).fetchone()[0]
             return {'completed':row[0],'emergencies_completed':row[1],'transports_completed':row[2],'incident_seconds':row[3],'calls_taken':events.get('call',0),'dispatches':events.get('dispatch',0),'play_seconds':seconds}
@@ -88,3 +89,30 @@ class SessionPortal:
             if not self.db.execute('SELECT 1 FROM rooms WHERE id=?',(data.get('room'),)).fetchone():raise ValueError('Sitzung nicht gefunden.')
             self.engine(data['room']).command('control',{'paused':data['paused']})
         self.accounts.audit(actor,'room_pause',{'room':data['room'],'paused':data['paused']})
+
+    def require_room(self,member):
+        if not self.db.execute('SELECT 1 FROM rooms WHERE id=?',(member['room_id'],)).fetchone():
+            raise PermissionError('Diese Sitzung wurde beendet oder gelöscht.')
+
+    def admin_delete_room(self,actor,data):
+        room=data.get('room')
+        if not isinstance(room,str) or not room:raise ValueError('Sitzung auswählen.')
+        if data.get('confirm') is not True:raise ValueError('Löschen der Sitzung ausdrücklich bestätigen.')
+        with self.lock:
+            row=self.db.execute('SELECT title FROM rooms WHERE id=?',(room,)).fetchone()
+            if not row:raise ValueError('Sitzung nicht gefunden.')
+            engine=self.engines.get(room)
+            if engine:
+                with engine.lock:engine.save()
+            # Keep only the account attribution needed by historical statistics.
+            # Room state, participants, bearer tokens, chat and uploads are removed.
+            with self.db:
+                self.db.execute('INSERT OR IGNORE INTO archived_member_users SELECT id,user_id FROM members WHERE room_id=? AND user_id IS NOT NULL AND id IN (SELECT owner_member FROM completed_incidents WHERE room_id=?)',(room,room))
+                self.db.execute('DELETE FROM graphics_files WHERE room_id=?',(room,))
+                self.db.execute('DELETE FROM members WHERE room_id=?',(room,))
+                self.db.execute('DELETE FROM room_states WHERE room_id=?',(room,))
+                self.db.execute('DELETE FROM rooms WHERE id=?',(room,))
+                self.db.execute('INSERT INTO admin_audit(at,actor,action,detail) VALUES(?,?,?,?)',(time.time(),actor['username'],'room_delete',json.dumps({'room':room,'title':row[0]},ensure_ascii=False)))
+            if engine:
+                self.engines.pop(room)
+                engine.db.close()
