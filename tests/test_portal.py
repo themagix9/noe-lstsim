@@ -16,6 +16,53 @@ class PortalTests(unittest.TestCase):
         self.user=self.a.register({'username':'julian','display_name':'Julian','password':'My-Long-Password-2026!'})
         self.credential=self.s.create({'name':'Julian','mode':'single'},user_id=self.user['id']);self.member=self.s.member(self.credential['token'])
     def tearDown(self):self.s.close();self.tmp.cleanup()
+    def test_global_usage_counts_guest_rooms_once_and_excludes_pause_and_offline(self):
+        guest=self.s.member(self.s.create({'name':'Gast Eins','mode':'multi'})['token'])
+        room=guest['room_id'];code=self.s.db.execute('SELECT code FROM rooms WHERE id=?',(room,)).fetchone()[0]
+        second=self.s.member(self.s.join({'name':'Gast Zwei','code':code})['token'])
+        registered=self.s.member(self.s.join({'name':'Konto','code':code},user_id=self.user['id'])['token'])
+        self.assertEqual(self.s.usage_totals()['created'],2)
+        self.assertEqual(self.s.usage_totals()['started'],0)
+        self.s.tick(2);self.assertEqual(self.s.usage_totals()['real_seconds'],0)
+        self.s.command(guest,'control',{'paused':False,'speed':60})
+        self.assertEqual(self.s.usage_totals()['started'],1)
+        # Multiple snapshots/tabs of the same membership must not multiply time.
+        self.s.snapshot(second);self.s.snapshot(second)
+        self.s.tick(2);usage=self.s.usage_totals()
+        self.assertEqual(usage['real_seconds'],2);self.assertEqual(usage['sim_seconds'],120);self.assertEqual(usage['guest_seconds'],4);self.assertEqual(usage['player_seconds'],6)
+        self.assertEqual(self.s.account_stats(self.user)['play_seconds'],2)
+        self.s.command(guest,'control',{'paused':True});self.s.tick(8)
+        self.s.command(guest,'control',{'paused':False,'speed':1});self.s.tick(3)
+        usage=self.s.usage_totals();self.assertEqual(usage['started'],1);self.assertEqual(usage['real_seconds'],5);self.assertEqual(usage['sim_seconds'],123);self.assertEqual(usage['guest_seconds'],10);self.assertEqual(usage['player_seconds'],15)
+        for member in (guest,second,registered):self.s.command(member,'leave',{})
+        self.s.tick(10);self.assertEqual(self.s.usage_totals(),usage)
+        self.s.admin_delete_room({'username':'admin'},{'room':room,'confirm':True});self.assertEqual(self.s.usage_totals(),usage)
+        self.s.close();self.s=Sessions(self.path);self.a=self.s.accounts
+        self.assertEqual(self.s.usage_totals(),usage)
+
+    def test_guest_only_runtime_and_admin_resume_are_counted(self):
+        guest=self.s.member(self.s.create({'name':'Gast ohne Konto','mode':'single'})['token'])
+        self.s.admin_pause({'username':'admin'},{'room':guest['room_id'],'paused':False})
+        self.s.tick(2);usage=self.s.usage_totals()
+        self.assertEqual(usage['started'],1);self.assertEqual(usage['real_seconds'],2)
+        self.assertEqual(usage['player_seconds'],2);self.assertEqual(usage['guest_seconds'],2)
+        self.s.admin_pause({'username':'admin'},{'room':guest['room_id'],'paused':True});self.s.tick(10)
+        self.s.admin_pause({'username':'admin'},{'room':guest['room_id'],'paused':False})
+        self.assertEqual(self.s.usage_totals(),usage)
+
+    def test_usage_import_uses_evidence_without_inventing_historical_guest_times(self):
+        self.s.command(self.member,'control',{'paused':False});self.s.tick(3);self.s.command(self.member,'control',{'paused':True})
+        guest=self.s.member(self.s.create({'name':'Unbekannter Altgast','mode':'single'})['token'])
+        self.s.admin_delete_room({'username':'admin'},{'room':guest['room_id'],'confirm':True})
+        self.s.close()
+        with sqlite3.connect(self.path) as db:
+            db.execute('DROP TABLE simulation_usage');db.execute('DROP TABLE usage_metadata')
+        self.s=Sessions(self.path);self.a=self.s.accounts
+        usage=self.s.usage_totals();self.assertEqual(usage['created'],2);self.assertEqual(usage['started'],1)
+        self.assertEqual(usage['real_seconds'],0);self.assertEqual(usage['guest_seconds'],0);self.assertEqual(usage['sim_seconds'],0)
+        self.assertEqual(self.s.account_stats(self.user)['play_seconds'],3)
+        self.s.initialize_usage();self.assertEqual(self.s.usage_totals(),usage)
+
     def test_admin_delete_revokes_room_and_preserves_statistics_and_other_rooms(self):
         room=self.member['room_id'];engine=self.s.engine(room)
         other=self.s.member(self.s.create({'name':'Andere Sitzung','mode':'single'},user_id=self.user['id'])['token'])

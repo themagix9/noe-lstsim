@@ -35,6 +35,7 @@ with tempfile.TemporaryDirectory() as data:
                 admin.locator('[data-page=overview]').click();expect(admin.locator('#active-sessions')).to_contain_text('Gast '+engine.name,timeout=20000)
                 Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);admin.screenshot(path='/tmp/noe-ui-qa/admin-'+engine.name+'.png',full_page=True)
                 admin.set_viewport_size({'width':390,'height':844});admin.screenshot(path='/tmp/noe-ui-qa/admin-mobile-'+engine.name+'.png',full_page=True)
+                expect(admin.locator('#global-stats')).to_contain_text('Gestartete Simulationen');expect(admin.locator('#global-stats')).to_contain_text('Laufzeit gesamt (Echtzeit)');expect(admin.locator('#global-stats')).to_contain_text('Gast-Spielzeit (Teilnehmer)');expect(admin.locator('#global-stats')).to_contain_text('Spielzeit gesamt (inkl. Gäste)');expect(admin.locator('#usage-since')).to_contain_text('inklusive Gästen seit')
                 admin.set_viewport_size({'width':1500,'height':1050})
                 row=admin.locator('#active-sessions tr').filter(has_text=code)
                 row.get_by_role('button',name='Löschen',exact=True).click()

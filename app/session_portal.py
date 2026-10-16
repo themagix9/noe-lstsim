@@ -12,10 +12,39 @@ class SessionPortal:
         if 'user_id' not in {r[1] for r in self.db.execute('PRAGMA table_info(members)')}:self.db.execute('ALTER TABLE members ADD COLUMN user_id TEXT')
         self.db.executescript('''
         CREATE INDEX IF NOT EXISTS member_user ON members(user_id);
+        CREATE TABLE IF NOT EXISTS simulation_usage(room_id TEXT PRIMARY KEY,created REAL NOT NULL,first_started REAL,real_seconds REAL NOT NULL DEFAULT 0,sim_seconds REAL NOT NULL DEFAULT 0,guest_seconds REAL NOT NULL DEFAULT 0,player_seconds REAL NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS usage_metadata(id INTEGER PRIMARY KEY CHECK(id=1),tracked_since REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS archived_member_users(member_id TEXT PRIMARY KEY,user_id TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS account_events(room_id TEXT,job_id TEXT,event TEXT,unit TEXT,user_id TEXT,at REAL,PRIMARY KEY(room_id,job_id,event,unit));
         CREATE TABLE IF NOT EXISTS player_usage(user_id TEXT,room_id TEXT,seconds REAL,PRIMARY KEY(user_id,room_id));
         ''');self.db.commit()
+    def initialize_usage(self):
+        # Older versions have no guest/session duration ledger. Import only facts
+        # evidenced by saved rooms or recorded registered playtime, never guesses.
+        now=time.time()
+        with self.db:
+            self.db.execute('INSERT OR IGNORE INTO usage_metadata VALUES(1,?)',(now,))
+            for room,created in self.db.execute('SELECT id,created FROM rooms').fetchall():
+                self.db.execute('INSERT OR IGNORE INTO simulation_usage(room_id,created) VALUES(?,?)',(room,created))
+                saved=self.db.execute('SELECT value FROM room_states WHERE room_id=?',(room,)).fetchone()
+                played=self.db.execute('SELECT 1 FROM player_usage WHERE room_id=? AND seconds>0 LIMIT 1',(room,)).fetchone()
+                if played or saved and not json.loads(saved[0]).get('paused',True):
+                    self.db.execute('UPDATE simulation_usage SET first_started=coalesce(first_started,?) WHERE room_id=?',(now,room))
+            for at,detail in self.db.execute("SELECT at,detail FROM admin_audit WHERE action='room_delete'").fetchall():
+                room=json.loads(detail).get('room')
+                if room:
+                    self.db.execute('INSERT OR IGNORE INTO simulation_usage(room_id,created) VALUES(?,?)',(room,at))
+                    if self.db.execute('SELECT 1 FROM player_usage WHERE room_id=? AND seconds>0 LIMIT 1',(room,)).fetchone():
+                        self.db.execute('UPDATE simulation_usage SET first_started=coalesce(first_started,?) WHERE room_id=?',(now,room))
+
+    def mark_simulation_started(self,room):
+        self.db.execute('UPDATE simulation_usage SET first_started=coalesce(first_started,?) WHERE room_id=?',(time.time(),room))
+        self.db.commit()
+
+    def usage_totals(self):
+        row=self.db.execute('SELECT count(*),count(first_started),coalesce(sum(real_seconds),0),coalesce(sum(sim_seconds),0),coalesce(sum(guest_seconds),0),coalesce(sum(player_seconds),0) FROM simulation_usage').fetchone()
+        return {'created':row[0],'started':row[1],'real_seconds':row[2],'sim_seconds':row[3],'guest_seconds':row[4],'player_seconds':row[5],'tracked_since':self.db.execute('SELECT tracked_since FROM usage_metadata WHERE id=1').fetchone()[0]}
+
     def account_link(self,user,token):
         with self.lock:
             member=self.member(token,touch=False)
@@ -77,7 +106,7 @@ class SessionPortal:
             storage=shutil.disk_usage(Path(self.path).parent)
             db_bytes=sum(Path(self.path+suffix).stat().st_size for suffix in ('','-wal','-shm') if Path(self.path+suffix).exists())
             audit=self.admin_audit()
-            return {'updated_at':now,'uptime_seconds':now-self.accounts.started,'rooms':rooms,'summary':{'sessions':len(rooms),'active_sessions':sum(r['active'] for r in rooms),'running_sessions':sum(r['running'] for r in rooms),'online_players':sum(sum(p['online'] for p in r['players']) for r in rooms),'users':self.accounts.user_count(),'loaded_simulations':len(self.engines),'database_bytes':db_bytes,'disk_free_bytes':storage.free},'stats':self.account_stats(),'settings':self.accounts.settings(),'audit':audit}
+            return {'updated_at':now,'uptime_seconds':now-self.accounts.started,'rooms':rooms,'summary':{'sessions':len(rooms),'active_sessions':sum(r['active'] for r in rooms),'running_sessions':sum(r['running'] for r in rooms),'online_players':sum(sum(p['online'] for p in r['players']) for r in rooms),'users':self.accounts.user_count(),'loaded_simulations':len(self.engines),'database_bytes':db_bytes,'disk_free_bytes':storage.free},'stats':self.account_stats(),'usage':self.usage_totals(),'settings':self.accounts.settings(),'audit':audit}
     def admin_audit(self):
         with self.accounts.lock:
             return [dict(id=r[0],at=r[1],actor=r[2],action=r[3],detail=json.loads(r[4])) for r in self.accounts.db.execute('SELECT * FROM admin_audit ORDER BY id DESC LIMIT 50').fetchall()]
@@ -88,6 +117,7 @@ class SessionPortal:
         with self.lock:
             if not self.db.execute('SELECT 1 FROM rooms WHERE id=?',(data.get('room'),)).fetchone():raise ValueError('Sitzung nicht gefunden.')
             self.engine(data['room']).command('control',{'paused':data['paused']})
+            if not data['paused']:self.mark_simulation_started(data['room'])
         self.accounts.audit(actor,'room_pause',{'room':data['room'],'paused':data['paused']})
 
     def require_room(self,member):

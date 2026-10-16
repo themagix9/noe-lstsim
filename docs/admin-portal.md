@@ -80,6 +80,19 @@ kann diese kontospezifischen Einstellungen ohne Cloudflare-Zugang nicht aktivier
   Fahrzeuggrafiken der Sitzung werden entfernt. Benutzerkonten und bisherige
   Statistiken bleiben erhalten; das Löschen erscheint im Änderungsprotokoll.
 - Globale Statistiken, Prozesslaufzeit, SQLite-Größe und freier Datenträgerspeicher.
+- Dauerhafte Zähler für erstellte und erstmals gestartete Simulationen, auch für
+  Gäste. Fortsetzen, Pause/Weiter und weitere Multiplayer-Teilnehmer erhöhen die
+  Startzahl nicht. Löschen einer Sitzung setzt diese Gesamtzähler nicht zurück.
+- Laufzeit in Echtzeit und vergangene Simulationszeit mit Zeitfaktor: jede laufende
+  Sitzung mit verbundenen Teilnehmern zählt einmal, unabhängig von Registrierung.
+  Pausen und Offline-Zeiten zählen nicht. Gast-Spielzeit wird zusätzlich pro
+  Gastidentität gezählt; die gesamte Teilnehmer-Spielzeit umfasst registrierte
+  Spieler und Gäste zusammen. Mehrere Tabs derselben Identität zählen nicht mehrfach.
+  Die bisherige registrierte Teilnehmer-Spielzeit bleibt separat erhalten.
+- Das Dashboard nennt den Beginn der neuen Laufzeiterfassung. Vorhandene Sitzungen
+  und im Löschprotokoll belegte Sitzungen werden in die Erstellungszahl übernommen;
+  frühere Starts nur bei nachweisbarer Laufzeit oder laufendem Spielstand. Frühere
+  Gastzeiten und nicht belegte Starts können nicht rückwirkend berechnet werden.
 - Standards für neue Übungen: Standort, Zone, Startstunde, Geschwindigkeit,
   getrennte Notruf-/KT-Frequenzen für gemeinsam und Calltaker/Dispo, Transporte
   ein/aus, Signalfahrt- und Helikopterfaktor.

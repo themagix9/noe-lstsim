@@ -47,6 +47,16 @@ class PortalHTTPTests(unittest.TestCase):
     def denied(self,client,path,data=None,status=403,**kw):
         with self.assertRaises(urllib.error.HTTPError) as error:client.call(path,data,**kw)
         self.assertEqual(error.exception.code,status)
+    def test_global_usage_includes_guest_starts_and_survives_admin_delete(self):
+        guest=Client(8080);room,_=guest.call('/api/session/create',{'name':'Statistik Gast','mode':'single'});guest.token=room['token']
+        before,_=self.admin.call('/api/admin/dashboard')
+        guest.call('/api/control',{'paused':False});guest.call('/api/control',{'paused':True})
+        after,_=self.admin.call('/api/admin/dashboard');self.assertEqual(after['usage']['started'],before['usage']['started']+1)
+        id=next(r['id'] for r in after['rooms'] if any(p['id']==room['player'] for p in r['players']))
+        self.admin.call('/api/admin/delete-room',{'room':id,'confirm':True})
+        deleted,_=self.admin.call('/api/admin/dashboard');self.assertEqual(deleted['usage']['created'],after['usage']['created']);self.assertEqual(deleted['usage']['started'],after['usage']['started'])
+        self.assertIn('tracked_since',deleted['usage'])
+
     def test_delete_room_is_admin_only_csrf_protected_and_revokes_access(self):
         self.register();room=self.create();id=room['state']['session']['me']
         listing,_=self.player.call('/api/account/rooms');room_id=listing['rooms'][0]['id']

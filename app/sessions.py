@@ -30,6 +30,7 @@ class Sessions(SessionPortal):
         self.accounts=Accounts(path);self.portal_schema()
         # Run the legacy migration immediately, without discarding its saved state.
         self.engine('legacy')
+        self.initialize_usage()
 
     def engine(self,id):
         with self.lock:
@@ -83,7 +84,9 @@ class Sessions(SessionPortal):
             e.state['speed']=defaults['speed']
             if not data.get('adopt_legacy'):self.apply_defaults(e,defaults)
             e.save()
-            credential=self.add_member(id,name,True,role,user_id);return credential
+            credential=self.add_member(id,name,True,role,user_id)
+            self.db.execute('INSERT INTO simulation_usage(room_id,created) SELECT id,created FROM rooms WHERE id=?',(id,));self.db.commit()
+            return credential
 
     def join(self,data,user_id=None):
         with self.lock:
@@ -173,6 +176,7 @@ class Sessions(SessionPortal):
                     job['owner']=None
             if action=='upload_graphic':self.upload_graphic(member,data)
             else:engine.command(action,{**data,'_actor':member,'_planned_routes':plans})
+            if not engine.state['paused']:self.mark_simulation_started(member['room_id'])
             self.record_account_event(member,action,data,engine)
             return self.snapshot(member)
 
@@ -197,14 +201,18 @@ class Sessions(SessionPortal):
 
     def tick(self,seconds):
         with self.lock:
-            ids=[r[0] for r in self.db.execute('SELECT DISTINCT room_id FROM members WHERE last_seen>?',(time.time()-45,)).fetchall()]
+            cutoff=time.time()-45
+            ids=[r[0] for r in self.db.execute('SELECT DISTINCT room_id FROM members WHERE last_seen>?',(cutoff,)).fetchall()]
             for id in ids:
                 engine=self.engine(id)
-                if not engine.state['paused']:
-                    users=self.db.execute('SELECT DISTINCT user_id FROM members WHERE room_id=? AND last_seen>? AND user_id IS NOT NULL',(id,time.time()-45)).fetchall()
-                    for user in users:self.db.execute('INSERT INTO player_usage VALUES(?,?,?) ON CONFLICT(user_id,room_id) DO UPDATE SET seconds=seconds+excluded.seconds',(user[0],id,seconds))
-                    self.db.commit()
+                running=not engine.state['paused'];before=engine.state['clock']
                 engine.tick(seconds)
+                if running:
+                    users=self.db.execute('SELECT DISTINCT user_id FROM members WHERE room_id=? AND last_seen>? AND user_id IS NOT NULL',(id,cutoff)).fetchall()
+                    guests=self.db.execute('SELECT count(*) FROM members WHERE room_id=? AND last_seen>? AND user_id IS NULL',(id,cutoff)).fetchone()[0]
+                    with self.db:
+                        for user in users:self.db.execute('INSERT INTO player_usage VALUES(?,?,?) ON CONFLICT(user_id,room_id) DO UPDATE SET seconds=seconds+excluded.seconds',(user[0],id,seconds))
+                        self.db.execute('UPDATE simulation_usage SET first_started=coalesce(first_started,?),real_seconds=real_seconds+?,sim_seconds=sim_seconds+?,guest_seconds=guest_seconds+?,player_seconds=player_seconds+? WHERE room_id=?',(time.time(),seconds,max(0,engine.state['clock']-before),seconds*guests,seconds*(len(users)+guests),id))
 
     def close(self):
         for e in self.engines.values():e.db.close()
