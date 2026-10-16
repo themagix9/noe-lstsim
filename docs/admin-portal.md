@@ -13,6 +13,9 @@ Zusätzlich zum vorhandenen `CLOUDFLARE_TUNNEL_TOKEN` diese Stack-Variablen setz
 | --- | --- |
 | `ADMIN_USERNAME` | Ein eigener, noch nicht als Spieler registrierter Adminname, z. B. `julian-admin` |
 | `ADMIN_PASSWORD` | Ein selbst gewähltes, einzigartiges Passwort mit 12–128 Zeichen |
+| `PORT` | Host-Port des Simulators, z. B. `8091` (Standard `8088`) |
+| `DASHBOARD_PORT` | Separater Host-Port des Dashboards, z. B. `8092` (Standard `8089`) |
+| `DASHBOARD_BIND_HOST` | Bind-Adresse des Dashboard-Host-Ports (Standard `127.0.0.1`); unabhängig von `BIND_HOST` für das Spiel |
 | `COOKIE_SECURE` | `1` für den HTTPS-Betrieb über Cloudflare (Standard) |
 
 Das Administratorkonto wird nur angelegt, solange noch kein Administrator
@@ -23,7 +26,15 @@ zum Administrator. Stattdessen einen anderen Adminnamen verwenden.
 
 Danach den Git-Stack aktualisieren und das neue Image erneut ziehen.
 Der Simulator hört weiter auf Port **8080**, das Adminportal separat auf **8081**.
-Port 8081 ist nur im Docker-Netzwerk freigegeben und hat keine Host-Portbindung.
+Die Host-Portbindungen sind unabhängig davon einstellbar: beispielsweise
+`PORT=8091` und `DASHBOARD_PORT=8092`. Beide müssen verschiedene, freie Host-Ports
+verwenden. Das Dashboard ist standardmäßig nur lokal unter `127.0.0.1:8089`
+erreichbar. Für zusätzlichen LAN-Zugriff ausdrücklich `DASHBOARD_BIND_HOST=0.0.0.0`
+setzen. `BIND_HOST` beeinflusst nur den Spielport.
+
+Cloudflared verwendet im gemeinsamen Docker-Netzwerk weiterhin die internen
+Ports **8080** und **8081**, auch wenn die Host-Ports auf 8091/8092 geändert werden.
+Der Healthcheck prüft ebenfalls weiterhin den internen Spielport 8080.
 
 ## Cloudflare-Domain und Access
 
@@ -107,9 +118,9 @@ Abmelden, Sperren oder Passwortänderungen machen betroffene Logins ungültig.
 ## Lokale Entwicklung
 
 Für HTTP-Entwicklung `COOKIE_SECURE=0` setzen. Das ist ausschließlich für lokale
-Tests gedacht. Für einen lokalen Adminzugang den Port optional nur an Loopback
-binden, z. B. `127.0.0.1:8089:8081`; im produktiven Portainer-Stack bleibt er ohne
-Hostbindung. Sichere Cookies verwenden hostgebundene `__Host-`-Namen, HttpOnly und
+Tests gedacht. Der lokale Adminzugang ist standardmäßig an Loopback gebunden
+(`127.0.0.1:8089:8081`); `DASHBOARD_PORT` ändert den Host-Port auch in
+`compose.yaml`. Im HTTPS-Betrieb über Cloudflare bleibt `COOKIE_SECURE=1`. Sichere Cookies verwenden hostgebundene `__Host-`-Namen, HttpOnly und
 SameSite=Strict. Passwörter werden mit individuellem Salt und scrypt gespeichert;
 Login-Tokens nur als SHA-256-Hash. Schreibende Konten-/Adminanfragen benötigen
 zusätzlich einen CSRF-Nachweis; Login und Registrierung sind begrenzt.

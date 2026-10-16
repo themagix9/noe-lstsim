@@ -95,7 +95,8 @@ jobs:
         env:
           CLOUDFLARE_TUNNEL_TOKEN: ci-validation-placeholder
         run: |
-          docker compose -f compose.portainer.yaml config --quiet
+          PORT=8091 DASHBOARD_PORT=8092 docker compose -f compose.yaml config --quiet
+          PORT=8091 DASHBOARD_PORT=8092 docker compose -f compose.portainer.yaml config --quiet
           docker compose -f compose.portainer.yaml -f compose.routing.yaml config --quiet
       - name: Verify container startup and health
         run: |

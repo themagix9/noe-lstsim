@@ -35,6 +35,12 @@ Anschließend lokal `http://localhost:8088` öffnen. Es gibt keine kostenpflicht
 
 Cloudflared wartet beim Start auf den gesunden Simulator. Der Tunnel stellt selbst ausgehende Verbindungen zu Cloudflare her; eingehende Ports/Portweiterleitungen sind dafür nicht nötig. Die lokale Debug-Schnittstelle bleibt standardmäßig auf `127.0.0.1:8088` begrenzt. `BIND_HOST=0.0.0.0` nur setzen, wenn zusätzlich LAN-Zugriff gewünscht ist.
 
+Die Host-Ports lassen sich unabhängig setzen: `PORT=8091` für das Spiel und
+`DASHBOARD_PORT=8092` für das Adminportal (Standard `8089`). Das Dashboard bindet
+standardmäßig an `127.0.0.1`; zusätzlicher LAN-Zugriff benötigt ausdrücklich
+`DASHBOARD_BIND_HOST=0.0.0.0`. Die Cloudflared-Ziele bleiben `noe-lstsim:8080`
+und `noe-lstsim:8081`, unabhängig von diesen Host-Ports.
+
 Für spätere Updates zuerst den erfolgreichen GitHub-Build abwarten. Dann den Git-Stack aktualisieren und dabei **Re-pull image / Pull latest image** aktivieren (Bezeichnung je nach Portainer-Version). Nur Git abzufragen garantiert bei unverändertem Image-Tag `latest` noch keinen Austausch des Containers. Automatische Git-Updates sind optional; dabei muss die Option zum erneuten Laden des Images korrekt konfiguriert sein. Änderungen, die nur Quellcode betreffen, ändern die Compose-Datei nicht; daher manuelles Re-pull oder ein gezielter Webhook nach erfolgreichem Build verwenden.
 
 Jeder Build besitzt zusätzlich einen unveränderlichen Tag `sha-<vollständige Commit-SHA>`. Über `IMAGE_TAG` kann eine konkrete Version gewählt werden. SQLite-Daten bleiben im bestehenden Stack-Volume erhalten. Stack-Namen bei Updates beibehalten, sonst erhält Docker ein anderes Volume. Konten, Statistiken und Adminportal sind vorhanden. Die Dashboard-Domain zusätzlich mit Cloudflare Access schützen; Einrichtung siehe [Adminportal](docs/admin-portal.md).
