@@ -7,12 +7,12 @@ keinen Einfluss auf den Simulator und die geschützte Admin-Subdomain.
 
 ## Vor dem öffentlichen Livegang
 
-- `public/impressum.html`: öffentliche Betreiberanschrift und Kontakt-E-Mail
-  ergänzen, übrige erforderliche Betreiberangaben prüfen, Entwurfshinweis entfernen.
-- `public/datenschutz.html`: Betreiberkontakt, konkretes Cloudflare-Setup und
+- `public/impressum.html`: Betreiberanschrift und Kontakt-E-Mail sind mit den
+  ausdrücklich zur Veröffentlichung freigegebenen Angaben hinterlegt.
+- `public/datenschutz.html`: Betreiberkontakt ist hinterlegt; konkretes Cloudflare-Setup und
   Verarbeitungshinweise vollständig ergänzen/prüfen. Aktuell ausdrücklich nur
   Entwurf für die Hauptseite, NICHT für Simulator/AdSense-CMP verwenden.
-- Reale Anschriften oder Kontaktdaten wurden bewusst nicht geraten.
+- Betreiberanschrift und E-Mail wurden vom Betreiber ausdrücklich freigegeben.
 - Die Hauptseite lädt keine Werbung, keine Google-Skripte, keine Analyse und keine
   externen Fonts. Der Metatag ist bereits im HTML; er löst keine Anzeigen aus.
 
