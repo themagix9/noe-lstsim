@@ -47,7 +47,11 @@ def main():
        else:route.abort()
       ctx.route('**/*',intercept);page=ctx.new_page();page.on('pageerror',lambda error:errors.append(str(error)));page.goto(ORIGIN)
       expect(page.locator('#account-open')).to_be_visible();expect(page.locator('#landing-ad')).to_be_hidden();assert not external
-      enabled=True;page.reload();page.wait_for_function('window.adTest&&window.testConsent')
+      enabled=True;page.reload()
+      try:page.wait_for_function('window.adTest&&window.testConsent',timeout=10000)
+      except Exception:
+       print('Ad diagnostics:',engine.name,width,'external=',external,'errors=',errors,'page=',page.evaluate('({hidden:document.hidden,body:document.body.className,aside:document.getElementById("landing-ad").outerHTML,loader:document.getElementById("adsense-loader")?.outerHTML,ads:typeof LandingAds,google:typeof adTest,cmp:typeof __tcfapi})'),flush=True)
+       raise
       expect(page.locator('#landing-ad')).to_be_visible();assert len(external)==1
       assert page.evaluate('adTest.initialPause===1&&adTest.requests.length===0&&adsbygoogle.pauseAdRequests===1')
       aside=page.locator('#landing-ad').bounding_box();form=page.locator('.lobby-card').bounding_box()
