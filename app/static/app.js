@@ -213,7 +213,7 @@ function renderMap(vehicles,jobs){
  if(!leafletMap){
   leafletMap=L.map('map',{scrollWheelZoom:true,minZoom:6,maxZoom:18}).setView([48.12,16.65],13);mapLayers=L.layerGroup().addTo(leafletMap);
   leafletMap.on('zoomend',()=>$('map').classList.toggle('map-icons-small',leafletMap.getZoom()<12));
-  tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · Routing: OSRM/FOSSGIS · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Karte verbessern</a>'}).addTo(leafletMap);
+  tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin',attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> · Routing: OSRM/FOSSGIS · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Karte verbessern</a>'}).addTo(leafletMap);
   tiles.on('tileerror',()=>{$('map-note').textContent='Kartenkacheln nicht erreichbar · Ressourcen bleiben sichtbar.'});
   tiles.on('tileload',()=>{$('map-note').textContent='OpenStreetMap · Straßenrouting / NAH Flugstrecke'});
  }

@@ -28,7 +28,7 @@ class Handler(PortalHTTP,BaseHTTPRequestHandler):
     notify_live=staticmethod(notify_live)
     def respond(self,payload,content_type,status=200,headers=None):
         try:
-            self.send_response(status);self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(payload)));self.send_header('X-Content-Type-Options','nosniff');self.send_header('Referrer-Policy','same-origin');self.send_header('X-Frame-Options','DENY')
+            self.send_response(status);self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(payload)));self.send_header('X-Content-Type-Options','nosniff');self.send_header('Referrer-Policy','same-origin' if self.admin_portal else 'strict-origin-when-cross-origin');self.send_header('X-Frame-Options','DENY')
             if self.admin_portal:self.send_header('Content-Security-Policy',"default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
             for key,value in (headers or {}).items():self.send_header(key,value)
             self.end_headers();self.wfile.write(payload)

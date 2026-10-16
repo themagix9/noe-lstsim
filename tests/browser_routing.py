@@ -36,8 +36,15 @@ with tempfile.TemporaryDirectory() as data:
             except OSError:time.sleep(.1)
         with sync_playwright() as pw:
             browser=pw.chromium.launch(headless=True,args=['--no-sandbox']);context=browser.new_context(viewport={'width':1366,'height':768})
-            context.route('https://tile.openstreetmap.org/**',lambda r:r.fulfill(status=200,content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#edf1ee"/></svg>'))
+            tile_referrers=[]
+            def map_tile(route):
+                tile_referrers.append(route.request.all_headers().get('referer'))
+                route.fulfill(status=200,content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#edf1ee"/></svg>')
+            # Never request real community tiles in automated map tests.
+            context.route('https://tile.openstreetmap.org/**',map_tile)
             p=context.new_page();errors=[];p.on('pageerror',lambda e:errors.append(str(e)));p.goto('http://127.0.0.1:8080');p.get_by_label('Dein Disponentenname').fill('Routingtest');p.locator('#lobby-submit').click();expect(p.locator('#lobby')).to_be_hidden();start_session(p)
+            p.wait_for_function("document.querySelector('img.leaflet-tile-loaded')")
+            assert tile_referrers and all(r=='http://127.0.0.1:8080/' for r in tile_referrers),tile_referrers
             p.wait_for_function('addressPoints.length>500');address=p.evaluate("addressPoints.find(a=>a.city==='Schwechat').address")
             p.locator('#create-manual').click();p.locator('#manual-code').select_option('RD-1A1');p.get_by_label('Einsatzort / Adresse',exact=True).fill(address);p.get_by_label('Zusatztext',exact=True).click();p.locator('#manual-form button.primary').click()
             row=on_tab(p, 'disposition').locator('.resource-row').filter(has_text='77/002');expect(row).to_contain_text('1.5 km Straße',timeout=15000);expect(row).to_contain_text('4 min');assert p.evaluate("(()=>{const j=state.jobs.find(j=>j.id===selected),v=state.vehicles.find(v=>v.callsign==='77/002'),eta=j.resource_eta[v.id];return eta.turnout_seconds>=85&&eta.turnout_seconds<=120&&eta.seconds===120*.85+eta.turnout_seconds})()");row.locator('input').check();p.locator('#dispatch').click();expect(p.locator('#dispatch-dialog')).not_to_be_visible();p.locator('#speed').select_option('60');p.locator('#pause').click()

@@ -47,6 +47,12 @@ class PortalHTTPTests(unittest.TestCase):
     def denied(self,client,path,data=None,status=403,**kw):
         with self.assertRaises(urllib.error.HTTPError) as error:client.call(path,data,**kw)
         self.assertEqual(error.exception.code,status)
+    def test_map_page_sends_origin_to_external_tiles_but_admin_stays_private(self):
+        _,public=self.player.call('/')
+        _,admin=self.admin.call('/')
+        self.assertEqual(public['Referrer-Policy'],'strict-origin-when-cross-origin')
+        self.assertEqual(admin['Referrer-Policy'],'same-origin')
+
     def test_admin_isolation_and_no_role_escalation(self):
         me,_=self.register();self.assertEqual(me['user']['role'],'user')
         self.denied(self.player,'/api/admin/dashboard',status=404)
