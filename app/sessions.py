@@ -11,7 +11,10 @@ import time
 from engine import Engine, GRAPHICS
 from catalog import CENTRES, ZONES
 
-class Sessions:
+from accounts import Accounts
+from session_portal import SessionPortal
+
+class Sessions(SessionPortal):
     def __init__(self,path):
         self.path=path; self.lock=threading.RLock(); self.engines={}
         self.db=sqlite3.connect(path,check_same_thread=False)
@@ -24,6 +27,7 @@ class Sessions:
         if 'role' not in {r[1] for r in self.db.execute('PRAGMA table_info(members)')}:
             self.db.execute("ALTER TABLE members ADD COLUMN role TEXT NOT NULL DEFAULT 'both'")
         self.db.commit()
+        self.accounts=Accounts(path);self.portal_schema()
         # Run the legacy migration immediately, without discarding its saved state.
         self.engine('legacy')
 
@@ -36,15 +40,16 @@ class Sessions:
         if not 2<=len(name)<=30 or any(ord(c)<32 for c in name): raise ValueError('Spielername: 2–30 Zeichen.')
         return name
 
-    def add_member(self,room,name,host=False,role='both'):
+    def add_member(self,room,name,host=False,role='both',user_id=None):
         if self.db.execute('SELECT count(*) FROM members WHERE room_id=?',(room,)).fetchone()[0]>=16: raise ValueError('Sitzung ist voll (maximal 16 Spieleridentitäten).')
         if self.db.execute('SELECT 1 FROM members WHERE room_id=? AND lower(name)=lower(?)',(room,name)).fetchone(): raise ValueError('Dieser Spielername ist bereits vergeben. Zum Fortsetzen den gespeicherten Zugang verwenden.')
         id=secrets.token_hex(16);token=secrets.token_urlsafe(32)
-        self.db.execute('INSERT INTO members (id,room_id,name,token_hash,host,last_seen,role) VALUES (?,?,?,?,?,?,?)',(id,room,name,hashlib.sha256(token.encode()).hexdigest(),int(host),time.time(),role));self.db.commit()
+        self.db.execute('INSERT INTO members (id,room_id,name,token_hash,host,last_seen,role,user_id) VALUES (?,?,?,?,?,?,?,?)',(id,room,name,hashlib.sha256(token.encode()).hexdigest(),int(host),time.time(),role,user_id));self.db.commit()
         return {'token':token,'player':id}
 
-    def create(self,data):
+    def create(self,data,user_id=None):
         with self.lock:
+            defaults=self.accounts.settings()
             name=self.name(data.get('name'));mode=data.get('mode','multi')
             if mode not in ('single','multi'):raise ValueError('Singleplayer oder Multiplayer wählen.')
             workflow=data.get('workflow','shared') if mode=='multi' else 'shared'
@@ -53,7 +58,7 @@ class Sessions:
             if role not in (('calltaker','dispatcher') if workflow=='split' else ('both',)):raise ValueError('Calltaker oder Disponent wählen.')
             title=str(data.get('title') or ('Meine Leitstelle' if mode=='single' else 'Gemeinsame Disposition')).strip()[:60]
             if self.db.execute('SELECT count(*) FROM rooms').fetchone()[0]>=100: raise ValueError('Maximale Sitzungsanzahl erreicht.')
-            centre=data.get('centre','Mödling');dispo=data.get('dispo','05');hour=int(data.get('hour',8))
+            centre=data.get('centre',defaults['centre']);dispo=data.get('dispo',defaults['dispo']);hour=int(data.get('hour',defaults['hour']))
             if centre not in CENTRES or dispo not in {z['id'] for z in ZONES} or not 0<=hour<=23:raise ValueError('Leitstellenstandort, Dispozone und Startzeit prüfen.')
             start_date=str(data.get('date') or dt.date.today().isoformat())
             try:date=dt.date.fromisoformat(start_date)
@@ -73,25 +78,30 @@ class Sessions:
             if not data.get('adopt_legacy'):
                 e.state['start_date']=start_date;e.state['clock']=hour*3600;e.state['next_transport']=hour*3600+(40 if workflow=='split' else 60);e.state['next_emergency']=hour*3600+(90 if workflow=='split' else 180)
                 for v in e.state['vehicles']:v['status']=e.idle_status(v)
+            e.state['speed']=defaults['speed']
+            if not data.get('adopt_legacy'):self.apply_defaults(e,defaults)
             e.save()
-            credential=self.add_member(id,name,True,role);return credential
+            credential=self.add_member(id,name,True,role,user_id);return credential
 
-    def join(self,data):
+    def join(self,data,user_id=None):
         with self.lock:
             name=self.name(data.get('name'));code=str(data.get('code','')).strip().upper().replace(' ','').replace('-','')
             room=self.db.execute('SELECT id,mode FROM rooms WHERE code=?',(code,)).fetchone()
             if not room or room[1]=='single':raise ValueError('Multiplayer-Sitzungscode nicht gefunden.')
             role=data.get('role','dispatcher') if self.engine(room[0]).state['setup'].get('workflow')=='split' else 'both'
             if role not in (('calltaker','dispatcher') if self.engine(room[0]).state['setup'].get('workflow')=='split' else ('both',)):raise ValueError('Calltaker oder Disponent wählen.')
-            return self.add_member(room[0],name,role=role)
+            if user_id:
+                existing=self.db.execute('SELECT id FROM members WHERE room_id=? AND user_id=?',(room[0],user_id)).fetchone()
+                if existing:return {k:v for k,v in self.account_resume(self.accounts.user(user_id),existing[0]).items() if k!='state'}
+            return self.add_member(room[0],name,role=role,user_id=user_id)
 
     def member(self,token,touch=True):
         with self.lock:
             if not token or len(token)>200: raise PermissionError('Bitte einer Sitzung beitreten.')
-            row=self.db.execute('SELECT id,room_id,name,host,last_seen,role FROM members WHERE token_hash=?',(hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+            row=self.db.execute('SELECT id,room_id,name,host,last_seen,role,user_id,token_hash FROM members WHERE token_hash=?',(hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
             if not row:raise PermissionError('Sitzungszugang ungültig. Bitte erneut beitreten.')
             if touch:self.db.execute('UPDATE members SET last_seen=? WHERE id=?',(time.time(),row[0]));self.db.commit()
-            return {'id':row[0],'room_id':row[1],'name':row[2],'host':bool(row[3]),'last_seen':row[4],'role':row[5]}
+            return {'id':row[0],'room_id':row[1],'name':row[2],'host':bool(row[3]),'last_seen':row[4],'role':row[5],'user_id':row[6],'token_hash':row[7]}
 
     def snapshot(self,member):
         with self.lock:
@@ -99,16 +109,22 @@ class Sessions:
             roster=self.db.execute('SELECT id,name,host,last_seen,role FROM members WHERE room_id=?',(member['room_id'],)).fetchall()
             s=self.engine(member['room_id']).snapshot()
             s['sync_time']=time.time()
-            s['session']={'code':room[0] if room[2]=='multi' else None,'mode':room[2],'title':room[1],'me':member['id'],'host':member['host'],'role':member.get('role','both'),'players':[{'id':r[0],'name':r[1],'host':bool(r[2]),'online':time.time()-r[3]<45,'role':r[4]} for r in roster]}
+            s['site']=self.accounts.public_config()
+            if not member.get('user_id'):s['chat']=[]
+            s['session']={'code':room[0] if room[2]=='multi' else None,'mode':room[2],'title':room[1],'me':member['id'],'host':member['host'],'role':member.get('role','both'),'registered':bool(member.get('user_id')),'chat_allowed':bool(member.get('user_id')),'players':[{'id':r[0],'name':r[1],'host':bool(r[2]),'online':time.time()-r[3]<45,'role':r[4]} for r in roster]}
             return s
 
     def stream_touch(self,member):
         with self.lock:
-            seen=self.db.execute('SELECT last_seen FROM members WHERE id=?',(member['id'],)).fetchone()
-            if not seen or seen[0]==0:return False
+            seen=self.db.execute('SELECT last_seen,token_hash,user_id FROM members WHERE id=?',(member['id'],)).fetchone()
+            if not seen or seen[0]==0 or seen[1]!=member.get('token_hash'):return False
+            if seen[2]:
+                user=self.accounts.user(seen[2])
+                if not user or not user['enabled']:return False
             self.db.execute('UPDATE members SET last_seen=? WHERE id=?',(time.time(),member['id']));self.db.commit();return True
 
     def command(self,member,action,data):
+        if action=='chat' and not member.get('user_id'):raise PermissionError('Multiplayerchat ist nur für angemeldete registrierte Benutzer verfügbar.')
         plans=None
         if action=='dispatch':
             with self.lock:
@@ -152,6 +168,7 @@ class Sessions:
                     job['owner']=None
             if action=='upload_graphic':self.upload_graphic(member,data)
             else:engine.command(action,{**data,'_actor':member,'_planned_routes':plans})
+            self.record_account_event(member,action,data,engine)
             return self.snapshot(member)
 
     def upload_graphic(self,member,data):
@@ -176,8 +193,14 @@ class Sessions:
     def tick(self,seconds):
         with self.lock:
             ids=[r[0] for r in self.db.execute('SELECT DISTINCT room_id FROM members WHERE last_seen>?',(time.time()-45,)).fetchall()]
-            for id in ids:self.engine(id).tick(seconds)
+            for id in ids:
+                engine=self.engine(id)
+                if not engine.state['paused']:
+                    users=self.db.execute('SELECT DISTINCT user_id FROM members WHERE room_id=? AND last_seen>? AND user_id IS NOT NULL',(id,time.time()-45)).fetchall()
+                    for user in users:self.db.execute('INSERT INTO player_usage VALUES(?,?,?) ON CONFLICT(user_id,room_id) DO UPDATE SET seconds=seconds+excluded.seconds',(user[0],id,seconds))
+                    self.db.commit()
+                engine.tick(seconds)
 
     def close(self):
         for e in self.engines.values():e.db.close()
-        self.db.close()
+        self.db.close();self.accounts.close()

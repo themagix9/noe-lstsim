@@ -7,11 +7,11 @@ import tempfile
 import time
 import urllib.request
 from playwright.sync_api import sync_playwright, expect
-from browser_helpers import on_tab, choose_code, start_session, wait_for_auto_call
+from browser_helpers import on_tab, choose_code, start_session, wait_for_auto_call,register_account
 
 root=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as data:
-    proc=subprocess.Popen([sys.executable,'app/server.py'],cwd=root,env={**os.environ,'DATA_DIR':data,'RADIO_INTERVAL':'0','ROUTING_ENABLED':'0','REINFORCEMENTS_AUTO':'0'},stdout=subprocess.DEVNULL)
+    proc=subprocess.Popen([sys.executable,'app/server.py'],cwd=root,env={**os.environ,'DATA_DIR':data,'COOKIE_SECURE':'0','RADIO_INTERVAL':'0','ROUTING_ENABLED':'0','REINFORCEMENTS_AUTO':'0'},stdout=subprocess.DEVNULL)
     try:
         for _ in range(60):
             try:urllib.request.urlopen('http://127.0.0.1:8080/api/health',timeout=.5);break
@@ -23,9 +23,9 @@ with tempfile.TemporaryDirectory() as data:
             a.on('pageerror',lambda e:errors.append(str(e)));b.on('pageerror',lambda e:errors.append(str(e)))
             # Never download OSM tiles in automated tests. Render a local placeholder instead.
             for context in (host,guest):context.route('https://tile.openstreetmap.org/**',lambda route:route.fulfill(status=200,content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#edf1ee"/></svg>'))
-            a.goto('http://127.0.0.1:8080');a.locator('#mode-multi').click();a.get_by_label('Dein Disponentenname').fill('Disponent A');a.get_by_role('button',name='Sitzung erstellen',exact=True).click()
+            a.goto('http://127.0.0.1:8080');register_account(a,'host-browser','Disponent A');a.locator('#mode-multi').click();a.get_by_label('Dein Disponentenname').fill('Disponent A');a.get_by_role('button',name='Sitzung erstellen',exact=True).click()
             expect(a.locator('#lobby')).to_be_hidden();start_session(a);code=a.locator('#copy-code').inner_text();assert len(code)==8
-            b.goto('http://127.0.0.1:8080');b.locator('#mode-multi').click();b.get_by_role('button',name='Mit Code beitreten').click();b.get_by_label('Dein Disponentenname').fill('Disponent B');b.get_by_label('Sitzungscode',exact=True).fill(code);b.get_by_role('button',name='Sitzung beitreten',exact=True).click();expect(b.locator('#lobby')).to_be_hidden();start_session(b)
+            b.goto('http://127.0.0.1:8080');register_account(b,'guest-browser','Disponent B');b.locator('#mode-multi').click();b.get_by_role('button',name='Mit Code beitreten').click();b.get_by_label('Dein Disponentenname').fill('Disponent B');b.get_by_label('Sitzungscode',exact=True).fill(code);b.get_by_role('button',name='Sitzung beitreten',exact=True).click();expect(b.locator('#lobby')).to_be_hidden();start_session(b)
             expect(a.locator('#players')).to_contain_text('Disponent B',timeout=8000)
             a.get_by_role('button',name='+ Ereignis').click();a.get_by_role('button',name='Transportauftrag',exact=True).click();a.locator('.job').first.click();a.get_by_role('button',name='Einsatz übernehmen',exact=True).click()
             expect(b.locator('.job')).to_contain_text('Betreuung: Disponent A',timeout=8000)

@@ -9,6 +9,7 @@ from collections import defaultdict,deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse,parse_qs
 from sessions import Sessions
+from portal_http import PortalHTTP
 from catalog import CENTRES,ZONES,RULES,TRANSPORT_RULES
 from locations import ADDRESSES
 from aao import SOURCE,code_rule
@@ -22,15 +23,30 @@ live_changes=threading.Condition()
 def notify_live():
     with live_changes:live_changes.notify_all()
 
-class Handler(BaseHTTPRequestHandler):
-    def respond(self,payload,content_type,status=200):
+class Handler(PortalHTTP,BaseHTTPRequestHandler):
+    sessions=sessions
+    notify_live=staticmethod(notify_live)
+    def respond(self,payload,content_type,status=200,headers=None):
         try:
-            self.send_response(status);self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(payload)));self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(payload)
+            self.send_response(status);self.send_header('Content-Type',content_type);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(payload)));self.send_header('X-Content-Type-Options','nosniff');self.send_header('Referrer-Policy','same-origin');self.send_header('X-Frame-Options','DENY')
+            if self.admin_portal:self.send_header('Content-Security-Policy',"default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+            for key,value in (headers or {}).items():self.send_header(key,value)
+            self.end_headers();self.wfile.write(payload)
         except (BrokenPipeError,ConnectionResetError):pass
     def json_response(self,data,status=200):self.respond(json.dumps(data,ensure_ascii=False).encode(),'application/json; charset=utf-8',status)
-    def member(self):return sessions.member(self.headers.get('Authorization','').removeprefix('Bearer '))
+    def member(self):
+        token=self.headers.get('Authorization','').removeprefix('Bearer ')
+        member=sessions.member(token,touch=False)
+        if member.get('user_id'):
+            user=self.account_user()
+            if user['id']!=member['user_id']:raise PermissionError('Spielstand gehört einem anderen Konto.')
+        return sessions.member(token)
     def do_GET(self):
         path=urlparse(self.path).path
+        if path=='/api/site' or path.startswith('/api/account/'):
+            try:return self.portal_get(path)
+            except PermissionError as error:return self.json_response({'error':str(error)},401)
+        if path.startswith('/api/admin/') or path.startswith('/admin'):return self.json_response({'error':'Nicht gefunden'},404)
         if path=='/api/live':
             try:member=self.member()
             except PermissionError as e:return self.json_response({'error':str(e)},401)
@@ -38,6 +54,9 @@ class Handler(BaseHTTPRequestHandler):
             last=None;heartbeat=time.monotonic()
             try:
                 while True:
+                    if member.get('user_id'):
+                        try:self.account_user()
+                        except PermissionError:return
                     if not sessions.stream_touch(member):return
                     state=sessions.snapshot(member);sync=state.pop('sync_time');body=json.dumps(state,ensure_ascii=False,separators=(',',':'))
                     if body!=last:
@@ -76,7 +95,7 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/addresses':return self.json_response({'addresses':ADDRESSES,'source':'© OpenStreetMap contributors · ODbL 1.0'})
         if path=='/api/codes':return self.json_response({'date':SOURCE['date'],'rules':[code_rule(r['code']) for r in SOURCE['entries']]+TRANSPORT_RULES})
         if path=='/api/catalog':return self.json_response({'centres':CENTRES,'zones':ZONES,'rules':RULES})
-        if path=='/api/health':return self.json_response({'ok':True,'version':'0.11'})
+        if path=='/api/health':return self.json_response({'ok':True,'version':'0.12'})
         if path in ('/api/state','/api/config'):
             try:
                 s=sessions.snapshot(self.member())
@@ -101,6 +120,9 @@ class Handler(BaseHTTPRequestHandler):
             if not 0<size<=1_000_000:return self.json_response({'error':'Ungültige Anfragegröße.'},413)
             data=json.loads(self.rfile.read(size))
             if not isinstance(data,dict):raise ValueError('JSON-Objekt erforderlich.')
+            if path.startswith('/api/account/') or path.startswith('/api/admin/'):
+                if path.startswith('/api/admin/'):return self.json_response({'error':'Nicht gefunden'},404)
+                return self.portal_post(path,data)
             action=path.removeprefix('/api/')
             if action in ('session/create','session/join'):
                 with limit_lock:
@@ -109,12 +131,36 @@ class Handler(BaseHTTPRequestHandler):
                     while window and now-window[0]>60:window.popleft()
                     if len(window)>=30:return self.json_response({'error':'Zu viele Beitrittsversuche. Bitte eine Minute warten.'},429)
                     window.append(now)
-                credential=sessions.create(data) if action=='session/create' else sessions.join(data)
+                user=self.account_user(optional=True)
+                if user:self.csrf_check()
+                credential=sessions.create(data,user_id=user['id'] if user else None) if action=='session/create' else sessions.join(data,user_id=user['id'] if user else None)
                 member=sessions.member(credential['token']);return self.json_response({**credential,'state':sessions.snapshot(member)})
             member=self.member();result=sessions.command(member,action,data);notify_live();self.json_response(result)
         except PermissionError as e:self.json_response({'error':str(e)},403)
         except (ValueError,KeyError,TypeError,StopIteration) as e:self.json_response({'error':str(e) or 'Ungültige Eingabe.'},400)
     def log_message(self,format,*args):pass
+
+
+class AdminHandler(Handler):
+    admin_portal=True
+    def do_GET(self):
+        path=urlparse(self.path).path
+        try:
+            if path.startswith('/api/'):return self.portal_get(path)
+            files={'/':'admin.html','/admin.js':'admin.js','/admin.css':'admin.css'}
+            if path not in files:return self.json_response({'error':'Nicht gefunden'},404)
+            file=ROOT/files[path];return self.respond(file.read_bytes(),mimetypes.guess_type(file)[0] or 'text/plain')
+        except PermissionError as error:return self.json_response({'error':str(error)},401)
+    def do_POST(self):
+        if self.headers.get('Origin') and urlparse(self.headers['Origin']).netloc!=self.headers.get('Host'):return self.json_response({'error':'Fremde Herkunft nicht erlaubt.'},403)
+        try:
+            size=int(self.headers.get('Content-Length','0'))
+            if not 0<size<=20000:return self.json_response({'error':'Ungültige Anfragegröße.'},413)
+            data=json.loads(self.rfile.read(size))
+            if not isinstance(data,dict):raise ValueError('JSON-Objekt erforderlich.')
+            return self.portal_post(urlparse(self.path).path,data)
+        except PermissionError as error:return self.json_response({'error':str(error)},403)
+        except (ValueError,KeyError,TypeError) as error:return self.json_response({'error':str(error)},400)
 
 def run_clock():
     last=time.monotonic()
@@ -123,5 +169,7 @@ def run_clock():
 
 if __name__=='__main__':
     threading.Thread(target=run_clock,daemon=True).start()
-    print('NÖ Dispo v0.10 läuft auf Port 8080',flush=True)
+    admin=ThreadingHTTPServer(('0.0.0.0',int(os.environ.get('ADMIN_PORT','8081'))),AdminHandler)
+    threading.Thread(target=admin.serve_forever,daemon=True).start()
+    print('NÖ Dispo v0.12 läuft auf Port 8080',flush=True)
     ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()

@@ -78,6 +78,8 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
         self.db.execute('PRAGMA busy_timeout=5000')
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.execute('CREATE TABLE IF NOT EXISTS room_states (room_id TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS completed_incidents(room_id TEXT,job_id TEXT,kind TEXT,owner_member TEXT,duration REAL,completed REAL,PRIMARY KEY(room_id,job_id))')
+        self.recorded_incidents={r[0] for r in self.db.execute('SELECT job_id FROM completed_incidents WHERE room_id=?',(room_id,))}
         self.room_id=room_id
         self.router=router_for(path)
         row=self.db.execute('SELECT value FROM room_states WHERE room_id=?',(room_id,)).fetchone()
@@ -122,7 +124,15 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
         self.resume_calls()
         self.save()
 
+    def record_completed(self):
+        for job in self.state['jobs']:
+            if job['status']=='done' and job['id'] not in self.recorded_incidents:
+                duration=max(0,(job.get('completed') if job.get('completed') is not None else self.state['clock'])-(job.get('dispatched_at') if job.get('dispatched_at') is not None else job['created']))
+                self.db.execute('INSERT OR IGNORE INTO completed_incidents VALUES(?,?,?,?,?,?)',(self.room_id,job['id'],job['kind'],job.get('owner'),duration,__import__('time').time()))
+                self.recorded_incidents.add(job['id'])
+
     def save(self):
+        self.record_completed()
         self.db.execute('INSERT OR REPLACE INTO room_states VALUES (?, ?)', (self.room_id,json.dumps(self.state,ensure_ascii=False)))
         self.db.commit()
 
@@ -266,6 +276,7 @@ class Engine(Telemedicine,AirTransport,ManvCoordination,EventGeneration,EcprTeam
                 elif self.in_shift(v) and v['status']=='out' and not v.get('manual_out'): v['status']=self.idle_status(v)
                 elif not self.in_shift(v) and not v.get('leg') and v['status'] in ('ready','radio','fr_ready'): v['status']='out'
             self.generate_events(now)
+            self.record_completed()
             if len(self.state['jobs'])>150:
                 completed=[j for j in self.state['jobs'] if j['status']=='done' and not any(c['job']==j['id'] and c['state']!='closed' for c in self.state['radio_calls'])]
                 for j in completed[:len(self.state['jobs'])-150]: self.state['jobs'].remove(j)

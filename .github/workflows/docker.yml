@@ -35,6 +35,8 @@ jobs:
           node --check app/static/event-settings.js
           node --check app/static/resource-motion.js
           node tests/test_resource_motion.js
+          node --check app/static/admin.js
+          node --check app/static/account-ui.js
           node --check app/static/call-speech.js
           node --check app/static/radio-ui.js
           node tests/test_radio_ui.js
@@ -58,6 +60,8 @@ jobs:
         run: |
           pip install playwright==1.58.0
           python -m playwright install --with-deps chromium webkit
+      - name: Test admin portal, account persistence, maintenance and registered chat
+        run: python tests/browser_portal.py
       - name: Test spoken calls, telephone filtering and window pause
         run: python tests/browser_speech.py
       - name: Test road routing, ETA and map icons

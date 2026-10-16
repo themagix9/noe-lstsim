@@ -1,4 +1,4 @@
-# NÖ Dispo – Docker-Leitstellensimulator v0.10
+# NÖ Dispo – Docker-Leitstellensimulator
 
 Eigenständiger, spielbarer Prototyp für Niederösterreich, zunächst Raum Bruck/Leitha, Schwechat und Hainburg. Keine Kopie des LstSim-Quellcodes; keine Anbindung an echte Leitstellen.
 
@@ -12,7 +12,7 @@ docker compose up -d --build
 
 Danach auf dem Rechner, auf dem Docker läuft: **http://localhost:8088**
 
-Der Port ist standardmäßig nur lokal erreichbar. Für Zugriff über LAN ändere in `compose.yaml` die Portzeile zu `"8088:8080"` und starte erneut mit `docker compose up -d`. Verwende die Server-IP, z. B. `http://192.168.1.20:8088`. Der Prototyp hat keine Benutzeranmeldung: nicht ungeschützt öffentlich bereitstellen. Für einen entfernten Server ist alternativ ein SSH-Tunnel geeignet:
+Der Port ist standardmäßig nur lokal erreichbar. Für Zugriff über LAN ändere in `compose.yaml` die Portzeile zu `"8088:8080"` und starte erneut mit `docker compose up -d`. Verwende die Server-IP, z. B. `http://192.168.1.20:8088`. Registrierte Konten sind möglich; für produktiven HTTPS-Betrieb und das getrennte Adminportal siehe [Adminportal einrichten](docs/admin-portal.md). Für lokale HTTP-Tests `COOKIE_SECURE=0` setzen. Für einen entfernten Server ist alternativ ein SSH-Tunnel geeignet:
 
 ```bash
 ssh -L 8088:127.0.0.1:8088 benutzer@server
@@ -37,9 +37,18 @@ Cloudflared wartet beim Start auf den gesunden Simulator. Der Tunnel stellt selb
 
 Für spätere Updates zuerst den erfolgreichen GitHub-Build abwarten. Dann den Git-Stack aktualisieren und dabei **Re-pull image / Pull latest image** aktivieren (Bezeichnung je nach Portainer-Version). Nur Git abzufragen garantiert bei unverändertem Image-Tag `latest` noch keinen Austausch des Containers. Automatische Git-Updates sind optional; dabei muss die Option zum erneuten Laden des Images korrekt konfiguriert sein. Änderungen, die nur Quellcode betreffen, ändern die Compose-Datei nicht; daher manuelles Re-pull oder ein gezielter Webhook nach erfolgreichem Build verwenden.
 
-Jeder Build besitzt zusätzlich einen unveränderlichen Tag `sha-<vollständige Commit-SHA>`. Über `IMAGE_TAG` kann eine konkrete Version gewählt werden. SQLite-Daten bleiben im bestehenden Stack-Volume erhalten. Stack-Namen bei Updates beibehalten, sonst erhält Docker ein anderes Volume. Der Simulator besitzt noch keine Anmeldung und darf nicht ungeschützt öffentlich zugänglich sein.
+Jeder Build besitzt zusätzlich einen unveränderlichen Tag `sha-<vollständige Commit-SHA>`. Über `IMAGE_TAG` kann eine konkrete Version gewählt werden. SQLite-Daten bleiben im bestehenden Stack-Volume erhalten. Stack-Namen bei Updates beibehalten, sonst erhält Docker ein anderes Volume. Konten, Statistiken und Adminportal sind vorhanden. Die Dashboard-Domain zusätzlich mit Cloudflare Access schützen; Einrichtung siehe [Adminportal](docs/admin-portal.md).
 
 `compose.yaml` baut lokal aus dem Quellcode; `compose.portainer.yaml` verwendet das veröffentlichte Image. Für Portainer die zweite Datei wählen.
+
+## Adminportal und Benutzerkonten
+
+[Einrichtung für dashboard-lstsim.stratosi.com, Portainer-Variablen und Cloudflare Access](docs/admin-portal.md).
+Administratoren verwenden einen getrennten internen Listener auf 8081. Neue
+Spieler können sich registrieren, Spielstände geräteübergreifend laden und ihre
+Statistik verfolgen. Gastsimulationen bleiben möglich; der Chat erfordert eine
+Anmeldung. Globale Standards, Wartungshinweis und Sitzungsmonitoring befinden sich
+im Adminportal. „Zur Startseite“ sitzt als eigener Button links oben.
 
 ## Erste Übung
 

@@ -219,3 +219,14 @@ body>.desk-controls{height:46px;min-height:46px;padding:5px 12px;gap:9px;flex-wr
 .radio-owner.own{color:#125b3b}
 .radio-call>b{font-size:14px;font-weight:800}.radio-call>span{font-size:13px;font-weight:600;line-height:1.5}
 .log-funk>span:last-child{font-size:13px;font-weight:650;line-height:1.5}
+
+#maintenance-banner{position:fixed;top:0;left:0;right:0;z-index:30000;background:#fff0be;border-bottom:1px solid #c18613;color:#5d3e00;padding:9px 16px;font-size:14px;font-weight:650;text-align:center}
+body.maintenance-visible .desk-controls{margin-top:44px}body.maintenance-visible .landing-layout{padding-top:60px}
+.desk-controls>#leave-room{margin-right:8px;white-space:nowrap;background:#fff;border:1px solid #c9d5e2;color:#25476b}
+#account-slot{margin-bottom:18px;border-bottom:1px solid #d8e0eb;padding-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#account-dialog{width:min(680px,95vw);max-height:90vh;overflow:auto;padding:20px;border:1px solid #cbd7e6;border-radius:12px;box-shadow:0 15px 60px #20334c55}
+#account-dialog form{display:grid;gap:12px;padding:12px 0}#account-dialog input{width:100%}.account-error{color:#a92834;font-weight:650}.account-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:15px 0}.account-stats>div{padding:12px;background:#eef4fa;border-radius:8px}.account-stats b{display:block;font-size:24px}.saved-room{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #e1e7ef}.account-note{font-size:13px;color:#53677c}.chat-account-note{padding:9px;background:#f3f6fa;font-size:13px}#chat-panel.chat-locked #chat,#chat-panel.chat-locked #chat-form{display:none}
+#maintenance-banner{max-height:78px;overflow:auto}
+body.maintenance-visible .desk-controls{margin-top:var(--maintenance-height,44px)}
+body.maintenance-visible .landing-layout{padding-top:calc(var(--maintenance-height,44px) + 16px)}
+@media(max-width:600px){.desk-controls>#leave-room{font-size:11px;padding:5px 7px;margin-right:0}.desk-controls .clock{min-width:82px}.desk-controls .clock small{font-size:8px}.desk-controls button,.desk-controls select{font-size:12px;padding:5px 7px}}

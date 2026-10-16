@@ -63,7 +63,11 @@ class SessionTests(unittest.TestCase):
         j=self.job();self.s.command(self.host,'claim',{'id':j['id']});self.s.command(self.host,'release',{'id':j['id']});self.s.command(self.guest,'claim',{'id':j['id']})
         self.assertEqual(self.s.snapshot(self.host)['jobs'][-1]['owner'],self.guest['id'])
     def test_chat_is_shared_and_isolated(self):
-        self.s.command(self.guest,'chat',{'text':'Ich übernehme den Transport.'});self.assertEqual(self.s.snapshot(self.host)['chat'][-1]['name'],'Lara')
+        with self.assertRaises(PermissionError):self.s.command(self.guest,'chat',{'text':'Gastnachricht'})
+        user=self.s.accounts.register({'username':'lara-test','display_name':'Lara','password':'VeryLong-Test-Password!'})
+        credential=self.s.account_link(user,self.guest_auth['token']);self.guest=self.s.member(credential['token'])
+        self.s.command(self.guest,'chat',{'text':'Ich übernehme den Transport.'});self.assertEqual(self.s.snapshot(self.guest)['chat'][-1]['name'],'Lara')
+        self.assertEqual(self.s.snapshot(self.host)['chat'],[])
         other=self.s.member(self.s.create({'name':'Andere'})['token']);self.assertEqual(self.s.snapshot(other)['chat'],[])
     def test_persistence_keeps_token_room_and_claim(self):
         j=self.job();self.s.command(self.guest,'claim',{'id':j['id']});self.s.close();self.s=Sessions(self.path)

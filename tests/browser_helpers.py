@@ -33,3 +33,10 @@ def wait_for_auto_call(page, job=None):
     from playwright.sync_api import expect
     expect(page.locator('#call-next')).to_have_count(0)
     expect(page.locator('#call-continue')).to_be_enabled()
+
+
+def register_account(page,username,name):
+    response=page.request.post('http://127.0.0.1:8080/api/account/register',data={'username':username,'display_name':name,'password':'Browser-Test-Password-2026!'})
+    assert response.ok,response.text()
+    page.reload()
+    page.wait_for_function("document.getElementById('account-slot').textContent.includes('Mein Konto')")
