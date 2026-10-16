@@ -47,6 +47,7 @@ def main():
        else:route.abort()
       ctx.route('**/*',intercept);page=ctx.new_page();page.on('pageerror',lambda error:errors.append(str(error)));page.goto(ORIGIN)
       expect(page.locator('#account-open')).to_be_visible();expect(page.locator('#landing-ad')).to_be_hidden();assert not external
+      expect(page.locator('#site-notice')).to_be_visible();page.locator('#site-notice button').click();expect(page.locator('#site-notice')).to_be_hidden()
       # Cosmetic filters can hide the entire landing container; help is outside it.
       expect(page.locator('#start-help')).to_be_hidden()
       page.locator('.landing-layout').evaluate("node=>node.style.display='none'")
@@ -55,6 +56,7 @@ def main():
       page.locator('#start-help-close').click();expect(page.locator('#start-help')).to_be_hidden()
       page.locator('.landing-layout').evaluate("node=>node.style.removeProperty('display')")
       enabled=True;page.reload()
+      expect(page.locator('#site-notice')).to_be_hidden()
       try:page.wait_for_function("!!window.adTest&&typeof window.testConsent==='function'",timeout=10000)
       except Exception:
        print('Ad diagnostics:',engine.name,width,'external=',external,'errors=',errors,'page=',page.evaluate('({hidden:document.hidden,body:document.body.className,aside:document.getElementById("landing-ad").outerHTML,loader:document.getElementById("adsense-loader")?.outerHTML,ads:typeof LandingAds,google:typeof adTest,cmp:typeof __tcfapi})'),flush=True)

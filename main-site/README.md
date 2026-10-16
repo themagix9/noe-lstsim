@@ -53,7 +53,7 @@ In AdSense `stratosi.com` als Website auswählen, Metatag-Verifizierung durchfü
 und Überprüfung beantragen. Die Seite ist keine Garantie auf AdSense-Freigabe.
 Google bewertet Inhalt und Einhaltung seiner Richtlinien.
 Die weiteren Schritte für die Werbung im Simulator stehen in `../docs/adsense.md`.
-Auf der Hauptseite ist aktuell absichtlich kein AdSense-Loader: CSP lässt keine
+Auf der Hauptseite ist aktuell absichtlich kein AdSense-Loader: CSP lässt ausschließlich lokale
 Skripte zu. Soll hier später Werbung erscheinen, muss das inklusive CMP/Datenschutz
 und passender CSP gesondert implementiert werden.
 
@@ -63,4 +63,11 @@ und passender CSP gesondert implementiert werden.
 python -m http.server 8000 --directory main-site/public
 ```
 
-Dann http://localhost:8000 öffnen. Kein JavaScript und keine Abhängigkeiten.
+Dann http://localhost:8000 öffnen. Nur ein lokales Skript für den Datenschutzhinweis; keine Abhängigkeiten.
+
+## Cookie- und Datenschutzhinweis
+
+Der untere Hinweis merkt das Schließen pro Tab in sessionStorage. Er ist eine
+Information mit „Verstanden“, keine Einwilligung für Werbung. Die Hauptseite
+lädt weiterhin keine Google- oder Analyse-Skripte. Im Simulator bleibt der
+bestehende Google-CMP-Dialog für optionale Werbung zuständig.

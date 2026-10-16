@@ -39,6 +39,8 @@ jobs:
           node --check app/static/account-ui.js
           node --check app/static/landing-ads.js
           node --check app/static/start-help.js
+          node --check app/static/site-notice.js
+          node --check main-site/public/site-notice.js
           node --check app/static/call-speech.js
           node --check app/static/radio-ui.js
           node tests/test_radio_ui.js
