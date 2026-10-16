@@ -16,6 +16,21 @@ class PortalTests(unittest.TestCase):
         self.user=self.a.register({'username':'julian','display_name':'Julian','password':'My-Long-Password-2026!'})
         self.credential=self.s.create({'name':'Julian','mode':'single'},user_id=self.user['id']);self.member=self.s.member(self.credential['token'])
     def tearDown(self):self.s.close();self.tmp.cleanup()
+    def test_concurrent_password_work_has_bounded_memory_use(self):
+        import threading
+        active=0;peak=0;guard=threading.Lock()
+        def derive(*args,**kwargs):
+            nonlocal active,peak
+            with guard:active+=1;peak=max(peak,active)
+            time.sleep(.03)
+            with guard:active-=1
+            return b'fixed-test-digest'
+        with patch('accounts.hashlib.scrypt',side_effect=derive):
+            threads=[threading.Thread(target=password_hash,args=('Parallel-Password-2026!',)) for _ in range(8)]
+            for thread in threads:thread.start()
+            for thread in threads:thread.join(2)
+        self.assertEqual(peak,2);self.assertTrue(all(not thread.is_alive() for thread in threads))
+
     def test_password_salts_and_no_public_admin_role(self):
         self.assertEqual(self.user['role'],'user');self.assertNotIn('password_hash',self.user)
         one=password_hash('Long-Password-2026');two=password_hash('Long-Password-2026');self.assertNotEqual(one,two);self.assertTrue(password_matches('Long-Password-2026',one));self.assertFalse(password_matches('wrong-password',one))

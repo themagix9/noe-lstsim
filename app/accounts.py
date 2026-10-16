@@ -9,6 +9,8 @@ import sqlite3
 import threading
 import time
 
+PASSWORD_SLOTS=threading.BoundedSemaphore(2)
+
 DEFAULTS={'registration_open':True,'maintenance_enabled':False,'maintenance_message':'Am Simulator wird gerade live gearbeitet. Es kann zu kurzen Unterbrechungen kommen.',
           'centre':'Mödling','dispo':'05','hour':8,'speed':1,'emergency_per_hour':3,'transport_per_hour':4,'transports_enabled':True,
           'split_emergency_per_hour':6,'split_transport_per_hour':6,'blue_light_factor':.85,'helicopter_speed_factor':1.15}
@@ -16,7 +18,9 @@ DEFAULTS={'registration_open':True,'maintenance_enabled':False,'maintenance_mess
 def password_hash(password,salt=None):
     if not isinstance(password,str) or not 12<=len(password)<=128:raise ValueError('Passwort: 12 bis 128 Zeichen.')
     salt=salt or secrets.token_hex(16)
-    digest=hashlib.scrypt(password.encode(),salt=bytes.fromhex(salt),n=32768,r=8,p=1,maxmem=64*1024*1024).hex()
+    if not PASSWORD_SLOTS.acquire(timeout=5):raise ValueError('Anmeldung ausgelastet. Bitte erneut versuchen.')
+    try:digest=hashlib.scrypt(password.encode(),salt=bytes.fromhex(salt),n=32768,r=8,p=1,maxmem=64*1024*1024).hex()
+    finally:PASSWORD_SLOTS.release()
     return 'scrypt$'+salt+'$'+digest
 
 def password_matches(password,stored):
