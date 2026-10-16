@@ -59,6 +59,22 @@ class PortalHTTPTests(unittest.TestCase):
         text,_=self.player.call('/ads.txt');self.assertIn(b'pub-2546389460875165',text)
         admin,_=self.admin.call('/');self.assertNotIn(b'src="/landing-ads.js"',admin)
 
+    def test_public_legal_pages_are_accessible_without_login_and_match_main_site(self):
+        for name in ('datenschutz.html','impressum.html'):
+            page,headers=self.player.call('/'+name)
+            self.assertTrue(headers['Content-Type'].startswith('text/html'))
+            self.assertEqual(page,(Path(__file__).resolve().parents[1]/'main-site/public'/name).read_bytes())
+            self.assertNotIn(b'Vorlage',page)
+            self.assertNotIn(b'class="draft"',page)
+            self.assertIn(b'/datenschutz.html',page)
+            self.assertNotIn(b'/landing-ads.js',page)
+            self.denied(self.admin,'/'+name,status=404)
+        page,_=self.player.call('/')
+        self.assertIn(b'class="lobby-legal"',page)
+        self.assertIn(b'class="desk-legal"',page)
+        css,headers=self.player.call('/legal.css')
+        self.assertTrue(headers['Content-Type'].startswith('text/css'))
+
     def test_global_usage_includes_guest_starts_and_survives_admin_delete(self):
         guest=Client(8080);room,_=guest.call('/api/session/create',{'name':'Statistik Gast','mode':'single'});guest.token=room['token']
         before,_=self.admin.call('/api/admin/dashboard')

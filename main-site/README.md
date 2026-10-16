@@ -5,16 +5,14 @@ keine Node-Pakete, kein Docker-Service und kein Build erforderlich. `public/`
 ist das vollständige Cloudflare-Pages-Ausgabeverzeichnis. Änderungen hier haben
 keinen Einfluss auf den Simulator und die geschützte Admin-Subdomain.
 
-## Vor dem öffentlichen Livegang
+## Datenschutz und Betreiberkontakt
 
-- `public/impressum.html`: Betreiberanschrift und Kontakt-E-Mail sind mit den
-  ausdrücklich zur Veröffentlichung freigegebenen Angaben hinterlegt.
-- `public/datenschutz.html`: Betreiberkontakt ist hinterlegt; konkretes Cloudflare-Setup und
-  Verarbeitungshinweise vollständig ergänzen/prüfen. Aktuell ausdrücklich nur
-  Entwurf für die Hauptseite, NICHT für Simulator/AdSense-CMP verwenden.
-- Betreiberanschrift und E-Mail wurden vom Betreiber ausdrücklich freigegeben.
-- Die Hauptseite lädt keine Werbung, keine Google-Skripte, keine Analyse und keine
-  externen Fonts. Der Metatag ist bereits im HTML; er löst keine Anzeigen aus.
+Impressum und Datenschutzerklärung enthalten die freigegebenen Betreiberangaben.
+Die Erklärung deckt Hauptseite und Simulator ab; identische Fassungen liegen unter
+`public/datenschutz.html` und `../app/static/datenschutz.html`. Änderungen immer
+synchron halten. Die Hostangabe IONOS wurde vom Betreiber bestätigt.
+Betriebliche Vertragseinstellungen bleiben separat zu prüfen: siehe
+`../docs/privacy-operations.md`. Die Erklärung ersetzt diese Einstellungen nicht.
 
 ## Cloudflare Pages mit GitHub verbinden (empfohlen)
 

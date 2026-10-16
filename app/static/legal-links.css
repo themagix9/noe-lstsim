@@ -1,0 +1,1 @@
+.lobby-legal{display:flex;justify-content:center;gap:22px;margin-top:16px;font-size:12px}.lobby-legal a{color:#496582;text-underline-offset:3px}.desk-legal{display:flex;gap:10px;align-items:center;font-size:11px;margin-left:8px}.desk-legal a{color:inherit;text-underline-offset:3px}@media(max-width:650px){.desk-legal{flex-direction:column;gap:0;font-size:10px;margin-left:0}}

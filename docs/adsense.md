@@ -33,10 +33,9 @@ Eingerichtet für den bereitgestellten Anzeigenblock „Startseite rechts“:
    google.com, pub-2546389460875165, DIRECT, f08c47fec0942fa0
    ```
 
-   AdSense prüft gewöhnlich die ads.txt der Hauptdomain `stratosi.com`. Diese
-   extern verwaltete Datei ist nicht durch einen Push in das Simulator-Repository
-   geändert: die Zeile bei Bedarf dort ergänzen, bestehende Einträge erhalten
-   und die von Google angezeigten Vorgaben für die Domain/Subdomain beachten.
+   Die ads.txt der Hauptdomain liegt jetzt im selben Repository unter
+   `main-site/public/ads.txt` und wird über Cloudflare Pages bereitgestellt.
+   Die tatsächliche Erreichbarkeit unter `https://stratosi.com/ads.txt` prüfen.
 5. Nach dem Deployment im Adminportal **Werbung → Startseitenwerbung aktivieren →
    Werbung speichern**. Anfangs ist die Funktion ausgeschaltet, damit die
    kontospezifischen Voraussetzungen zuerst eingerichtet werden können.
@@ -102,3 +101,9 @@ Offizielle Dokumentation:
 - https://support.google.com/adsense/answer/9262311
 - https://support.google.com/adsense/answer/9042142
 - https://developers.google.com/funding-choices/fc-api-docs
+
+## Datenschutzerklärung
+
+Die ausgearbeitete Erklärung ist auf beiden Hosts unter `/datenschutz.html`
+verfügbar. Für die CMP kann `https://lstsim.stratosi.com/datenschutz.html`
+verwendet werden. Betriebsaufgaben und Quellen: [privacy-operations.md](privacy-operations.md).
