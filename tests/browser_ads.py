@@ -47,6 +47,13 @@ def main():
        else:route.abort()
       ctx.route('**/*',intercept);page=ctx.new_page();page.on('pageerror',lambda error:errors.append(str(error)));page.goto(ORIGIN)
       expect(page.locator('#account-open')).to_be_visible();expect(page.locator('#landing-ad')).to_be_hidden();assert not external
+      # Cosmetic filters can hide the entire landing container; help is outside it.
+      expect(page.locator('#start-help')).to_be_hidden()
+      page.locator('.landing-layout').evaluate("node=>node.style.display='none'")
+      expect(page.locator('#start-help')).to_be_visible(timeout=6000)
+      expect(page.locator('#start-help')).to_contain_text('Werbeblocker')
+      page.locator('#start-help-close').click();expect(page.locator('#start-help')).to_be_hidden()
+      page.locator('.landing-layout').evaluate("node=>node.style.removeProperty('display')")
       enabled=True;page.reload()
       try:page.wait_for_function("!!window.adTest&&typeof window.testConsent==='function'",timeout=10000)
       except Exception:
@@ -70,6 +77,7 @@ def main():
       Path('/tmp/noe-ui-qa').mkdir(exist_ok=True);page.screenshot(path=f'/tmp/noe-ui-qa/ads-{engine.name}-{width}.png',full_page=True)
       page.evaluate('()=>{document.getElementById("lobby").classList.add("hidden");document.body.classList.remove("lobby-open")}')
       expect(page.locator('#landing-ad')).not_to_be_visible();page.wait_for_function('adsbygoogle.pauseAdRequests===1')
+      expect(page.locator('#start-help')).to_be_hidden()
       page.evaluate('()=>{document.getElementById("lobby").classList.remove("hidden");document.body.classList.add("lobby-open")}')
       page.wait_for_function('adsbygoogle.pauseAdRequests===0');assert page.evaluate('adTest.requests.length===1')
       page.locator('#ad-privacy').click();assert page.evaluate('adTest.revocations===1&&adsbygoogle.pauseAdRequests===1')
